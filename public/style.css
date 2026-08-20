@@ -259,6 +259,41 @@ body {
   font-family: 'Consolas', 'Monaco', monospace;
 }
 
+.error-list {
+  margin-top: 14px;
+  background: var(--bg);
+  border: 1px solid rgba(248, 113, 113, 0.25);
+  border-radius: 8px;
+  padding: 10px 12px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.error-list-header {
+  font-size: 0.8rem;
+  color: var(--error);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.error-item {
+  font-size: 0.75rem;
+  font-family: 'Consolas', 'Monaco', monospace;
+  color: var(--text-muted);
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  word-break: break-all;
+}
+
+.error-item:last-child {
+  border-bottom: none;
+}
+
+.error-item-meta {
+  color: var(--error);
+  margin-right: 8px;
+}
+
 .panels {
   display: grid;
   grid-template-columns: 1fr 1fr;

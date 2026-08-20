@@ -8,6 +8,7 @@ class Reporter {
     this.missing = [];
     this.errors = [];
     this.network = [];
+    this.source = null;
   }
 
   addResource(entry) {
@@ -27,6 +28,7 @@ class Reporter {
   }
 
   writeManifest(sourceUrl) {
+    this.source = sourceUrl;
     const manifest = {
       source: sourceUrl,
       createdAt: new Date().toISOString(),
@@ -45,8 +47,11 @@ class Reporter {
   }
 
   writeErrors() {
-    if (this.errors.length === 0) return;
     const filePath = path.join(this.outputDir, 'errors.json');
+    if (this.errors.length === 0) {
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      return;
+    }
     fs.writeFileSync(filePath, JSON.stringify(this.errors, null, 2));
   }
 
@@ -79,6 +84,7 @@ class Reporter {
   getSummary(outputDir) {
     return {
       outputDir,
+      source: this.source,
       resources: this.resources.length,
       failed: this.errors.length,
       missing: this.missing.length,

@@ -12,7 +12,9 @@ const statResources = $('#statResources');
 const statFailed = $('#statFailed');
 const statMissing = $('#statMissing');
 const previewBtn = $('#previewBtn');
+const retryFailedBtn = $('#retryFailedBtn');
 const outputPath = $('#outputPath');
+const errorList = $('#errorList');
 const logContainer = $('#logContainer');
 const clearLogBtn = $('#clearLogBtn');
 const historyList = $('#historyList');
@@ -24,6 +26,7 @@ let currentJobId = null;
 let eventSource = null;
 let pollTimer = null;
 let currentOutputDir = null;
+let currentSourceUrl = null;
 
 const phaseLabels = {
   capture: '页面抓取',
@@ -35,6 +38,7 @@ const phaseLabels = {
 function setDownloading(active) {
   downloadBtn.disabled = active;
   urlInput.disabled = active;
+  retryFailedBtn.disabled = active || retryFailedBtn.classList.contains('hidden');
   downloadBtn.querySelector('.btn-text').classList.toggle('hidden', active);
   downloadBtn.querySelector('.btn-loading').classList.toggle('hidden', !active);
 }
@@ -98,6 +102,28 @@ function updateProgress(progress) {
   }
 }
 
+function renderErrors(errors) {
+  const items = Array.isArray(errors) ? errors.filter(Boolean) : [];
+  if (items.length === 0) {
+    errorList.classList.add('hidden');
+    errorList.innerHTML = '';
+    retryFailedBtn.classList.add('hidden');
+    retryFailedBtn.disabled = true;
+    return;
+  }
+
+  retryFailedBtn.classList.remove('hidden');
+  retryFailedBtn.disabled = !currentSourceUrl;
+  errorList.classList.remove('hidden');
+  errorList.innerHTML = `<div class="error-list-header">失败详情（${items.length}）</div>` +
+    items.map((item) => {
+      const status = item.status || 'error';
+      const reason = item.reason || 'download failed';
+      const type = item.resourceType ? ` · ${item.resourceType}` : '';
+      return `<div class="error-item"><span class="error-item-meta">[${status}] ${escapeHtml(reason)}${escapeHtml(type)}</span>${escapeHtml(item.url || '')}</div>`;
+    }).join('');
+}
+
 function showResult(summary) {
   if (!summary) return;
   resultSection.classList.remove('hidden');
@@ -106,7 +132,9 @@ function showResult(summary) {
   statMissing.textContent = summary.missing || 0;
   outputPath.textContent = summary.outputDir || '';
   currentOutputDir = summary.outputDir;
+  if (summary.source) currentSourceUrl = summary.source;
   previewBtn.disabled = !currentOutputDir;
+  renderErrors(summary.errors);
 }
 
 function stopPolling() {
@@ -209,19 +237,23 @@ function connectEvents(jobId) {
   };
 }
 
-async function startDownload(url) {
+async function startDownload(url, options = {}) {
   setDownloading(true);
   progressSection.classList.remove('hidden');
-  resultSection.classList.add('hidden');
+  if (!options.retryFailed) {
+    resultSection.classList.add('hidden');
+    renderErrors([]);
+  }
   progressFill.style.width = '0%';
   progressPercent.textContent = '';
   clearLogs();
+  currentSourceUrl = url;
 
   try {
     const res = await fetch('/api/download', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url })
+      body: JSON.stringify({ url, retryFailed: !!options.retryFailed })
     });
     const data = await res.json();
     if (!res.ok) {
@@ -317,12 +349,15 @@ async function loadHistory() {
         document.querySelectorAll('.history-item').forEach(i => i.classList.remove('active'));
         el.classList.add('active');
         currentOutputDir = item.path;
+        currentSourceUrl = item.source || item.name;
+        if (!urlInput.value.trim() && item.source) urlInput.value = item.source;
         outputPath.textContent = item.path;
         resultSection.classList.remove('hidden');
         statResources.textContent = item.resources;
         statFailed.textContent = errors;
         statMissing.textContent = item.report ? (item.report.missing || 0) : 0;
         previewBtn.disabled = false;
+        renderErrors(item.errorItems);
       });
 
       historyList.appendChild(el);
@@ -340,6 +375,15 @@ downloadForm.addEventListener('submit', (e) => {
 
 previewBtn.addEventListener('click', () => {
   if (currentOutputDir) startPreview(currentOutputDir);
+});
+
+retryFailedBtn.addEventListener('click', () => {
+  const url = (urlInput.value || currentSourceUrl || '').trim();
+  if (!url) {
+    appendLog('无法重试：缺少网站 URL', true);
+    return;
+  }
+  startDownload(url, { retryFailed: true });
 });
 
 clearLogBtn.addEventListener('click', clearLogs);

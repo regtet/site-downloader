@@ -44,7 +44,7 @@ class JobManager {
     })).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }
 
-  startJob(url) {
+  startJob(url, options = {}) {
     const id = this.createId();
     const job = {
       id,
@@ -56,7 +56,8 @@ class JobManager {
       progress: null,
       summary: null,
       result: null,
-      error: null
+      error: null,
+      retryFailedOnly: !!options.retryFailedOnly
     };
     this.jobs.set(id, job);
     this.runJob(job);
@@ -83,7 +84,7 @@ class JobManager {
     });
 
     try {
-      const result = await crawler.crawl(job.url);
+      const result = await crawler.crawl(job.url, { retryFailedOnly: job.retryFailedOnly });
       job.result = result;
       job.summary = result.summary;
       job.status = 'completed';

@@ -28,6 +28,67 @@ class Crawler {
     this.parsedFiles = new Set();
     this.maxQueueRounds = options.maxQueueRounds || 5;
     this.downloadDelay = options.downloadDelay || 100;
+    this.skippedCount = 0;
+    this.previousErrors = [];
+  }
+
+  readManifest() {
+    const filePath = path.join(this.outputDir, 'manifest.json');
+    if (!fs.existsSync(filePath)) return null;
+    try {
+      return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    } catch {
+      return null;
+    }
+  }
+
+  loadExistingCache() {
+    const manifest = this.readManifest();
+    if (!manifest) return { skipped: 0, previousErrors: [] };
+
+    let skipped = 0;
+    for (const resource of manifest.resources || []) {
+      if (!resource || !resource.url || !resource.local) continue;
+      const absPath = path.join(this.outputDir, resource.local);
+      if (!fs.existsSync(absPath)) continue;
+
+      const normalized = this.dedupe.normalizeUrl(resource.url, this.sourceUrl) || resource.url;
+      this.dedupe.register(normalized, resource.local, resource.hash || '');
+      this.downloadedUrls.add(normalized);
+      this.urlMap.set(normalized, resource.local);
+      this.savedFiles.add(resource.local);
+      this.ensureResourceRecord(
+        normalized,
+        resource.local,
+        resource.type,
+        resource.status || 200,
+        resource.size || 0,
+        resource.hash || ''
+      );
+      skipped++;
+    }
+
+    this.skippedCount = skipped;
+    const extraErrors = [];
+    const errorsPath = path.join(this.outputDir, 'errors.json');
+    if (fs.existsSync(errorsPath)) {
+      try {
+        const fromFile = JSON.parse(fs.readFileSync(errorsPath, 'utf-8'));
+        if (Array.isArray(fromFile)) extraErrors.push(...fromFile);
+      } catch {}
+    }
+    this.previousErrors = [
+      ...(manifest.errors || []),
+      ...extraErrors,
+      ...(manifest.missing || []).map((item) => ({
+        url: item.url,
+        status: 0,
+        reason: item.reason || 'file missing',
+        resourceType: 'other'
+      }))
+    ].filter((item) => item && item.url);
+
+    return { skipped, previousErrors: this.previousErrors };
   }
 
   ensureResourceRecord(url, localPath, type, status, size, hash) {
@@ -65,8 +126,7 @@ class Crawler {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  async downloadResource(url, resourceType, referer, recordError) {
-    if (recordError === undefined) recordError = this.networkUrls.has(this.dedupe.normalizeUrl(url, this.sourceUrl));
+  async downloadResource(url, resourceType, referer) {
     const normalized = this.dedupe.normalizeUrl(url, this.sourceUrl);
     if (!normalized) return null;
 
@@ -78,9 +138,12 @@ class Crawler {
 
     const existingLocal = this.dedupe.getLocalPath(normalized);
     if (existingLocal) {
-      this.downloadedUrls.add(normalized);
-      this.ensureResourceRecord(normalized, existingLocal, resourceType, 200, 0, '');
-      return existingLocal;
+      const absExisting = path.join(this.outputDir, existingLocal);
+      if (fs.existsSync(absExisting)) {
+        this.downloadedUrls.add(normalized);
+        this.ensureResourceRecord(normalized, existingLocal, resourceType, 200, 0, '');
+        return existingLocal;
+      }
     }
 
     this.pendingUrls.delete(normalized);
@@ -95,14 +158,14 @@ class Crawler {
     const result = await this.downloader.download(normalized, referer || this.sourceUrl);
 
     if (result.status < 200 || result.status >= 400 || !result.data) {
-      if (recordError) {
-        this.reporter.addError({
-          url: normalized,
-          status: result.status,
-          reason: result.error || this.statusReason(result.status),
-          resourceType
-        });
-      }
+      const reason = result.error || this.statusReason(result.status);
+      this.onLog(`失败: ${normalized} (${result.status || 'error'} ${reason})`);
+      this.reporter.addError({
+        url: normalized,
+        status: result.status,
+        reason,
+        resourceType
+      });
       this.downloadedUrls.add(normalized);
       return null;
     }
@@ -172,7 +235,7 @@ class Crawler {
       let batchDone = 0;
       for (const url of batch) {
         if (this.downloadedUrls.has(url)) continue;
-        await this.downloadResource(url, 'other', this.sourceUrl, false);
+        await this.downloadResource(url, 'other', this.sourceUrl, true);
         processed++;
         batchDone++;
         this.onProgress({
@@ -238,11 +301,78 @@ class Crawler {
     return result;
   }
 
-  async crawl(url) {
+  async retryFailedResources() {
+    const unique = [];
+    const seen = new Set();
+    for (const item of this.previousErrors) {
+      const normalized = this.dedupe.normalizeUrl(item.url, this.sourceUrl) || item.url;
+      if (!normalized || seen.has(normalized)) continue;
+      seen.add(normalized);
+      unique.push({ url: normalized, resourceType: item.resourceType || 'other' });
+    }
+
+    if (unique.length === 0) {
+      this.onLog('没有需要重试的失败资源');
+      return 0;
+    }
+
+    this.onLog(`重试失败资源: ${unique.length} 个`);
+    let done = 0;
+    let recovered = 0;
+    for (const item of unique) {
+      this.downloadedUrls.delete(item.url);
+      const local = await this.downloadResource(item.url, item.resourceType, this.sourceUrl, true);
+      if (local) recovered++;
+      done++;
+      this.onProgress({
+        phase: 'download',
+        subPhase: 'main',
+        message: `重试 ${done}/${unique.length}`,
+        current: done,
+        total: unique.length
+      });
+    }
+    this.onLog(`重试完成: 成功 ${recovered}，仍失败 ${unique.length - recovered}`);
+    return unique.length;
+  }
+
+  async finishCrawl(url) {
+    this.onLog('重写资源路径...');
+    this.onProgress({ phase: 'rewrite', message: '正在改写本地资源路径...' });
+    await this.rewriteAllPaths();
+
+    const checkResult = await this.localCheck();
+    this.reporter.writeManifest(url);
+    this.reporter.writeErrors();
+    const report = this.reporter.writeReport(checkResult);
+    const summary = this.reporter.getSummary(this.outputDir);
+    this.onProgress({ phase: 'done', message: '下载完成', summary });
+
+    return {
+      outputDir: this.outputDir,
+      manifest: path.join(this.outputDir, 'manifest.json'),
+      report,
+      summary
+    };
+  }
+
+  async crawl(url, options = {}) {
     this.sourceUrl = url;
     this.outputDir = this.getSiteDir(url);
     fs.mkdirSync(this.outputDir, { recursive: true });
     this.reporter = new Reporter(this.outputDir);
+
+    const cache = this.loadExistingCache();
+    if (cache.skipped > 0) {
+      this.onLog(`沿用已有成功资源: ${cache.skipped} 个（跳过重复下载）`);
+    }
+
+    if (options.retryFailedOnly) {
+      this.onLog(`输出目录: ${this.outputDir}`);
+      this.onProgress({ phase: 'download', message: '正在重试失败资源...' });
+      await this.retryFailedResources();
+      return this.finishCrawl(url);
+    }
 
     this.onLog(`正在抓取: ${url}`);
     this.onLog(`输出目录: ${this.outputDir}`);
@@ -267,8 +397,8 @@ class Crawler {
     }
 
     this.onLog(`Network 记录: ${capture.network.length} 条`);
-    this.onLog(`待下载资源: ${this.pendingUrls.size} 个`);
-    this.onLog('开始下载...');
+    this.onLog(`待处理资源: ${this.pendingUrls.size} 个`);
+    this.onLog('开始下载（已存在的成功文件将跳过）...');
     this.onProgress({ phase: 'download', message: '正在下载资源...', total: this.pendingUrls.size, current: 0 });
 
     let downloaded = 0;
@@ -281,7 +411,7 @@ class Crawler {
       this.onProgress({
         phase: 'download',
         subPhase: 'main',
-        message: `已下载 ${downloaded}/${staticEntries.length}`,
+        message: `已处理 ${downloaded}/${staticEntries.length}`,
         current: downloaded,
         total: staticEntries.length
       });
@@ -298,24 +428,7 @@ class Crawler {
     }
 
     await this.processQueue();
-
-    this.onLog('重写资源路径...');
-    this.onProgress({ phase: 'rewrite', message: '正在改写本地资源路径...' });
-    await this.rewriteAllPaths();
-
-    const checkResult = await this.localCheck();
-    this.reporter.writeManifest(url);
-    this.reporter.writeErrors();
-    const report = this.reporter.writeReport(checkResult);
-    const summary = this.reporter.getSummary(this.outputDir);
-    this.onProgress({ phase: 'done', message: '下载完成', summary });
-
-    return {
-      outputDir: this.outputDir,
-      manifest: path.join(this.outputDir, 'manifest.json'),
-      report,
-      summary
-    };
+    return this.finishCrawl(url);
   }
 }
 

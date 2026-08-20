@@ -77,6 +77,8 @@ function listDownloads() {
                 source: manifest ? manifest.source : null,
                 resources: manifest ? manifest.resources.length : 0,
                 errors: manifest ? manifest.errors.length : 0,
+                errorItems: manifest ? (manifest.errors || []) : [],
+                missingItems: manifest ? (manifest.missing || []) : [],
                 report
             };
         })
@@ -113,7 +115,7 @@ async function handleApi(req, res, pathname) {
             sendJson(res, 400, { error: '无效的 URL' });
             return;
         }
-        const job = jobManager.startJob(url);
+        const job = jobManager.startJob(url, { retryFailedOnly: !!body.retryFailed });
         sendJson(res, 200, { jobId: job.id, url: job.url });
         return;
     }
