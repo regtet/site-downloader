@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Site Downloader</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="logo">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        <h1>Site Downloader</h1>
+      </div>
+      <p class="subtitle">输入网站 URL，完整下载前端静态资源到本地</p>
+    </header>
+
+    <main class="main">
+      <div id="browserWarning" class="browser-warning hidden">
+        <strong>Playwright Chromium 未安装</strong>
+        <p>请在项目目录运行：<code>npm run install-browsers</code></p>
+      </div>
+
+      <section class="card download-card">
+        <form id="downloadForm" class="download-form">
+          <div class="input-group">
+            <input
+              type="url"
+              id="urlInput"
+              placeholder="https://example.com"
+              required
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <button type="submit" id="downloadBtn" class="btn btn-primary">
+              <span class="btn-text">开始下载</span>
+              <span class="btn-loading hidden">
+                <span class="spinner"></span>
+                下载中...
+              </span>
+            </button>
+          </div>
+        </form>
+
+        <div id="progressSection" class="progress-section hidden">
+          <div class="progress-header">
+            <span id="progressPhase" class="progress-phase">准备中</span>
+            <span id="progressPercent" class="progress-percent"></span>
+          </div>
+          <div class="progress-bar">
+            <div id="progressFill" class="progress-fill"></div>
+          </div>
+        </div>
+
+        <div id="resultSection" class="result-section hidden">
+          <div class="result-stats">
+            <div class="stat">
+              <span class="stat-value" id="statResources">0</span>
+              <span class="stat-label">资源</span>
+            </div>
+            <div class="stat stat-error">
+              <span class="stat-value" id="statFailed">0</span>
+              <span class="stat-label">失败</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="statMissing">0</span>
+              <span class="stat-label">缺失</span>
+            </div>
+          </div>
+          <div class="result-actions">
+            <button id="previewBtn" class="btn btn-secondary">本地预览</button>
+            <button id="openFolderBtn" class="btn btn-ghost" disabled title="请手动打开输出目录">打开目录</button>
+          </div>
+          <p id="outputPath" class="output-path"></p>
+        </div>
+      </section>
+
+      <div class="panels">
+        <section class="card panel">
+          <div class="panel-header">
+            <h2>下载日志</h2>
+            <button id="clearLogBtn" class="btn btn-ghost btn-sm">清空</button>
+          </div>
+          <div id="logContainer" class="log-container">
+            <p class="log-empty">输入 URL 并点击开始下载</p>
+          </div>
+        </section>
+
+        <section class="card panel">
+          <div class="panel-header">
+            <h2>历史下载</h2>
+            <button id="refreshListBtn" class="btn btn-ghost btn-sm">刷新</button>
+          </div>
+          <div id="historyList" class="history-list">
+            <p class="history-empty">暂无下载记录</p>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <span id="previewStatus" class="preview-status"></span>
+    </footer>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

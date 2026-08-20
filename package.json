@@ -1,0 +1,22 @@
+{
+  "name": "site-downloader",
+  "version": "1.0.0",
+  "description": "Download complete website frontend resources for local static serving",
+  "main": "index.js",
+  "scripts": {
+    "start": "node server.js",
+    "serve": "node serve.js",
+    "install-browsers": "node scripts/install-browsers.js",
+    "postinstall": "node scripts/install-browsers.js"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "dependencies": {
+    "axios": "^0.27.2",
+    "cheerio": "1.0.0-rc.12",
+    "playwright": "1.37.1",
+    "postcss": "^8.4.31",
+    "postcss-value-parser": "^4.2.0"
+  }
+}
