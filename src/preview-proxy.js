@@ -5,6 +5,7 @@ const { URL } = require('url');
 
 const PROXY_PREFIX = '/__sd_proxy__';
 const BOOT_PATH = '/__sd_boot.js';
+const SW_PATH = '/__sd_sw.js';
 
 /** 本地应优先走磁盘的路径（构建产物）；其余同源请求基地址改为源站 */
 const LOCAL_STATIC_PREFIX_RE = /^\/(assets|libs|vendors|v1assets|v1fonts|v1locales|cocos|__sd_)\b/i;
@@ -99,22 +100,28 @@ function parseProxyTarget(reqUrl) {
   return url;
 }
 
-function buildBootScript(sourceOrigin) {
+function buildBootScript(sourceOrigin, adapterHosts) {
   const origin = JSON.stringify(sourceOrigin || '');
   const prefix = JSON.stringify(PROXY_PREFIX + '/');
+  const hostsJson = JSON.stringify(Array.isArray(adapterHosts) ? adapterHosts : []);
   return `/*! site-downloader preview proxy boot */
 (function () {
   var SOURCE_ORIGIN = ${origin};
   var PROXY_PREFIX = ${prefix};
+  var ADAPTER_HOSTS = ${hostsJson};
   if (!SOURCE_ORIGIN) return;
   if (window.__SD_PROXY_BOOT__) return;
   window.__SD_PROXY_BOOT__ = true;
 
   var LOCAL_ORIGIN = location.origin;
+  var ADAPTER_HOST_SET = {};
+  for (var hi = 0; hi < ADAPTER_HOSTS.length; hi++) ADAPTER_HOST_SET[String(ADAPTER_HOSTS[hi]).toLowerCase()] = true;
 
   function absUrl(input) {
     try {
       if (typeof input === 'string') return new URL(input, location.href).href;
+      if (typeof URL !== 'undefined' && input instanceof URL) return input.href;
+      if (input && typeof input.href === 'string' && typeof input.hostname === 'string') return String(input.href);
       if (input && typeof input.url === 'string') return new URL(input.url, location.href).href;
     } catch (e) {}
     return null;
@@ -124,15 +131,30 @@ function buildBootScript(sourceOrigin) {
     return PROXY_PREFIX + encodeURIComponent(href);
   }
 
+  /** API 子域（aniw*/oniw*.679win.*），不含主站 679win.com */
+  function isAdapterApiHost(hostname) {
+    if (!hostname) return false;
+    var h = String(hostname).toLowerCase();
+    if (h === '679win.com' || h === 'www.679win.com') return false;
+    if (ADAPTER_HOST_SET[h]) return true;
+    if (/\\.679win\\.(cc|me|co|net)$/i.test(h)) return true;
+    if (/^(oniw|aniw)\\d*\\./i.test(h)) return true;
+    return false;
+  }
+
   /**
-   * 跨域 API → 走本地代理（替换 Origin/Referer）
-   * 同源路径（/cdn-cgi/rum、/member/...）→ 不改浏览器请求地址，由服务端按原 path 透明回源
+   * API 子域（aniw*/oniw*.679win.*）全部改本地短 path
+   * 登录注册由 adapter 吃掉；其它 /hall/api 由服务端回上游
+   * 主站 679win.com 静态资源不改
    */
   function planUrl(href) {
     try {
       var u = new URL(href);
       if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
       if (u.origin === LOCAL_ORIGIN) return null;
+      if (isAdapterApiHost(u.hostname)) {
+        return LOCAL_ORIGIN + u.pathname + u.search + u.hash;
+      }
       return toProxy(href);
     } catch (e) {
       return null;
@@ -242,15 +264,23 @@ function buildBootScript(sourceOrigin) {
     var xoOpen = XO.prototype.open;
     var xoSend = XO.prototype.send;
     XO.prototype.open = function (method, url) {
-      this.__sdHref = absUrl(url);
-      var next = this.__sdHref && planUrl(this.__sdHref);
-      if (next) arguments[1] = next;
-      return xoOpen.apply(this, arguments);
+      // 不能改 arguments[1]：严格模式下对 axios 的 XHR 无效，会导致仍直连 aniw*/oniw*
+      var args = Array.prototype.slice.call(arguments);
+      var href = absUrl(args[1]);
+      this.__sdHref = href;
+      var next = href && planUrl(href);
+      if (next) {
+        args[1] = next;
+        this.__sdHref = next;
+        this.__sdRewrote = href;
+        try { console.info('[sd-adapter] xhr', href, '->', next); } catch (e) {}
+      }
+      return xoOpen.apply(this, args);
     };
     XO.prototype.send = function (body) {
       var self = this;
-      var href = this.__sdHref || '';
-      if (body != null && href && (href.indexOf('cdn-cgi/rum') !== -1 || href.indexOf(LOCAL_ORIGIN) === 0)) {
+      var href = this.__sdRewrote || this.__sdHref || '';
+      if (body != null && href && (href.indexOf('cdn-cgi/rum') !== -1 || String(this.__sdHref || '').indexOf(LOCAL_ORIGIN) === 0)) {
         if (typeof Blob !== 'undefined' && body instanceof Blob) {
           rewriteBodyAsync(body).then(function (b) { xoSend.call(self, b); });
           return;
@@ -258,6 +288,53 @@ function buildBootScript(sourceOrigin) {
         body = rewriteBodySync(body);
       }
       return xoSend.call(this, body);
+    };
+  }
+
+  /** 配置里下发的 apiDomain 改成本地，避免业务层继续拼 https://aniw976... */
+  function rewriteApiDomainText(text) {
+    if (!text || typeof text !== 'string') return text;
+    return text.replace(/https?:\\/\\/(?:aniw|oniw)\\d*\\.679win\\.[a-z.]+/gi, LOCAL_ORIGIN);
+  }
+
+  if (XO) {
+    var xoDesc = Object.getOwnPropertyDescriptor(XO.prototype, 'responseText');
+    if (xoDesc && xoDesc.get) {
+      Object.defineProperty(XO.prototype, 'responseText', {
+        configurable: true,
+        enumerable: xoDesc.enumerable,
+        get: function () {
+          var t = xoDesc.get.call(this);
+          try {
+            if (this.responseType && this.responseType !== '' && this.responseType !== 'text') return t;
+          } catch (e) {}
+          return rewriteApiDomainText(t);
+        }
+      });
+    }
+  }
+
+  if (typeof rawFetch === 'function') {
+    var patchedFetch = window.fetch;
+    window.fetch = function (input, init) {
+      return Promise.resolve(patchedFetch.apply(this, arguments)).then(function (res) {
+        try {
+          if (!res || !res.ok) return res;
+          var ct = (res.headers && res.headers.get && res.headers.get('content-type')) || '';
+          if (ct.indexOf('json') === -1 && ct.indexOf('text') === -1 && ct.indexOf('javascript') === -1) return res;
+          return res.text().then(function (text) {
+            var next = rewriteApiDomainText(text);
+            if (next === text) return res;
+            return new Response(next, {
+              status: res.status,
+              statusText: res.statusText,
+              headers: res.headers
+            });
+          });
+        } catch (e) {
+          return res;
+        }
+      });
     };
   }
 
@@ -291,14 +368,66 @@ function buildBootScript(sourceOrigin) {
       return fire(rewriteBodySync(data));
     };
   }
+
+  if (navigator.serviceWorker) {
+    navigator.serviceWorker.register(${JSON.stringify(SW_PATH)}, { scope: '/' }).then(function () {
+      try { console.info('[sd-adapter] service worker registered'); } catch (e) {}
+    }).catch(function (err) {
+      try { console.warn('[sd-adapter] sw register failed', err); } catch (e) {}
+    });
+  }
+
+  try { console.info('[sd-adapter] boot ready', LOCAL_ORIGIN); } catch (e) {}
 })();
 `;
 }
 
-function injectBootIntoHtml(html, sourceOrigin) {
+function buildServiceWorkerScript() {
+  return `/*! site-downloader api adapter sw */
+self.addEventListener('install', function (e) { self.skipWaiting(); });
+self.addEventListener('activate', function (e) { e.waitUntil(self.clients.claim()); });
+
+function isApiHost(hostname) {
+  var h = String(hostname || '').toLowerCase();
+  if (!h || h === '679win.com' || h === 'www.679win.com') return false;
+  if (/\\.679win\\.(cc|me|co|net)$/i.test(h)) return true;
+  if (/^(oniw|aniw)\\d*\\./i.test(h)) return true;
+  return false;
+}
+
+self.addEventListener('fetch', function (event) {
+  var req = event.request;
+  var url;
+  try { url = new URL(req.url); } catch (e) { return; }
+  if (url.origin === self.location.origin) return;
+  if (!isApiHost(url.hostname)) return;
+
+  var localUrl = self.location.origin + url.pathname + url.search;
+  event.respondWith((async function () {
+    try { console.info('[sd-adapter][sw]', req.url, '->', localUrl); } catch (e) {}
+    var init = {
+      method: req.method,
+      headers: req.headers,
+      credentials: 'same-origin',
+      mode: 'same-origin',
+      cache: 'no-store',
+      redirect: 'follow'
+    };
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      init.body = await req.clone().arrayBuffer();
+    }
+    return fetch(localUrl, init);
+  })());
+});
+`;
+}
+
+function injectBootIntoHtml(html, sourceOrigin, adapterHosts) {
   if (!sourceOrigin || !html) return html;
-  if (html.includes('__SD_PROXY_BOOT__') || html.includes(BOOT_PATH)) return html;
-  const tag = `<script src="${BOOT_PATH}"></script>`;
+  if (html.includes('__SD_PROXY_BOOT__') || html.includes('data-sd-boot=')) return html;
+  const raw = buildBootScript(sourceOrigin, adapterHosts);
+  const safe = String(raw).replace(/<\/script/gi, '<\\/script');
+  const tag = `<script data-sd-boot="1">${safe}</script>`;
   if (/<head[^>]*>/i.test(html)) {
     return html.replace(/<head([^>]*)>/i, `<head$1>${tag}`);
   }
@@ -424,15 +553,27 @@ function tryFallbackMissingAsset(req, res, sourceOrigin, pathname, search) {
 /**
  * @returns {boolean} true if handled
  */
-function tryHandleProxy(req, res, sourceOrigin) {
+function tryHandleProxy(req, res, sourceOrigin, adapterHosts) {
   const host = req.headers.host || '127.0.0.1';
   const reqUrl = new URL(req.url || '/', `http://${host}`);
 
   if (reqUrl.pathname === BOOT_PATH) {
-    const body = buildBootScript(sourceOrigin);
+    const body = buildBootScript(sourceOrigin, adapterHosts);
     res.writeHead(200, {
       'Content-Type': 'application/javascript; charset=utf-8',
       'Cache-Control': 'no-cache',
+      'X-Content-Type-Options': 'nosniff'
+    });
+    res.end(body);
+    return true;
+  }
+
+  if (reqUrl.pathname === SW_PATH) {
+    const body = buildServiceWorkerScript();
+    res.writeHead(200, {
+      'Content-Type': 'application/javascript; charset=utf-8',
+      'Cache-Control': 'no-cache',
+      'Service-Worker-Allowed': '/',
       'X-Content-Type-Options': 'nosniff'
     });
     res.end(body);
@@ -455,9 +596,11 @@ function tryHandleProxy(req, res, sourceOrigin) {
 module.exports = {
   PROXY_PREFIX,
   BOOT_PATH,
+  SW_PATH,
   resolveSourceOrigin,
   parseProxyTarget,
   buildBootScript,
+  buildServiceWorkerScript,
   injectBootIntoHtml,
   tryHandleProxy,
   tryFallbackMissingAsset,

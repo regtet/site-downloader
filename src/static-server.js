@@ -4,13 +4,15 @@ const path = require('path');
 const { URL } = require('url');
 const { shouldIgnoreQueryForLocalPath } = require('./url-query');
 const {
-    resolveSourceOrigin,
-    injectBootIntoHtml,
-    tryHandleProxy,
-    tryFallbackMissingAsset,
-    isLikelySameOriginApiPath,
-    isFetchLikeRequest
+  resolveSourceOrigin,
+  injectBootIntoHtml,
+  tryHandleProxy,
+  tryFallbackMissingAsset,
+  isLikelySameOriginApiPath,
+  isFetchLikeRequest
 } = require('./preview-proxy');
+const { tryHandleAdapter } = require('./adapter');
+const { loadAdapterConfig, isHallApiPath } = require('./adapter/hosts');
 
 const MIME_TYPES = {
     '.html': 'text/html; charset=utf-8',
@@ -89,85 +91,111 @@ function createStaticServer(siteDir, options = {}) {
     const spaFallback = options.spaFallback === true;
     const host = options.host || '127.0.0.1';
     const root = path.resolve(siteDir);
-    const sourceOrigin = options.sourceOrigin
-        || resolveSourceOrigin(root, fs, path)
-        || '';
-    const headerProxy = options.headerProxy !== false && !!sourceOrigin;
+  const sourceOrigin = options.sourceOrigin
+    || resolveSourceOrigin(root, fs, path)
+    || '';
+  const headerProxy = options.headerProxy !== false && !!sourceOrigin;
+  const adapterCfg = options.adapterConfig
+    || loadAdapterConfig(root, fs, path)
+    || { hosts: [], upstreamOrigin: '' };
+  const adapterHosts = options.adapterHosts || adapterCfg.hosts || [];
+  const apiUpstreamOrigin = options.apiUpstreamOrigin || adapterCfg.upstreamOrigin || '';
 
-    return http.createServer((req, res) => {
-        if (headerProxy && tryHandleProxy(req, res, sourceOrigin)) {
-            return;
+  return http.createServer((req, res) => {
+    const handle = async () => {
+      if (await tryHandleAdapter(req, res, { adapterHosts })) return;
+
+      if (headerProxy && tryHandleProxy(req, res, sourceOrigin, adapterHosts)) {
+        return;
+      }
+
+      const reqUrl = new URL(req.url || '/', `http://${host}:${options.port || 0}`);
+      const filePath = resolveFilePath(root, req.url || '/');
+
+      if (!filePath) {
+        // 非登录类 /hall/api → 回 API 上游（不是主站 679win.com）
+        if (
+          apiUpstreamOrigin
+          && isHallApiPath(reqUrl.pathname)
+          && tryFallbackMissingAsset(req, res, apiUpstreamOrigin, reqUrl.pathname, reqUrl.search)
+        ) {
+          return;
         }
-
-        const reqUrl = new URL(req.url || '/', `http://${host}:${options.port || 0}`);
-        const filePath = resolveFilePath(root, req.url || '/');
-
-        if (!filePath) {
-            // 本地缺失的静态资源 → 回源站
-            if (
-                sourceOrigin
-                && isStaticAssetPath(reqUrl.pathname)
-                && tryFallbackMissingAsset(req, res, sourceOrigin, reqUrl.pathname, reqUrl.search)
-            ) {
-                return;
-            }
-            // 同源 API（如 /member/config/h5realtime）→ 回源，不要 SPA 成 HTML
-            if (
-                sourceOrigin
-                && (
-                    isLikelySameOriginApiPath(reqUrl.pathname, reqUrl.search)
-                    || isFetchLikeRequest(req)
-                )
-                && tryFallbackMissingAsset(req, res, sourceOrigin, reqUrl.pathname, reqUrl.search)
-            ) {
-                return;
-            }
-            // 非静态路径才 SPA 回退 HTML；静态扩展名缺失绝不能回退（否则 module MIME 变 text/html）
-            if (spaFallback && !isStaticAssetPath(reqUrl.pathname)) {
-                const indexPath = path.join(root, 'index.html');
-                if (fs.existsSync(indexPath)) {
-                    let html = fs.readFileSync(indexPath, 'utf8');
-                    if (headerProxy) html = injectBootIntoHtml(html, sourceOrigin);
-                    res.writeHead(200, {
-                        'Content-Type': 'text/html; charset=utf-8',
-                        'Cache-Control': 'no-cache'
-                    });
-                    res.end(html);
-                    return;
-                }
-            }
-            res.writeHead(404, {
-                'Content-Type': 'text/plain; charset=utf-8',
-                'X-Missing-Asset': isStaticAssetPath(reqUrl.pathname) ? '1' : '0'
-            });
-            res.end('404 ' + reqUrl.pathname);
-            return;
+        if (
+          sourceOrigin
+          && isStaticAssetPath(reqUrl.pathname)
+          && tryFallbackMissingAsset(req, res, sourceOrigin, reqUrl.pathname, reqUrl.search)
+        ) {
+          return;
         }
-
-        const ext = path.extname(filePath).toLowerCase();
-        fs.readFile(filePath, (err, data) => {
-            if (err) {
-                res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
-                res.end('404');
-                return;
-            }
-            if (headerProxy && (ext === '.html' || ext === '.htm')) {
-                const html = injectBootIntoHtml(data.toString('utf8'), sourceOrigin);
-                res.writeHead(200, {
-                    'Content-Type': 'text/html; charset=utf-8',
-                    'Cache-Control': 'no-cache',
-                    'X-Content-Type-Options': 'nosniff'
-                });
-                res.end(html);
-                return;
-            }
+        if (
+          sourceOrigin
+          && (
+            isLikelySameOriginApiPath(reqUrl.pathname, reqUrl.search)
+            || isFetchLikeRequest(req)
+          )
+          && tryFallbackMissingAsset(req, res, sourceOrigin, reqUrl.pathname, reqUrl.search)
+        ) {
+          return;
+        }
+        if (spaFallback && !isStaticAssetPath(reqUrl.pathname)) {
+          const indexPath = path.join(root, 'index.html');
+          if (fs.existsSync(indexPath)) {
+            let html = fs.readFileSync(indexPath, 'utf8');
+            if (headerProxy) html = injectBootIntoHtml(html, sourceOrigin, adapterHosts);
             res.writeHead(200, {
-                'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
-                'X-Content-Type-Options': 'nosniff'
+              'Content-Type': 'text/html; charset=utf-8',
+              'Cache-Control': 'no-cache'
             });
-            res.end(data);
+            res.end(html);
+            return;
+          }
+        }
+        res.writeHead(404, {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'X-Missing-Asset': isStaticAssetPath(reqUrl.pathname) ? '1' : '0'
         });
+        res.end('404 ' + reqUrl.pathname);
+        return;
+      }
+
+      const ext = path.extname(filePath).toLowerCase();
+      await new Promise((resolve) => {
+        fs.readFile(filePath, (err, data) => {
+          if (err) {
+            res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+            res.end('404');
+            resolve();
+            return;
+          }
+          if (headerProxy && (ext === '.html' || ext === '.htm')) {
+            const html = injectBootIntoHtml(data.toString('utf8'), sourceOrigin, adapterHosts);
+            res.writeHead(200, {
+              'Content-Type': 'text/html; charset=utf-8',
+              'Cache-Control': 'no-cache',
+              'X-Content-Type-Options': 'nosniff'
+            });
+            res.end(html);
+            resolve();
+            return;
+          }
+          res.writeHead(200, {
+            'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
+            'X-Content-Type-Options': 'nosniff'
+          });
+          res.end(data);
+          resolve();
+        });
+      });
+    };
+
+    handle().catch((err) => {
+      if (!res.headersSent) {
+        res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('500 ' + String(err && err.message || err));
+      }
     });
+  });
 }
 
 class StaticServer {

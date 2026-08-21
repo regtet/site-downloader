@@ -73,15 +73,12 @@ class PreviewManager {
   async start(siteDir) {
     const key = this.keyOf(siteDir);
     const existing = this.previews.get(key);
+    // 每次重新拉起，避免沿用旧进程里的旧 boot/adapter 代码
     if (existing) {
-      return {
-        name: existing.name,
-        path: existing.siteDir,
-        port: existing.port,
-        url: existing.url,
-        sourceOrigin: existing.sourceOrigin || null,
-        reused: true
-      };
+      try {
+        await existing.server.stop();
+      } catch (_) { /* ignore */ }
+      this.previews.delete(key);
     }
 
     const name = this.nameOf(siteDir);
