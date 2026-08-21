@@ -1,21 +1,32 @@
 const http = require('http');
 const https = require('https');
+const path = require('path');
 const { URL } = require('url');
 
 const PROXY_PREFIX = '/__sd_proxy__';
 const BOOT_PATH = '/__sd_boot.js';
 
-/** 同源接口路径前缀（相对站点根，预览时需回源） */
-const SAME_ORIGIN_API_PREFIX_RE = /^\/(member|api|apis|promo|promo_v2|gameapi|game|hall|auth|pay|wallet|agent|user|webapi|gateway)\b/i;
+/** 本地应优先走磁盘的路径（其余同源 XHR/fetch/beacon 回源站） */
+const LOCAL_STATIC_PREFIX_RE = /^\/(assets|static|libs|vendors|lobby_asset|siteadmin|v1assets|v1fonts|v1locales|cocos|__sd_)\b/i;
 
 const STATIC_PATH_EXT_RE = /\.(?:js|mjs|cjs|css|map|json|wasm|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|otf|mp4|webm|mp3|m4a|txt|xml|lottie)(?:$|\?)/i;
+
+/** @deprecated 保留兼容；实际以 isLikelySameOriginApiPath 为准 */
+const SAME_ORIGIN_API_PREFIX_RE = /^\/(member|api|apis|promo|promo_v2|gameapi|game|hall|auth|pay|wallet|agent|user|webapi|gateway|cdn-cgi)\b/i;
+
+function isLocalStaticPath(pathname) {
+  const p = String(pathname || '');
+  if (!p || p === '/') return false;
+  if (LOCAL_STATIC_PREFIX_RE.test(p)) return true;
+  if (STATIC_PATH_EXT_RE.test(p)) return true;
+  return false;
+}
 
 function isLikelySameOriginApiPath(pathname, search) {
   const p = String(pathname || '');
   if (!p || p === '/') return false;
-  if (STATIC_PATH_EXT_RE.test(p)) return false;
+  if (isLocalStaticPath(p)) return false;
   if (SAME_ORIGIN_API_PREFIX_RE.test(p)) return true;
-  // 加密 pa 查询多见于该站 member/config 接口
   if (search && /(?:^|[?&])pa=/.test(search)) return true;
   return false;
 }
@@ -99,7 +110,7 @@ function buildBootScript(sourceOrigin) {
   if (window.__SD_PROXY_BOOT__) return;
   window.__SD_PROXY_BOOT__ = true;
 
-  var API_PREFIX = /^\\/(member|api|apis|promo|promo_v2|gameapi|game|hall|auth|pay|wallet|agent|user|webapi|gateway)\\b/i;
+  var LOCAL_PREFIX = /^\\/(assets|static|libs|vendors|lobby_asset|siteadmin|v1assets|v1fonts|v1locales|cocos|__sd_)\\b/i;
   var STATIC_EXT = /\\.(?:js|mjs|cjs|css|map|json|wasm|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|otf|mp4|webm|mp3|m4a)(?:$|\\?)/i;
 
   function absUrl(input) {
@@ -110,13 +121,20 @@ function buildBootScript(sourceOrigin) {
     return null;
   }
 
+  function isLocalStaticPath(pathname) {
+    if (!pathname || pathname === '/') return false;
+    if (LOCAL_PREFIX.test(pathname)) return true;
+    if (STATIC_EXT.test(pathname)) return true;
+    return false;
+  }
+
+  /** 跨域整段回源；同源非本地静态资源（含 /cdn-cgi/rum、/member/...）改写到源站再代理 */
   function rewriteToSource(href) {
     try {
       var u = new URL(href);
       if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
       if (u.origin !== location.origin) return href;
-      if (STATIC_EXT.test(u.pathname)) return null;
-      if (!API_PREFIX.test(u.pathname) && !/(?:^|[?&])pa=/.test(u.search || '')) return null;
+      if (isLocalStaticPath(u.pathname)) return null;
       return SOURCE_ORIGIN + u.pathname + u.search + u.hash;
     } catch (e) {
       return null;
@@ -142,19 +160,30 @@ function buildBootScript(sourceOrigin) {
   }
 
   var XO = window.XMLHttpRequest;
-  if (!XO) return;
-  var open = XO.prototype.open;
-  XO.prototype.open = function (method, url) {
-    var href = absUrl(url);
-    var target = href && rewriteToSource(href);
-    if (target) {
-      arguments[1] = toProxy(target);
-      this.__sdProxied = true;
-    } else {
-      this.__sdProxied = false;
-    }
-    return open.apply(this, arguments);
-  };
+  if (XO) {
+    var open = XO.prototype.open;
+    XO.prototype.open = function (method, url) {
+      var href = absUrl(url);
+      var target = href && rewriteToSource(href);
+      if (target) {
+        arguments[1] = toProxy(target);
+        this.__sdProxied = true;
+      } else {
+        this.__sdProxied = false;
+      }
+      return open.apply(this, arguments);
+    };
+  }
+
+  if (navigator.sendBeacon) {
+    var rawBeacon = navigator.sendBeacon.bind(navigator);
+    navigator.sendBeacon = function (url, data) {
+      var href = absUrl(url);
+      var target = href && rewriteToSource(href);
+      if (target) return rawBeacon(toProxy(target), data);
+      return rawBeacon(url, data);
+    };
+  }
 })();
 `;
 }
