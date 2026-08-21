@@ -34,6 +34,21 @@ const LOGIN = {
   SUB_REG_NO_CHECK: 108
 };
 
+const HALL = {
+  MDM_LOGON: 1,
+  SUB_ERROR: 101,
+  SUB_REQ: 1101,
+  SUB_OK: 1102
+};
+
+const GATE = {
+  MDM_SOCK: 1,
+  SUB_CONNECT: 101,
+  SUB_CONNECT_RES: 102
+};
+
+const COIN_RATE = 1000;
+
 function md5Hex(s) {
   return crypto.createHash('md5').update(String(s), 'utf8').digest('hex');
 }
@@ -155,10 +170,146 @@ function readToken(buf) {
   return readFixedString(buf, 9, 16);
 }
 
+function readInt64LE(buf, offset) {
+  const bytes = buf.slice(offset, offset + 8);
+  const sign = bytes[7] >> 7;
+  let sum = 0;
+  let digits = 1;
+  for (let i = 0; i < 8; i++) {
+    const value = bytes[i];
+    sum += (sign ? value ^ 0xff : value) * digits;
+    digits *= 0x100;
+  }
+  return sign ? -1 - sum : sum;
+}
+
+function readVarString(buf, offset) {
+  if (offset + 2 > buf.length) return { value: '', offset: buf.length };
+  let len = buf.readInt16LE(offset);
+  offset += 2;
+  if (len < 0) len = 0;
+  if (offset + len > buf.length) len = Math.max(0, buf.length - offset);
+  let value = buf.slice(offset, offset + len).toString('latin1');
+  const z = value.indexOf('\0');
+  if (z >= 0) value = value.slice(0, z);
+  return { value, offset: offset + len };
+}
+
+/** CMD_GW_SockConnectServer */
+function encodeHallConnect(nServerId, nBranchId) {
+  const body = Buffer.alloc(1 + 2 + 2);
+  body[0] = EST.HALL;
+  body.writeUInt16LE(nServerId >>> 0, 1);
+  body.writeUInt16LE(nBranchId >>> 0, 3);
+  return encodePacket(EST.GATE, GATE.MDM_SOCK, GATE.SUB_CONNECT, body);
+}
+
+/** CMD_GP_Login_Req */
+function encodeHallLoginBody({ loginID, session, deviceId, nServerId, nBranchId }) {
+  const body = Buffer.alloc(4 + 4 + 4 + 33 + 33 + 2 + 2);
+  let o = 0;
+  body.writeUInt32LE(loginID >>> 0, o); o += 4;
+  body.writeUInt32LE(1, o); o += 4; // actType
+  body.writeUInt32LE(4, o); o += 4; // dwLgtype browser
+  o = writeFixedString(body, o, session, 33);
+  o = writeFixedString(body, o, deviceId, 33);
+  body.writeUInt16LE(nServerId >>> 0, o); o += 2;
+  body.writeUInt16LE(nBranchId >>> 0, o); o += 2;
+  return body;
+}
+
+/**
+ * 解析 CMD_GP_Logon_Res（对齐 wgame_web）
+ * 固定字段够用即可；VARCHAR 尽量解析昵称/手机/邮箱
+ */
+function parseHallLogonRes(buf) {
+  let o = 9;
+  const res = buf[o]; o += 1;
+  const userID = buf.readUInt32LE(o); o += 4;
+  const faceID = buf.readUInt16LE(o); o += 2;
+  const gender = buf[o]; o += 1;
+  const experience = readInt64LE(buf, o); o += 8;
+  const availExpr = readInt64LE(buf, o); o += 8;
+  const happyMoney = readInt64LE(buf, o); o += 8;
+  const lGameScore = readInt64LE(buf, o); o += 8;
+  o += 4; // userRight
+  o += 4; // masterRight
+  const lastLogonTime = buf.readUInt32LE(o); o += 4;
+  o += 4; // iOSPaySwitch
+  const accountType = buf[o]; o += 1;
+  o += 2; // nGamekindId
+  o += 2; // nRoomId
+  o += 2; // nRoomBranchId
+  const nChacLevel = buf.readUInt16LE(o); o += 2;
+  const nVipLevel = buf.readUInt16LE(o); o += 2;
+  o += 4; // nLoginDaysDiff
+  o += 4; // nNewerGuideStep
+  o += 4; // nCouponCount
+  const nRoleType = buf.readInt32LE(o); o += 4;
+  o += 4; // nProxySwitch
+  const bFirstLogin = buf[o]; o += 1;
+  const bHasRecharge = buf[o]; o += 1;
+  o += 1; // nHasDailySign
+  o += 1; // bBindGoogle
+  o += 1; // bBindFacebook
+
+  let lastLogonIP = '';
+  let nickname = '';
+  let secPhone = '';
+  let szMail = '';
+  let szAccountName = '';
+  try {
+    let v;
+    v = readVarString(buf, o); lastLogonIP = v.value; o = v.offset;
+    v = readVarString(buf, o); nickname = v.value; o = v.offset;
+    v = readVarString(buf, o); secPhone = v.value; o = v.offset;
+    v = readVarString(buf, o); o = v.offset; // sSvrConn
+    v = readVarString(buf, o); o = v.offset; // szCountryCode
+    v = readVarString(buf, o); szMail = v.value; o = v.offset;
+    o += 1; // bIfInnerProxy
+    o += 1; // bAllowEvo
+    v = readVarString(buf, o); szAccountName = v.value;
+  } catch (_) { /* ignore trailing */ }
+
+  return {
+    res,
+    userID,
+    faceID,
+    gender,
+    experience,
+    availExpr,
+    happyMoney,
+    lGameScore,
+    accountType,
+    nChacLevel,
+    nVipLevel,
+    nRoleType,
+    bFirstLogin,
+    bHasRecharge,
+    lastLogonTime,
+    lastLogonIP,
+    nickname,
+    secPhone,
+    szMail,
+    szAccountName,
+    game_gold: happyMoney / COIN_RATE
+  };
+}
+
+function parseHallLoginError(buf) {
+  let o = 9;
+  const errorCode = buf.readUInt32LE(o); o += 4;
+  const errorDescribe = readFixedString(buf, o, Math.min(128, buf.length - o));
+  return { errorCode, errorDescribe };
+}
+
 module.exports = {
   EST,
   KN,
   LOGIN,
+  HALL,
+  GATE,
+  COIN_RATE,
   DEF_KEY,
   md5Hex,
   encodePacket,
@@ -168,8 +319,12 @@ module.exports = {
   encodeDetectSocket,
   encodeLoginBody,
   encodeRegisterBody,
+  encodeHallConnect,
+  encodeHallLoginBody,
   parseLogonOK,
   parseLoginError,
   parseRegisterError,
+  parseHallLogonRes,
+  parseHallLoginError,
   readToken
 };

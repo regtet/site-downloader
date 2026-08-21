@@ -101,12 +101,21 @@ function createStaticServer(siteDir, options = {}) {
   const adapterHosts = options.adapterHosts || adapterCfg.hosts || [];
   const apiUpstreamOrigin = options.apiUpstreamOrigin || adapterCfg.upstreamOrigin || '';
   const ossOrigin = options.ossOrigin || adapterCfg.ossOrigin || apiUpstreamOrigin || '';
+  const bootCfg = {
+    hosts: adapterHosts,
+    apiHostPatterns: adapterCfg.apiHostPatterns || [],
+    excludeHosts: adapterCfg.excludeHosts || []
+  };
 
   return http.createServer((req, res) => {
     const handle = async () => {
-      if (await tryHandleAdapter(req, res, { adapterHosts, siteDir: root })) return;
+      if (await tryHandleAdapter(req, res, {
+        adapterHosts: bootCfg,
+        adapterConfig: adapterCfg,
+        siteDir: root
+      })) return;
 
-      if (headerProxy && tryHandleProxy(req, res, sourceOrigin, adapterHosts)) {
+      if (headerProxy && tryHandleProxy(req, res, sourceOrigin, bootCfg)) {
         return;
       }
 
@@ -151,7 +160,7 @@ function createStaticServer(siteDir, options = {}) {
           const indexPath = path.join(root, 'index.html');
           if (fs.existsSync(indexPath)) {
             let html = fs.readFileSync(indexPath, 'utf8');
-            if (headerProxy) html = injectBootIntoHtml(html, sourceOrigin, adapterHosts);
+            if (headerProxy) html = injectBootIntoHtml(html, sourceOrigin, bootCfg);
             res.writeHead(200, {
               'Content-Type': 'text/html; charset=utf-8',
               'Cache-Control': 'no-cache'
@@ -178,7 +187,7 @@ function createStaticServer(siteDir, options = {}) {
             return;
           }
           if (headerProxy && (ext === '.html' || ext === '.htm')) {
-            const html = injectBootIntoHtml(data.toString('utf8'), sourceOrigin, adapterHosts);
+            const html = injectBootIntoHtml(data.toString('utf8'), sourceOrigin, bootCfg);
             res.writeHead(200, {
               'Content-Type': 'text/html; charset=utf-8',
               'Cache-Control': 'no-cache',

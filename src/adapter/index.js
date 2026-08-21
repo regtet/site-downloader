@@ -1,6 +1,13 @@
-const { handleLogin, handleRegister, handleCheckRegister } = require('./auth');
+/**
+ * 适配层入口：站点配置 → series 匹配 path → provider 执行 OP → series 映射响应
+ *
+ *   dist(目标站) --HTTP--> series(aniw-lobby) --OP--> provider(wgame)
+ */
 const { isAdapterApiHost } = require('./hosts');
+const { loadAdapterConfig } = require('./config');
 const { PROXY_PREFIX, parseProxyTarget } = require('../preview-proxy');
+const fs = require('fs');
+const path = require('path');
 
 function readRawBody(req) {
   return new Promise((resolve, reject) => {
@@ -11,22 +18,6 @@ function readRawBody(req) {
   });
 }
 
-function normalizeApiPath(pathname) {
-  let p = String(pathname || '');
-  if (p.startsWith('/hall/api/')) p = p.slice('/hall'.length);
-  return p;
-}
-
-function matchAuthRoute(pathname) {
-  const p = normalizeApiPath(pathname);
-  if (p === '/api/member/login' || p === '/api/member/agent/login') return 'login';
-  if (p === '/api/member/register' || p === '/api/member/fastRegister') return 'register';
-  if (p === '/api/member/check/register') return 'checkRegister';
-  if (p === '/api/member/v2/fastLogin' || p === '/api/member/getFastLogin') return 'login';
-  if (p === '/api/member/thirdPartyLogin') return 'login';
-  return null;
-}
-
 function sendJson(res, status, obj) {
   const body = JSON.stringify(obj);
   res.writeHead(status, {
@@ -35,26 +26,39 @@ function sendJson(res, status, obj) {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': '*',
     'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-    'X-SD-Adapter': 'auth'
+    'X-SD-Adapter': 'series'
   });
   res.end(body);
 }
 
-/**
- * 解析请求真正要打的 API path：
- * - 短路径：/hall/api/member/login
- * - 长代理：/__sd_proxy__/https%3A%2F%2Faniw976...%2Fhall%2Fapi%2Fmember%2Flogin
- */
-function resolveAdapterPath(reqUrl, adapterHosts) {
+function resolveSiteConfig(options) {
+  if (options.adapterConfig && options.adapterConfig.seriesMod) {
+    return options.adapterConfig;
+  }
+  const siteDir = options.siteDir || '';
+  if (siteDir) return loadAdapterConfig(siteDir, fs, path);
+  return {
+    series: 'aniw-lobby',
+    provider: 'wgame',
+    seriesMod: require('./series').getSeries('aniw-lobby'),
+    providerMod: require('./providers').getProvider('wgame'),
+    hosts: [],
+    apiHostPatterns: [],
+    excludeHosts: [],
+    providerOptions: {}
+  };
+}
+
+function resolveAdapterPath(reqUrl, hostCfg, series) {
   const pathname = reqUrl.pathname || '';
   if (pathname === PROXY_PREFIX || pathname.startsWith(PROXY_PREFIX + '/')) {
     const target = parseProxyTarget(reqUrl);
     if (!target) return null;
-    if (!isAdapterApiHost(target.hostname, adapterHosts)) return null;
+    if (!isAdapterApiHost(target.hostname, hostCfg)) return null;
+    if (!series || !series.matchRoute(target.pathname)) return null;
     return { pathname: target.pathname, via: 'proxy', host: target.hostname };
   }
-  const route = matchAuthRoute(pathname);
-  if (!route) return null;
+  if (!series || !series.matchRoute(pathname)) return null;
   return { pathname, via: 'local', host: null };
 }
 
@@ -62,7 +66,11 @@ function resolveAdapterPath(reqUrl, adapterHosts) {
  * @returns {Promise<boolean>} true if handled
  */
 async function tryHandleAdapter(req, res, options = {}) {
-  const adapterHosts = options.adapterHosts || [];
+  const cfg = resolveSiteConfig(options);
+  const series = cfg.seriesMod;
+  const provider = cfg.providerMod;
+  if (!series || !provider) return false;
+
   const host = req.headers.host || '127.0.0.1';
   let reqUrl;
   try {
@@ -71,17 +79,22 @@ async function tryHandleAdapter(req, res, options = {}) {
     return false;
   }
 
-  const resolved = resolveAdapterPath(reqUrl, adapterHosts);
+  const hostCfg = options.adapterHosts || {
+    hosts: cfg.hosts,
+    apiHostPatterns: cfg.apiHostPatterns,
+    excludeHosts: cfg.excludeHosts
+  };
+
+  const resolved = resolveAdapterPath(reqUrl, hostCfg, series);
   if (!resolved) return false;
 
-  const route = matchAuthRoute(resolved.pathname);
-  if (!route) return false;
+  const matched = series.matchRoute(resolved.pathname);
+  if (!matched) return false;
 
   if (req.method === 'OPTIONS') {
     sendJson(res, 204, {});
     return true;
   }
-
   if (req.method !== 'POST' && req.method !== 'GET') {
     sendJson(res, 405, { code: 405, msg: 'method not allowed', data: null });
     return true;
@@ -104,18 +117,22 @@ async function tryHandleAdapter(req, res, options = {}) {
     }
   }
 
-  let result;
-  const ctx = { siteDir: options.siteDir || '' };
-  if (route === 'login') result = await handleLogin(body, ctx);
-  else if (route === 'register') result = await handleRegister(body, ctx);
-  else result = await handleCheckRegister(body);
+  const providerResult = await provider.execute(matched.op, {
+    body,
+    headers: req.headers || {},
+    siteDir: options.siteDir || '',
+    providerOptions: cfg.providerOptions
+  });
+  const result = series.mapResponse(matched.op, providerResult);
 
   console.log(
-    '[adapter:auth]',
+    '[adapter]',
+    cfg.series + '/' + cfg.provider,
     req.method,
     resolved.via === 'proxy' ? `(proxy ${resolved.host})` : '',
-    resolved.pathname,
+    matched.path,
     '->',
+    matched.op,
     result.code,
     result.msg
   );
@@ -125,7 +142,6 @@ async function tryHandleAdapter(req, res, options = {}) {
 
 module.exports = {
   tryHandleAdapter,
-  matchAuthRoute,
-  normalizeApiPath,
-  resolveAdapterPath
+  resolveAdapterPath,
+  loadAdapterConfig
 };

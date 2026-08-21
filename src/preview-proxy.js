@@ -100,15 +100,32 @@ function parseProxyTarget(reqUrl) {
   return url;
 }
 
-function buildBootScript(sourceOrigin, adapterHosts) {
+function normalizeBootCfg(adapterHostsOrCfg) {
+  if (Array.isArray(adapterHostsOrCfg)) {
+    return { hosts: adapterHostsOrCfg, apiHostPatterns: [], excludeHosts: [] };
+  }
+  const c = adapterHostsOrCfg && typeof adapterHostsOrCfg === 'object' ? adapterHostsOrCfg : {};
+  return {
+    hosts: Array.isArray(c.hosts) ? c.hosts : [],
+    apiHostPatterns: Array.isArray(c.apiHostPatterns) ? c.apiHostPatterns : [],
+    excludeHosts: Array.isArray(c.excludeHosts) ? c.excludeHosts : []
+  };
+}
+
+function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
+  const cfg = normalizeBootCfg(adapterHostsOrCfg);
   const origin = JSON.stringify(sourceOrigin || '');
   const prefix = JSON.stringify(PROXY_PREFIX + '/');
-  const hostsJson = JSON.stringify(Array.isArray(adapterHosts) ? adapterHosts : []);
+  const hostsJson = JSON.stringify(cfg.hosts);
+  const patternsJson = JSON.stringify(cfg.apiHostPatterns);
+  const excludeJson = JSON.stringify(cfg.excludeHosts);
   return `/*! site-downloader preview proxy boot */
 (function () {
   var SOURCE_ORIGIN = ${origin};
   var PROXY_PREFIX = ${prefix};
   var ADAPTER_HOSTS = ${hostsJson};
+  var API_HOST_PATTERNS = ${patternsJson};
+  var EXCLUDE_HOSTS = ${excludeJson};
   if (!SOURCE_ORIGIN) return;
   if (window.__SD_PROXY_BOOT__) return;
   window.__SD_PROXY_BOOT__ = true;
@@ -116,6 +133,12 @@ function buildBootScript(sourceOrigin, adapterHosts) {
   var LOCAL_ORIGIN = location.origin;
   var ADAPTER_HOST_SET = {};
   for (var hi = 0; hi < ADAPTER_HOSTS.length; hi++) ADAPTER_HOST_SET[String(ADAPTER_HOSTS[hi]).toLowerCase()] = true;
+  var EXCLUDE_HOST_SET = {};
+  for (var ei = 0; ei < EXCLUDE_HOSTS.length; ei++) EXCLUDE_HOST_SET[String(EXCLUDE_HOSTS[ei]).toLowerCase()] = true;
+  var API_HOST_REGS = [];
+  for (var pi = 0; pi < API_HOST_PATTERNS.length; pi++) {
+    try { API_HOST_REGS.push(new RegExp(String(API_HOST_PATTERNS[pi]), 'i')); } catch (e) {}
+  }
 
   function absUrl(input) {
     try {
@@ -131,24 +154,38 @@ function buildBootScript(sourceOrigin, adapterHosts) {
     return PROXY_PREFIX + encodeURIComponent(href);
   }
 
-  /** API 子域 aniw / oniw *.679win.*，不含主站 679win.com */
+  /** 仅按站点 adapter-hosts.json 的 hosts / patterns / exclude 判断 */
   function isAdapterApiHost(hostname) {
     if (!hostname) return false;
     var h = String(hostname).toLowerCase();
-    if (h === '679win.com' || h === 'www.679win.com') return false;
+    if (EXCLUDE_HOST_SET[h]) return false;
     if (ADAPTER_HOST_SET[h]) return true;
-    if (/\\.679win\\.(cc|me|co|net)$/i.test(h)) return true;
-    if (/^(oniw|aniw)\\d*\\./i.test(h)) return true;
+    for (var i = 0; i < API_HOST_REGS.length; i++) {
+      if (API_HOST_REGS[i].test(h)) return true;
+    }
     return false;
   }
 
   /**
-   * 仅业务 API（/hall/api、/api/...）改本地短 path
-   * 图片/OSS（siteadmin 等）仍走 __sd_proxy__，避免资源丢了
+   * 改写到本地短 path：
+   * - 业务 API（/hall/api、/api）→ adapter / 上游
+   * - 已下载的 OSS 静态（siteadmin、lobby_asset、图片后缀）→ 本地磁盘，缺了再回源
+   * 其它跨域仍走 __sd_proxy__
    */
-  function isLocalApiPath(pathname) {
+  function isMirroredAssetPath(pathname) {
     var p = pathname || '';
-    return p.indexOf('/hall/api/') === 0 || p.indexOf('/api/') === 0;
+    if (p.indexOf('/siteadmin/') === 0) return true;
+    if (p.indexOf('/lobby_asset/') === 0) return true;
+    if (p.indexOf('/game_pictures/') === 0) return true;
+    if (p.indexOf('/hall/api/game/') === 0) return true;
+    if (p.indexOf('/upload/') !== -1) return true;
+    return /\\.(?:png|jpe?g|gif|webp|avif|svg|ico|mp4|webm|mp3|m4a|woff2?|ttf|otf)(?:$|\\?)/i.test(p);
+  }
+
+  function isLocalShortPath(pathname) {
+    var p = pathname || '';
+    if (p.indexOf('/hall/api/') === 0 || p.indexOf('/api/') === 0) return true;
+    return isMirroredAssetPath(p);
   }
 
   function isAuthApiPath(pathname) {
@@ -469,19 +506,36 @@ function buildBootScript(sourceOrigin, adapterHosts) {
 `;
 }
 
-function buildServiceWorkerScript() {
+function buildServiceWorkerScript(adapterHostsOrCfg) {
+  const cfg = normalizeBootCfg(adapterHostsOrCfg);
   const proxyPrefix = JSON.stringify(PROXY_PREFIX + '/');
+  const hostsJson = JSON.stringify(cfg.hosts);
+  const patternsJson = JSON.stringify(cfg.apiHostPatterns);
+  const excludeJson = JSON.stringify(cfg.excludeHosts);
   return `/*! site-downloader api adapter sw v3 */
 self.addEventListener('install', function (e) { self.skipWaiting(); });
 self.addEventListener('activate', function (e) { e.waitUntil(self.clients.claim()); });
 
 var PROXY_PREFIX = ${proxyPrefix};
+var ADAPTER_HOSTS = ${hostsJson};
+var API_HOST_PATTERNS = ${patternsJson};
+var EXCLUDE_HOSTS = ${excludeJson};
+var ADAPTER_HOST_SET = {};
+for (var hi = 0; hi < ADAPTER_HOSTS.length; hi++) ADAPTER_HOST_SET[String(ADAPTER_HOSTS[hi]).toLowerCase()] = true;
+var EXCLUDE_HOST_SET = {};
+for (var ei = 0; ei < EXCLUDE_HOSTS.length; ei++) EXCLUDE_HOST_SET[String(EXCLUDE_HOSTS[ei]).toLowerCase()] = true;
+var API_HOST_REGS = [];
+for (var pi = 0; pi < API_HOST_PATTERNS.length; pi++) {
+  try { API_HOST_REGS.push(new RegExp(String(API_HOST_PATTERNS[pi]), 'i')); } catch (e) {}
+}
 
 function isApiHost(hostname) {
   var h = String(hostname || '').toLowerCase();
-  if (!h || h === '679win.com' || h === 'www.679win.com') return false;
-  if (/\\.679win\\.(cc|me|co|net)$/i.test(h)) return true;
-  if (/^(oniw|aniw)\\d*\\./i.test(h)) return true;
+  if (!h || EXCLUDE_HOST_SET[h]) return false;
+  if (ADAPTER_HOST_SET[h]) return true;
+  for (var i = 0; i < API_HOST_REGS.length; i++) {
+    if (API_HOST_REGS[i].test(h)) return true;
+  }
   return false;
 }
 
@@ -675,7 +729,7 @@ function tryHandleProxy(req, res, sourceOrigin, adapterHosts) {
   }
 
   if (reqUrl.pathname === SW_PATH) {
-    const body = buildServiceWorkerScript();
+    const body = buildServiceWorkerScript(adapterHosts);
     res.writeHead(200, {
       'Content-Type': 'application/javascript; charset=utf-8',
       'Cache-Control': 'no-cache',

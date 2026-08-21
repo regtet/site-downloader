@@ -5,10 +5,20 @@ const DEFAULTS = {
   mode: 'wgame', // wgame | mock
   wssUrl: 'wss://server.679win2.com',
   packageId: 46,
-  timeoutMs: 15000,
+  timeoutMs: 20000,
   nGmType: 7,
   fallbackMock: false
 };
+
+function applyBlock(out, w) {
+  if (!w || typeof w !== 'object') return;
+  if (w.mode) out.mode = String(w.mode);
+  if (w.wssUrl) out.wssUrl = String(w.wssUrl);
+  if (w.packageId != null) out.packageId = Number(w.packageId) || out.packageId;
+  if (w.timeoutMs != null) out.timeoutMs = Number(w.timeoutMs) || out.timeoutMs;
+  if (w.nGmType != null) out.nGmType = Number(w.nGmType) || out.nGmType;
+  if (w.fallbackMock != null) out.fallbackMock = !!w.fallbackMock;
+}
 
 function loadWgameConfig(siteDir) {
   const out = Object.assign({}, DEFAULTS);
@@ -22,15 +32,8 @@ function loadWgameConfig(siteDir) {
       const p = path.join(siteDir, 'adapter-hosts.json');
       if (fs.existsSync(p)) {
         const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
-        const w = raw && raw.wgame;
-        if (w && typeof w === 'object') {
-          if (w.mode) out.mode = String(w.mode);
-          if (w.wssUrl) out.wssUrl = String(w.wssUrl);
-          if (w.packageId != null) out.packageId = Number(w.packageId) || out.packageId;
-          if (w.timeoutMs != null) out.timeoutMs = Number(w.timeoutMs) || out.timeoutMs;
-          if (w.nGmType != null) out.nGmType = Number(w.nGmType) || out.nGmType;
-          if (w.fallbackMock != null) out.fallbackMock = !!w.fallbackMock;
-        }
+        applyBlock(out, raw && raw.wgame);
+        applyBlock(out, raw && raw.providerOptions);
       }
     }
   } catch (_) { /* ignore */ }
