@@ -10,11 +10,17 @@ const { checkBrowser, getBrowserInfo } = require('./src/browser-check');
 const BASE_PORT = Number(process.env.PORT) || 3000;
 const MAX_PORT_ATTEMPTS = 20;
 let currentPort = BASE_PORT;
-const OUTPUT_ROOT = path.join(__dirname, 'output');
+const OUTPUT_ROOT = path.join(__dirname, 'dist');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
-const jobManager = new JobManager({ outputRoot: OUTPUT_ROOT });
-const previewServer = new PreviewServer();
+const previewServer = new PreviewServer({ spaFallback: true });
+const DOWNLOAD_CONCURRENCY_DEFAULT = Number(process.env.DOWNLOAD_CONCURRENCY) || 20;
+
+const jobManager = new JobManager({
+  outputRoot: OUTPUT_ROOT,
+  maxSiteConcurrency: Number(process.env.SITE_CONCURRENCY) || 2,
+  downloadConcurrency: DOWNLOAD_CONCURRENCY_DEFAULT
+});
 
 function readBody(req) {
     return new Promise((resolve, reject) => {
@@ -63,21 +69,24 @@ function listDownloads() {
         .filter(d => d.isDirectory())
         .map(d => {
             const dir = path.join(OUTPUT_ROOT, d.name);
-            const stat = fs.statSync(dir);
+            const stat = fs.statSync(dir);      
             const manifestPath = path.join(dir, 'manifest.json');
             const reportPath = path.join(dir, 'report.json');
             let manifest = null;
             let report = null;
             try { manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')); } catch { }
             try { report = JSON.parse(fs.readFileSync(reportPath, 'utf-8')); } catch { }
+            const errorItems = (manifest && manifest.errors || []).filter((item) => item.category !== 'api-skipped' && item.category !== 'optional-missing');
             return {
                 name: d.name,
                 path: dir,
                 modifiedAt: stat.mtime.toISOString(),
                 source: manifest ? manifest.source : null,
                 resources: manifest ? manifest.resources.length : 0,
-                errors: manifest ? manifest.errors.length : 0,
-                errorItems: manifest ? (manifest.errors || []) : [],
+                errors: errorItems.length,
+                errorItems,
+                unresolvedItems: manifest ? (manifest.unresolved || []) : [],
+                brokenItems: manifest ? (manifest.brokenReferences || []) : [],
                 missingItems: manifest ? (manifest.missing || []) : [],
                 report
             };
@@ -88,7 +97,12 @@ function listDownloads() {
 async function handleApi(req, res, pathname) {
   if (req.method === 'GET' && pathname === '/api/status') {
     const browser = await checkBrowser();
-    sendJson(res, 200, { browser, ...getBrowserInfo() });
+    sendJson(res, 200, { browser, ...getBrowserInfo(), queue: jobManager.getQueueInfo() });
+    return;
+  }
+
+  if (req.method === 'GET' && pathname === '/api/jobs') {
+    sendJson(res, 200, { jobs: jobManager.listJobs(), queue: jobManager.getQueueInfo() });
     return;
   }
 
@@ -115,8 +129,13 @@ async function handleApi(req, res, pathname) {
             sendJson(res, 400, { error: '无效的 URL' });
             return;
         }
-        const job = jobManager.startJob(url, { retryFailedOnly: !!body.retryFailed });
-        sendJson(res, 200, { jobId: job.id, url: job.url });
+        const job = jobManager.startJob(url, {
+            retryFailedOnly: !!body.retryFailed,
+            multiPage: !!body.multiPage,
+            downloadSkinManifest: body.downloadSkinManifest === true,
+            downloadConcurrency: body.downloadConcurrency ? Number(body.downloadConcurrency) : undefined
+        });
+        sendJson(res, 200, { jobId: job.id, url: job.url, queue: jobManager.getQueueInfo() });
         return;
     }
 
@@ -138,6 +157,17 @@ async function handleApi(req, res, pathname) {
             summary: job.summary,
             error: job.error
         });
+        return;
+    }
+
+    const cancelMatch = pathname.match(/^\/api\/jobs\/([^/]+)\/cancel$/);
+    if (req.method === 'POST' && cancelMatch) {
+        const result = jobManager.cancelJob(cancelMatch[1]);
+        if (!result.ok) {
+            sendJson(res, result.error === '任务不存在' ? 404 : 400, result);
+            return;
+        }
+        sendJson(res, 200, { ...result, queue: jobManager.getQueueInfo() });
         return;
     }
 
@@ -199,7 +229,7 @@ async function handleApi(req, res, pathname) {
         }
         try {
             const info = await previewServer.start(siteDir);
-            sendJson(res, 200, info);
+            sendJson(res, 200, { ...info, previews: previewServer.list() });
         } catch (err) {
             sendJson(res, 500, { error: err.message });
         }
@@ -207,13 +237,21 @@ async function handleApi(req, res, pathname) {
     }
 
     if (req.method === 'POST' && pathname === '/api/preview/stop') {
-        await previewServer.stop();
-        sendJson(res, 200, { stopped: true });
+        const body = await readBody(req).catch(() => ({}));
+        const siteDir = body.path ? path.resolve(body.path) : null;
+        if (siteDir && !siteDir.startsWith(OUTPUT_ROOT)) {
+            sendJson(res, 400, { error: '无效的预览目录' });
+            return;
+        }
+        const result = siteDir
+            ? await previewServer.stop(siteDir)
+            : await previewServer.stopAll();
+        sendJson(res, 200, result);
         return;
     }
 
     if (req.method === 'GET' && pathname === '/api/preview') {
-        sendJson(res, 200, previewServer.getInfo() || { running: false });
+        sendJson(res, 200, previewServer.getInfo());
         return;
     }
 

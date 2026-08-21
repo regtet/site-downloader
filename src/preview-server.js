@@ -1,142 +1,121 @@
-const http = require('http');
-const fs = require('fs');
 const path = require('path');
-const { URL } = require('url');
+const { StaticServer } = require('./static-server');
 
-const MIME_TYPES = {
-  '.html': 'text/html; charset=utf-8',
-  '.htm': 'text/html; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.js': 'application/javascript; charset=utf-8',
-  '.mjs': 'application/javascript; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.webp': 'image/webp',
-  '.avif': 'image/avif',
-  '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon',
-  '.woff': 'font/woff',
-  '.woff2': 'font/woff2',
-  '.ttf': 'font/ttf',
-  '.otf': 'font/otf',
-  '.mp4': 'video/mp4',
-  '.webm': 'video/webm',
-  '.wasm': 'application/wasm',
-  '.map': 'application/json'
-};
+function hashPort(seed, base = 3456, span = 100) {
+  let h = 0;
+  const s = String(seed || '');
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) - h) + s.charCodeAt(i);
+    h |= 0;
+  }
+  return base + (Math.abs(h) % span);
+}
 
-class PreviewServer {
-  constructor() {
-    this.server = null;
-    this.port = null;
-    this.siteDir = null;
+class PreviewManager {
+  constructor(options = {}) {
+    this.spaFallback = options.spaFallback !== false;
+    this.host = options.host || '127.0.0.1';
+    this.basePort = options.basePort || 3456;
+    this.portSpan = options.portSpan || 100;
+    /** @type {Map<string, { server: StaticServer, siteDir: string, name: string, port: number, url: string, startedAt: string }>} */
+    this.previews = new Map();
   }
 
-  isRunning() {
-    return this.server !== null;
+  keyOf(siteDir) {
+    return path.resolve(siteDir);
   }
 
-  getInfo() {
-    if (!this.isRunning()) return null;
+  nameOf(siteDir) {
+    return path.basename(siteDir);
+  }
+
+  list() {
+    return [...this.previews.values()].map((p) => ({
+      name: p.name,
+      path: p.siteDir,
+      port: p.port,
+      url: p.url,
+      startedAt: p.startedAt
+    }));
+  }
+
+  getInfo(siteDir) {
+    if (siteDir) {
+      const entry = this.previews.get(this.keyOf(siteDir));
+      return entry
+        ? { running: true, name: entry.name, path: entry.siteDir, port: entry.port, url: entry.url }
+        : { running: false };
+    }
+    const list = this.list();
     return {
-      port: this.port,
-      siteDir: this.siteDir,
-      url: `http://localhost:${this.port}`
+      running: list.length > 0,
+      previews: list,
+      // 兼容旧单实例字段：取最近一个
+      ...(list[0] ? { port: list[0].port, siteDir: list[0].path, url: list[0].url } : {})
     };
   }
 
-  stop() {
-    return new Promise((resolve) => {
-      if (!this.server) {
-        resolve(false);
-        return;
-      }
-      this.server.close(() => {
-        this.server = null;
-        this.port = null;
-        this.siteDir = null;
-        resolve(true);
-      });
+  async start(siteDir) {
+    const key = this.keyOf(siteDir);
+    const existing = this.previews.get(key);
+    if (existing) {
+      return {
+        name: existing.name,
+        path: existing.siteDir,
+        port: existing.port,
+        url: existing.url,
+        reused: true
+      };
+    }
+
+    const name = this.nameOf(siteDir);
+    const preferred = hashPort(name, this.basePort, this.portSpan);
+    const server = new StaticServer({
+      spaFallback: this.spaFallback,
+      host: this.host
     });
+    const info = await server.start(siteDir, preferred);
+    const entry = {
+      server,
+      siteDir: key,
+      name,
+      port: info.port,
+      url: info.url,
+      startedAt: new Date().toISOString()
+    };
+    this.previews.set(key, entry);
+    return {
+      name,
+      path: key,
+      port: entry.port,
+      url: entry.url,
+      reused: false
+    };
   }
 
-  start(siteDir, preferredPort) {
-    return new Promise((resolve, reject) => {
-      if (!fs.existsSync(siteDir)) {
-        reject(new Error('目录不存在'));
-        return;
-      }
+  async stop(siteDir) {
+    if (!siteDir) {
+      return this.stopAll();
+    }
+    const key = this.keyOf(siteDir);
+    const entry = this.previews.get(key);
+    if (!entry) return { stopped: false, previews: this.list() };
+    await entry.server.stop();
+    this.previews.delete(key);
+    return { stopped: true, path: key, previews: this.list() };
+  }
 
-      const tryPort = preferredPort || 3456;
-
-      const createAndListen = (port) => {
-        const server = http.createServer((req, res) => {
-          const reqUrl = new URL(req.url, `http://localhost:${port}`);
-          let pathname = decodeURIComponent(reqUrl.pathname);
-          if (pathname.endsWith('/')) pathname += 'index.html';
-
-          const filePath = path.join(siteDir, pathname);
-          if (!filePath.startsWith(siteDir)) {
-            res.writeHead(404);
-            res.end('404');
-            return;
-          }
-
-          fs.stat(filePath, (err, stat) => {
-            if (err || !stat.isFile()) {
-              const indexPath = path.join(siteDir, 'index.html');
-              fs.readFile(indexPath, (indexErr, data) => {
-                if (indexErr) {
-                  res.writeHead(404);
-                  res.end('404');
-                  return;
-                }
-                res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-                res.end(data);
-              });
-              return;
-            }
-
-            const ext = path.extname(filePath).toLowerCase();
-            const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-            fs.readFile(filePath, (readErr, data) => {
-              if (readErr) {
-                res.writeHead(404);
-                res.end('404');
-                return;
-              }
-              res.writeHead(200, { 'Content-Type': contentType });
-              res.end(data);
-            });
-          });
-        });
-
-        server.on('error', (err) => {
-          if (err.code === 'EADDRINUSE' && port < 3556) {
-            createAndListen(port + 1);
-          } else {
-            reject(err);
-          }
-        });
-
-        server.listen(port, () => {
-          this.server = server;
-          this.port = port;
-          this.siteDir = siteDir;
-          resolve(this.getInfo());
-        });
-      };
-
-      if (this.server) {
-        this.stop().then(() => createAndListen(tryPort)).catch(reject);
-      } else {
-        createAndListen(tryPort);
-      }
-    });
+  async stopAll() {
+    const keys = [...this.previews.keys()];
+    for (const key of keys) {
+      const entry = this.previews.get(key);
+      if (entry) await entry.server.stop();
+      this.previews.delete(key);
+    }
+    return { stopped: true, count: keys.length, previews: [] };
   }
 }
 
-module.exports = PreviewServer;
+module.exports = PreviewManager;
+module.exports.StaticServer = StaticServer;
+module.exports.hashPort = hashPort;

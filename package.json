@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "serve": "node serve.js",
+    "compare": "node scripts/compare-runtime.js",
     "install-browsers": "node scripts/install-browsers.js",
     "postinstall": "node scripts/install-browsers.js"
   },

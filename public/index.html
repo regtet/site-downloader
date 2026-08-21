@@ -4,20 +4,29 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Site Downloader</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
+  <div class="app-bg" aria-hidden="true"></div>
   <div class="app">
     <header class="header">
-      <div class="logo">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="7 10 12 15 17 10"/>
-          <line x1="12" y1="15" x2="12" y2="3"/>
-        </svg>
-        <h1>Site Downloader</h1>
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+        </span>
+        <div class="brand-text">
+          <h1>Site Downloader</h1>
+          <p class="subtitle">粘贴网址，生成可本地运行的站点包</p>
+        </div>
       </div>
-      <p class="subtitle">输入网站 URL，完整下载前端静态资源到本地</p>
+      <div id="queueStatus" class="queue-status" aria-live="polite"></div>
     </header>
 
     <main class="main">
@@ -26,28 +35,55 @@
         <p>请在项目目录运行：<code>npm run install-browsers</code></p>
       </div>
 
-      <section class="card download-card">
+      <section class="card hero-card">
         <form id="downloadForm" class="download-form">
+          <label class="field-label" for="urlInput">网站地址</label>
           <div class="input-group">
             <input
               type="url"
               id="urlInput"
+              list="urlHistoryList"
               placeholder="https://example.com"
               required
               autocomplete="off"
               spellcheck="false"
             />
+            <datalist id="urlHistoryList"></datalist>
             <button type="submit" id="downloadBtn" class="btn btn-primary">
-              <span class="btn-text">开始下载</span>
+              <span class="btn-text">开始生成</span>
               <span class="btn-loading hidden">
                 <span class="spinner"></span>
-                下载中...
+                处理中
               </span>
             </button>
           </div>
         </form>
 
+        <div id="urlHistoryChips" class="url-history-chips"></div>
+
+        <details class="advanced-options">
+          <summary>高级选项</summary>
+          <div class="advanced-body">
+            <label class="setting-item">
+              <span>资源并发</span>
+              <input type="number" id="downloadConcurrencyInput" min="1" max="32" value="20" />
+            </label>
+            <label class="setting-item setting-check">
+              <input type="checkbox" id="multiPageInput" />
+              <span>多页面模式 <em>更慢</em></span>
+            </label>
+            <label class="setting-item setting-check">
+              <input type="checkbox" id="skinManifestInput" />
+              <span>下载皮肤清单 <em>很慢</em></span>
+            </label>
+          </div>
+        </details>
+
         <div id="progressSection" class="progress-section hidden">
+          <div class="progress-top">
+            <div class="progress-task-title" id="selectedTaskTitle"></div>
+            <button type="button" id="cancelJobBtn" class="btn btn-danger btn-sm">终止</button>
+          </div>
           <div class="progress-header">
             <span id="progressPhase" class="progress-phase">准备中</span>
             <span id="progressPercent" class="progress-percent"></span>
@@ -58,12 +94,13 @@
         </div>
 
         <div id="resultSection" class="result-section hidden">
+          <div id="compareSummary" class="compare-summary hidden"></div>
           <div class="result-stats">
             <div class="stat">
               <span class="stat-value" id="statResources">0</span>
               <span class="stat-label">资源</span>
             </div>
-            <div class="stat stat-error">
+            <div class="stat stat-warn">
               <span class="stat-value" id="statFailed">0</span>
               <span class="stat-label">失败</span>
             </div>
@@ -71,42 +108,49 @@
               <span class="stat-value" id="statMissing">0</span>
               <span class="stat-label">缺失</span>
             </div>
+            <div class="stat">
+              <span class="stat-value" id="statUnresolved">0</span>
+              <span class="stat-label">未解析</span>
+            </div>
+            <div class="stat stat-warn">
+              <span class="stat-value" id="statBroken">0</span>
+              <span class="stat-label">引用缺失</span>
+            </div>
           </div>
           <div class="result-actions">
             <button id="previewBtn" class="btn btn-secondary">本地预览</button>
-            <button id="retryFailedBtn" class="btn btn-ghost hidden">重试失败项</button>
-            <button id="openFolderBtn" class="btn btn-ghost" disabled title="请手动打开输出目录">打开目录</button>
+            <button id="stopPreviewBtn" class="btn btn-ghost hidden">关闭预览</button>
           </div>
           <p id="outputPath" class="output-path"></p>
-          <div id="errorList" class="error-list hidden"></div>
+          <div id="errorList" class="error-list scrollable hidden"></div>
         </div>
       </section>
 
       <div class="panels">
         <section class="card panel">
           <div class="panel-header">
-            <h2>下载日志</h2>
+            <h2>任务日志</h2>
             <button id="clearLogBtn" class="btn btn-ghost btn-sm">清空</button>
           </div>
-          <div id="logContainer" class="log-container">
-            <p class="log-empty">输入 URL 并点击开始下载</p>
+          <div id="logContainer" class="log-container scrollable">
+            <p class="log-empty">输入网址后点「开始生成」</p>
           </div>
         </section>
 
-        <section class="card panel">
+        <section class="card panel task-panel">
           <div class="panel-header">
-            <h2>历史下载</h2>
+            <h2>项目</h2>
             <button id="refreshListBtn" class="btn btn-ghost btn-sm">刷新</button>
           </div>
-          <div id="historyList" class="history-list">
-            <p class="history-empty">暂无下载记录</p>
+          <div id="taskList" class="task-list scrollable">
+            <p class="task-empty">暂无项目</p>
           </div>
         </section>
       </div>
     </main>
 
     <footer class="footer">
-      <span id="previewStatus" class="preview-status"></span>
+      <div id="previewStatus" class="preview-status"></div>
     </footer>
   </div>
 

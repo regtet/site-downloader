@@ -2,6 +2,7 @@ const cheerio = require('cheerio');
 const postcss = require('postcss');
 const valueParser = require('postcss-value-parser');
 const DedupeManager = require('./dedupe');
+const { isLikelyAssetFile } = require('./url-classify');
 
 const URL_ATTRS = [
   ['link', 'href'],
@@ -38,6 +39,12 @@ class ResourceParser {
 
     for (const [tag, ...attrs] of URL_ATTRS) {
       $(tag).each((_, el) => {
+        if (tag === 'link') {
+          const rel = ($(el).attr('rel') || '').toLowerCase();
+          if (rel.includes('preconnect') || rel.includes('dns-prefetch') || rel.includes('prerender')) {
+            return;
+          }
+        }
         for (const attr of attrs) {
           const val = $(el).attr(attr);
           const normalized = this.normalize(val);
@@ -138,21 +145,44 @@ class ResourceParser {
 
   extractFromJs(js, jsBaseUrl) {
     const urls = new Set();
-    const base = jsBaseUrl || this.baseUrl;
+    const fileBase = jsBaseUrl || this.baseUrl;
+    let pageBase = this.baseUrl;
+    try {
+      pageBase = new URL(fileBase).origin + '/';
+    } catch {}
+
+    const addVal = (val) => {
+      if (!val) return;
+      const isRelative = val.startsWith('./') || val.startsWith('../');
+      const isRootish = val.startsWith('/') || val.startsWith('assets/') || val.startsWith('static/') || val.startsWith('lobby_asset/') || val.startsWith('libs/') || val.startsWith('cocos/') || val.startsWith('siteadmin/') || val.startsWith('vendors/');
+      const isBareHashed = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{4,}\.(?:js|mjs|cjs|css)$/i.test(val);
+      if (!isRelative && !isRootish && !isBareHashed && !/^https?:/i.test(val)) return;
+      const base = (isRelative || isBareHashed) ? fileBase : pageBase;
+      const resolved = isBareHashed ? './' + val : (isRootish && !val.startsWith('/') && !/^https?:/i.test(val) ? '/' + val : val);
+      const normalized = this.dedupe.normalizeUrl(resolved, base);
+      if (normalized && isLikelyAssetFile(normalized)) urls.add(normalized);
+    };
 
     const patterns = [
       /import\s*(?:[^'"]*['"]([^'"]+)['"]|(?:\(\s*['"]([^'"]+)['"]\s*\)))/g,
+      /import\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
       /require\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
-      /new\s+URL\s*\(\s*['"]([^'"]+)['"]/g
+      /new\s+URL\s*\(\s*['"]([^'"]+)['"]/g,
+      /src\s*:\s*['"]([^'"]+)['"]/g,
+      /['"](\.\/[^'"]+\.(?:js|mjs|cjs|css|wasm|json|map))['"]/g,
+      /['"](\.\.\/[^'"]+\.(?:js|mjs|cjs|css|wasm|json|map))['"]/g,
+      // Vite __vite__fileDeps: "assets/theme-0/NightModeIndex.xxx.css" (no leading slash)
+      /['"]((?:assets|static|lobby_asset|libs|cocos|siteadmin|vendors)\/[^'"]+\.(?:js|mjs|cjs|css|wasm|json|map|png|jpe?g|gif|webp|avif|svg|woff2?|ttf|otf|mp3|webp|gif))['"]/g,
+      /['"](\/(?:assets|static|lobby_asset|libs|cocos|siteadmin|vendors)\/[^'"]+)['"]/g,
+      // bare hashed chunk filenames in same directory: "NightModeIndex.BYmnWdTY.css"
+      /['"]([A-Za-z0-9_-]+\.[A-Za-z0-9_-]{4,}\.(?:js|mjs|cjs|css))['"]/g,
+      /['"]([^'"]*\/(?:[Ii]ndex|[Dd]ialog|[Cc]hunk|[Vv]endor|[Cc]ommon)[^'"]*\.[A-Za-z0-9_-]{4,}\.(?:js|css))['"]/g
     ];
 
     for (const regex of patterns) {
       let match;
       while ((match = regex.exec(js)) !== null) {
-        const val = match[1] || match[2];
-        if (!val || !STATIC_EXT_PATTERN.test(val)) continue;
-        const normalized = this.dedupe.normalizeUrl(val, base);
-        if (normalized) urls.add(normalized);
+        addVal(match[1] || match[2]);
       }
     }
 
