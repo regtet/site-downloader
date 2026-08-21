@@ -3,6 +3,14 @@ const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
 const { shouldIgnoreQueryForLocalPath } = require('./url-query');
+const {
+  resolveSourceOrigin,
+  injectBootIntoHtml,
+  tryHandleProxy,
+  tryFallbackMissingAsset,
+  isLikelySameOriginApiPath,
+  isFetchLikeRequest
+} = require('./preview-proxy');
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -81,21 +89,50 @@ function createStaticServer(siteDir, options = {}) {
   const spaFallback = options.spaFallback === true;
   const host = options.host || '127.0.0.1';
   const root = path.resolve(siteDir);
+  const sourceOrigin = options.sourceOrigin
+    || resolveSourceOrigin(root, fs, path)
+    || '';
+  const headerProxy = options.headerProxy !== false && !!sourceOrigin;
 
   return http.createServer((req, res) => {
+    if (headerProxy && tryHandleProxy(req, res, sourceOrigin)) {
+      return;
+    }
+
     const reqUrl = new URL(req.url || '/', `http://${host}:${options.port || 0}`);
     const filePath = resolveFilePath(root, req.url || '/');
 
     if (!filePath) {
-      // 静态资源缺失 → 必须 404，禁止回退 index.html（否则 module 脚本 MIME 变成 text/html）
+      // 本地缺失的静态资源 → 回源站
+      if (
+        sourceOrigin
+        && isStaticAssetPath(reqUrl.pathname)
+        && tryFallbackMissingAsset(req, res, sourceOrigin, reqUrl.pathname, reqUrl.search)
+      ) {
+        return;
+      }
+      // 同源 API（如 /member/config/h5realtime）→ 回源，不要 SPA 成 HTML
+      if (
+        sourceOrigin
+        && (
+          isLikelySameOriginApiPath(reqUrl.pathname, reqUrl.search)
+          || isFetchLikeRequest(req)
+        )
+        && tryFallbackMissingAsset(req, res, sourceOrigin, reqUrl.pathname, reqUrl.search)
+      ) {
+        return;
+      }
+      // 非静态路径才 SPA 回退 HTML；静态扩展名缺失绝不能回退（否则 module MIME 变 text/html）
       if (spaFallback && !isStaticAssetPath(reqUrl.pathname)) {
         const indexPath = path.join(root, 'index.html');
         if (fs.existsSync(indexPath)) {
+          let html = fs.readFileSync(indexPath, 'utf8');
+          if (headerProxy) html = injectBootIntoHtml(html, sourceOrigin);
           res.writeHead(200, {
             'Content-Type': 'text/html; charset=utf-8',
             'Cache-Control': 'no-cache'
           });
-          res.end(fs.readFileSync(indexPath));
+          res.end(html);
           return;
         }
       }
@@ -114,6 +151,16 @@ function createStaticServer(siteDir, options = {}) {
         res.end('404');
         return;
       }
+      if (headerProxy && (ext === '.html' || ext === '.htm')) {
+        const html = injectBootIntoHtml(data.toString('utf8'), sourceOrigin);
+        res.writeHead(200, {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-cache',
+          'X-Content-Type-Options': 'nosniff'
+        });
+        res.end(html);
+        return;
+      }
       res.writeHead(200, {
         'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
         'X-Content-Type-Options': 'nosniff'
@@ -128,8 +175,10 @@ class StaticServer {
     this.server = null;
     this.port = null;
     this.siteDir = null;
+    this.sourceOrigin = options.sourceOrigin || '';
     this.spaFallback = options.spaFallback === true;
     this.host = options.host || '127.0.0.1';
+    this.headerProxy = options.headerProxy !== false;
   }
 
   isRunning() {
@@ -141,7 +190,9 @@ class StaticServer {
     return {
       port: this.port,
       siteDir: this.siteDir,
-      url: `http://${this.host}:${this.port}`
+      url: `http://${this.host}:${this.port}`,
+      sourceOrigin: this.sourceOrigin || null,
+      headerProxy: !!(this.headerProxy && this.sourceOrigin)
     };
   }
 
@@ -170,10 +221,15 @@ class StaticServer {
       const tryPort = preferredPort || 3456;
 
       const createAndListen = (port) => {
-        const server = createStaticServer(siteDir, {
+        const resolvedDir = path.resolve(siteDir);
+        const sourceOrigin = this.sourceOrigin || resolveSourceOrigin(resolvedDir, fs, path);
+        this.sourceOrigin = sourceOrigin;
+        const server = createStaticServer(resolvedDir, {
           port,
           host: this.host,
-          spaFallback: this.spaFallback
+          spaFallback: this.spaFallback,
+          sourceOrigin,
+          headerProxy: this.headerProxy
         });
 
         server.on('error', (err) => {
@@ -187,7 +243,7 @@ class StaticServer {
         server.listen(port, this.host, () => {
           this.server = server;
           this.port = port;
-          this.siteDir = path.resolve(siteDir);
+          this.siteDir = resolvedDir;
           resolve(this.getInfo());
         });
       };

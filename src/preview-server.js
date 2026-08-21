@@ -17,7 +17,7 @@ class PreviewManager {
     this.host = options.host || '127.0.0.1';
     this.basePort = options.basePort || 3456;
     this.portSpan = options.portSpan || 100;
-    /** @type {Map<string, { server: StaticServer, siteDir: string, name: string, port: number, url: string, startedAt: string }>} */
+    /** @type {Map<string, { server: StaticServer, siteDir: string, name: string, port: number, url: string, sourceOrigin: string, startedAt: string }>} */
     this.previews = new Map();
   }
 
@@ -35,6 +35,7 @@ class PreviewManager {
       path: p.siteDir,
       port: p.port,
       url: p.url,
+      sourceOrigin: p.sourceOrigin || null,
       startedAt: p.startedAt
     }));
   }
@@ -43,7 +44,14 @@ class PreviewManager {
     if (siteDir) {
       const entry = this.previews.get(this.keyOf(siteDir));
       return entry
-        ? { running: true, name: entry.name, path: entry.siteDir, port: entry.port, url: entry.url }
+        ? {
+          running: true,
+          name: entry.name,
+          path: entry.siteDir,
+          port: entry.port,
+          url: entry.url,
+          sourceOrigin: entry.sourceOrigin || null
+        }
         : { running: false };
     }
     const list = this.list();
@@ -51,7 +59,14 @@ class PreviewManager {
       running: list.length > 0,
       previews: list,
       // 兼容旧单实例字段：取最近一个
-      ...(list[0] ? { port: list[0].port, siteDir: list[0].path, url: list[0].url } : {})
+      ...(list[0]
+        ? {
+          port: list[0].port,
+          siteDir: list[0].path,
+          url: list[0].url,
+          sourceOrigin: list[0].sourceOrigin || null
+        }
+        : {})
     };
   }
 
@@ -64,6 +79,7 @@ class PreviewManager {
         path: existing.siteDir,
         port: existing.port,
         url: existing.url,
+        sourceOrigin: existing.sourceOrigin || null,
         reused: true
       };
     }
@@ -81,6 +97,7 @@ class PreviewManager {
       name,
       port: info.port,
       url: info.url,
+      sourceOrigin: info.sourceOrigin || '',
       startedAt: new Date().toISOString()
     };
     this.previews.set(key, entry);
@@ -89,6 +106,7 @@ class PreviewManager {
       path: key,
       port: entry.port,
       url: entry.url,
+      sourceOrigin: entry.sourceOrigin || null,
       reused: false
     };
   }
