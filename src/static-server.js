@@ -12,7 +12,7 @@ const {
   isFetchLikeRequest
 } = require('./preview-proxy');
 const { tryHandleAdapter } = require('./adapter');
-const { loadAdapterConfig, isHallApiPath } = require('./adapter/hosts');
+const { loadAdapterConfig, isHallApiPath, isOssAssetPath } = require('./adapter/hosts');
 
 const MIME_TYPES = {
     '.html': 'text/html; charset=utf-8',
@@ -100,6 +100,7 @@ function createStaticServer(siteDir, options = {}) {
     || { hosts: [], upstreamOrigin: '' };
   const adapterHosts = options.adapterHosts || adapterCfg.hosts || [];
   const apiUpstreamOrigin = options.apiUpstreamOrigin || adapterCfg.upstreamOrigin || '';
+  const ossOrigin = options.ossOrigin || adapterCfg.ossOrigin || apiUpstreamOrigin || '';
 
   return http.createServer((req, res) => {
     const handle = async () => {
@@ -113,6 +114,14 @@ function createStaticServer(siteDir, options = {}) {
       const filePath = resolveFilePath(root, req.url || '/');
 
       if (!filePath) {
+        // OSS/图片误落到本地短 path → 回 oniw OSS，不要回主站
+        if (
+          ossOrigin
+          && isOssAssetPath(reqUrl.pathname)
+          && tryFallbackMissingAsset(req, res, ossOrigin, reqUrl.pathname, reqUrl.search)
+        ) {
+          return;
+        }
         // 非登录类 /hall/api → 回 API 上游（不是主站 679win.com）
         if (
           apiUpstreamOrigin

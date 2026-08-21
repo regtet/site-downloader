@@ -131,7 +131,7 @@ function buildBootScript(sourceOrigin, adapterHosts) {
     return PROXY_PREFIX + encodeURIComponent(href);
   }
 
-  /** API 子域（aniw*/oniw*.679win.*），不含主站 679win.com */
+  /** API 子域 aniw / oniw *.679win.*，不含主站 679win.com */
   function isAdapterApiHost(hostname) {
     if (!hostname) return false;
     var h = String(hostname).toLowerCase();
@@ -143,16 +143,20 @@ function buildBootScript(sourceOrigin, adapterHosts) {
   }
 
   /**
-   * API 子域（aniw*/oniw*.679win.*）全部改本地短 path
-   * 登录注册由 adapter 吃掉；其它 /hall/api 由服务端回上游
-   * 主站 679win.com 静态资源不改
+   * 仅业务 API（/hall/api、/api/...）改本地短 path
+   * 图片/OSS（siteadmin 等）仍走 __sd_proxy__，避免资源丢了
    */
+  function isLocalApiPath(pathname) {
+    var p = pathname || '';
+    return p.indexOf('/hall/api/') === 0 || p.indexOf('/api/') === 0;
+  }
+
   function planUrl(href) {
     try {
       var u = new URL(href);
       if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
       if (u.origin === LOCAL_ORIGIN) return null;
-      if (isAdapterApiHost(u.hostname)) {
+      if (isAdapterApiHost(u.hostname) && isLocalApiPath(u.pathname)) {
         return LOCAL_ORIGIN + u.pathname + u.search + u.hash;
       }
       return toProxy(href);
@@ -264,7 +268,7 @@ function buildBootScript(sourceOrigin, adapterHosts) {
     var xoOpen = XO.prototype.open;
     var xoSend = XO.prototype.send;
     XO.prototype.open = function (method, url) {
-      // 不能改 arguments[1]：严格模式下对 axios 的 XHR 无效，会导致仍直连 aniw*/oniw*
+      // 不能改 arguments[1]：严格模式下对 axios 的 XHR 无效，会仍直连远端 API 域
       var args = Array.prototype.slice.call(arguments);
       var href = absUrl(args[1]);
       this.__sdHref = href;
@@ -291,52 +295,7 @@ function buildBootScript(sourceOrigin, adapterHosts) {
     };
   }
 
-  /** 配置里下发的 apiDomain 改成本地，避免业务层继续拼 https://aniw976... */
-  function rewriteApiDomainText(text) {
-    if (!text || typeof text !== 'string') return text;
-    return text.replace(/https?:\\/\\/(?:aniw|oniw)\\d*\\.679win\\.[a-z.]+/gi, LOCAL_ORIGIN);
-  }
-
-  if (XO) {
-    var xoDesc = Object.getOwnPropertyDescriptor(XO.prototype, 'responseText');
-    if (xoDesc && xoDesc.get) {
-      Object.defineProperty(XO.prototype, 'responseText', {
-        configurable: true,
-        enumerable: xoDesc.enumerable,
-        get: function () {
-          var t = xoDesc.get.call(this);
-          try {
-            if (this.responseType && this.responseType !== '' && this.responseType !== 'text') return t;
-          } catch (e) {}
-          return rewriteApiDomainText(t);
-        }
-      });
-    }
-  }
-
-  if (typeof rawFetch === 'function') {
-    var patchedFetch = window.fetch;
-    window.fetch = function (input, init) {
-      return Promise.resolve(patchedFetch.apply(this, arguments)).then(function (res) {
-        try {
-          if (!res || !res.ok) return res;
-          var ct = (res.headers && res.headers.get && res.headers.get('content-type')) || '';
-          if (ct.indexOf('json') === -1 && ct.indexOf('text') === -1 && ct.indexOf('javascript') === -1) return res;
-          return res.text().then(function (text) {
-            var next = rewriteApiDomainText(text);
-            if (next === text) return res;
-            return new Response(next, {
-              status: res.status,
-              statusText: res.statusText,
-              headers: res.headers
-            });
-          });
-        } catch (e) {
-          return res;
-        }
-      });
-    };
-  }
+  /** 不再整页替换 aniw/oniw 域名：会把 ossDomain/图片地址也改坏 */
 
   if (navigator.sendBeacon) {
     var rawBeacon = navigator.sendBeacon.bind(navigator);
@@ -370,8 +329,13 @@ function buildBootScript(sourceOrigin, adapterHosts) {
   }
 
   if (navigator.serviceWorker) {
-    navigator.serviceWorker.register(${JSON.stringify(SW_PATH)}, { scope: '/' }).then(function () {
-      try { console.info('[sd-adapter] service worker registered'); } catch (e) {}
+    var swUrl = ${JSON.stringify(SW_PATH + '?v=3')};
+    navigator.serviceWorker.getRegistrations().then(function (regs) {
+      return Promise.all((regs || []).map(function (r) { return r.unregister(); }));
+    }).then(function () {
+      return navigator.serviceWorker.register(swUrl, { scope: '/', updateViaCache: 'none' });
+    }).then(function () {
+      try { console.info('[sd-adapter] service worker v3 registered'); } catch (e) {}
     }).catch(function (err) {
       try { console.warn('[sd-adapter] sw register failed', err); } catch (e) {}
     });
@@ -383,9 +347,12 @@ function buildBootScript(sourceOrigin, adapterHosts) {
 }
 
 function buildServiceWorkerScript() {
-  return `/*! site-downloader api adapter sw */
+  const proxyPrefix = JSON.stringify(PROXY_PREFIX + '/');
+  return `/*! site-downloader api adapter sw v3 */
 self.addEventListener('install', function (e) { self.skipWaiting(); });
 self.addEventListener('activate', function (e) { e.waitUntil(self.clients.claim()); });
+
+var PROXY_PREFIX = ${proxyPrefix};
 
 function isApiHost(hostname) {
   var h = String(hostname || '').toLowerCase();
@@ -395,16 +362,13 @@ function isApiHost(hostname) {
   return false;
 }
 
-self.addEventListener('fetch', function (event) {
-  var req = event.request;
-  var url;
-  try { url = new URL(req.url); } catch (e) { return; }
-  if (url.origin === self.location.origin) return;
-  if (!isApiHost(url.hostname)) return;
+function isLocalApiPath(pathname) {
+  var p = pathname || '';
+  return p.indexOf('/hall/api/') === 0 || p.indexOf('/api/') === 0;
+}
 
-  var localUrl = self.location.origin + url.pathname + url.search;
-  event.respondWith((async function () {
-    try { console.info('[sd-adapter][sw]', req.url, '->', localUrl); } catch (e) {}
+function relay(req, targetUrl) {
+  return (async function () {
     var init = {
       method: req.method,
       headers: req.headers,
@@ -416,8 +380,27 @@ self.addEventListener('fetch', function (event) {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       init.body = await req.clone().arrayBuffer();
     }
-    return fetch(localUrl, init);
-  })());
+    return fetch(targetUrl, init);
+  })();
+}
+
+self.addEventListener('fetch', function (event) {
+  var req = event.request;
+  var url;
+  try { url = new URL(req.url); } catch (e) { return; }
+  if (url.origin === self.location.origin) return;
+  if (!isApiHost(url.hostname)) return;
+
+  // 业务 API → 本地短 path（adapter / 上游）
+  if (isLocalApiPath(url.pathname)) {
+    var localUrl = self.location.origin + url.pathname + url.search;
+    event.respondWith(relay(req, localUrl));
+    return;
+  }
+
+  // 图片/OSS → 本地代理（伪造 Referer，避免 CDN 防盗链）
+  var proxyUrl = self.location.origin + PROXY_PREFIX + encodeURIComponent(req.url);
+  event.respondWith(relay(req, proxyUrl));
 });
 `;
 }

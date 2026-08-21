@@ -11,6 +11,7 @@ const DEFAULT_ADAPTER_HOSTS = [
 ];
 
 const DEFAULT_UPSTREAM_ORIGIN = 'https://aniw976.679win.cc';
+const DEFAULT_OSS_ORIGIN = 'https://oniw976.679win.cc';
 
 /** 子域后缀：命中则视为 API 主机（排除裸主域） */
 const API_HOST_SUFFIX_RE = /\.679win\.(cc|me|co|net)$/i;
@@ -40,6 +41,7 @@ function isAdapterApiHost(hostname, extraHosts) {
 function loadAdapterConfig(siteDir, fs, path) {
   let fromFile = [];
   let upstreamOrigin = '';
+  let ossOrigin = '';
   try {
     const p = path.join(siteDir, 'adapter-hosts.json');
     if (fs.existsSync(p)) {
@@ -48,6 +50,7 @@ function loadAdapterConfig(siteDir, fs, path) {
       else if (raw && typeof raw === 'object') {
         if (Array.isArray(raw.hosts)) fromFile = raw.hosts.map(String);
         if (raw.upstreamOrigin) upstreamOrigin = String(raw.upstreamOrigin);
+        if (raw.ossOrigin) ossOrigin = String(raw.ossOrigin);
       }
     }
   } catch (_) { /* ignore */ }
@@ -58,10 +61,11 @@ function loadAdapterConfig(siteDir, fs, path) {
     if (name.includes('679win')) {
       hosts = [...new Set(DEFAULT_ADAPTER_HOSTS.concat(fromFile))];
       if (!upstreamOrigin) upstreamOrigin = DEFAULT_UPSTREAM_ORIGIN;
+      if (!ossOrigin) ossOrigin = DEFAULT_OSS_ORIGIN;
     }
   } catch (_) { /* ignore */ }
 
-  return { hosts, upstreamOrigin };
+  return { hosts, upstreamOrigin, ossOrigin };
 }
 
 function loadAdapterHosts(siteDir, fs, path) {
@@ -82,13 +86,26 @@ function isHallApiPath(pathname) {
   return p.startsWith('/hall/api/') || p.startsWith('/api/member/') || p.startsWith('/api/');
 }
 
+/** OSS / 设计资源（曾被误改到本地短 path） */
+function isOssAssetPath(pathname) {
+  const p = String(pathname || '');
+  return (
+    p.startsWith('/siteadmin/')
+    || p.startsWith('/lobby_asset/')
+    || p.startsWith('/hall/api/game/')
+    || p.includes('/upload/')
+  );
+}
+
 module.exports = {
   DEFAULT_ADAPTER_HOSTS,
   DEFAULT_UPSTREAM_ORIGIN,
+  DEFAULT_OSS_ORIGIN,
   loadAdapterConfig,
   loadAdapterHosts,
   isAdapterApiHost,
   isAuthApiPath,
   isHallApiPath,
+  isOssAssetPath,
   isBareSiteHost
 };
