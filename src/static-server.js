@@ -116,13 +116,16 @@ function createStaticServer(siteDir, options = {}) {
     || loadAdapterConfig(root, fs, path)
     || { hosts: [], upstreamOrigin: '' };
   const adapterHosts = options.adapterHosts || adapterCfg.hosts || [];
+  // aniw 业务 API（可 POST）；绝不能回退成 OSS，否则 MethodNotAllowed ResourceType=OBJECT
   const apiUpstreamOrigin = options.apiUpstreamOrigin || adapterCfg.upstreamOrigin || '';
-  const ossOrigin = options.ossOrigin || adapterCfg.ossOrigin || apiUpstreamOrigin || '';
+  // oniw 对象存储（仅 GET）；不要用 apiUpstream 顶替
+  const ossOrigin = options.ossOrigin || adapterCfg.ossOrigin || '';
   const bootCfg = {
     hosts: adapterHosts,
     apiHostPatterns: adapterCfg.apiHostPatterns || [],
     excludeHosts: adapterCfg.excludeHosts || [],
     ossOrigin: ossOrigin || '',
+    upstreamOrigin: apiUpstreamOrigin || '',
     ossHosts: []
   };
   try {
@@ -143,23 +146,46 @@ function createStaticServer(siteDir, options = {}) {
 
       const reqUrl = new URL(req.url || '/', `http://${host}:${options.port || 0}`);
       const filePath = resolveFilePath(root, req.url || '/');
+      const method = String(req.method || 'GET').toUpperCase();
+      const isMutating = method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS';
 
       if (!filePath) {
-        // OSS/图片误落到本地短 path → 回 oniw OSS，不要回主站
+        // OSS/图片误落到本地短 path → 回 oniw OSS，不要回主站（且禁止 POST 打 OSS）
         if (
-          ossOrigin
+          !isMutating
+          && ossOrigin
           && isOssAssetPath(reqUrl.pathname)
           && tryFallbackMissingAsset(req, res, ossOrigin, reqUrl.pathname, reqUrl.search)
         ) {
           return;
         }
-        // 非登录类 /hall/api → 回 API 上游（不是主站 679win.com）
-        // 若带的是本地 wgame 会话 Token，必须剥掉并消毒 -1，否则触发「设备已断开」
+        // home：/api/lobby/* 配置走 OSS（不接 wgame）
+        if (
+          !isMutating
+          && ossOrigin
+          && /^\/api\/lobby\//i.test(reqUrl.pathname)
+          && tryFallbackMissingAsset(req, res, ossOrigin, reqUrl.pathname, reqUrl.search)
+        ) {
+          return;
+        }
+        // GET 的 /hall/api/**/*.json 实际在 OSS；本地没有时回 oniw（仍禁止 POST）
+        if (
+          !isMutating
+          && ossOrigin
+          && isHallApiPath(reqUrl.pathname)
+          && /\.json$/i.test(reqUrl.pathname)
+          && tryFallbackMissingAsset(req, res, ossOrigin, reqUrl.pathname, reqUrl.search)
+        ) {
+          return;
+        }
+        // home/lobby 等未映射接口：保持原站回源（OSS/aniw），不空数据覆盖
+        // 本地 wgame 会话 Token 不能带给真实上游 → 剥 Token，但不再伪造 code:1
         if (
           apiUpstreamOrigin
           && isHallApiPath(reqUrl.pathname)
           && tryFallbackMissingAsset(req, res, apiUpstreamOrigin, reqUrl.pathname, reqUrl.search, {
             stripAuth: shouldStripAuth(req, adapterCfg),
+            sanitizeAuthKick: false,
             refererOrigin: apiUpstreamOrigin
           })
         ) {
@@ -172,8 +198,10 @@ function createStaticServer(siteDir, options = {}) {
         ) {
           return;
         }
+        // 主站常挂在 OSS/CDN：业务 API POST 过去会 405，有 hall API path 时禁止回主站
         if (
           sourceOrigin
+          && !isHallApiPath(reqUrl.pathname)
           && (
             isLikelySameOriginApiPath(reqUrl.pathname, reqUrl.search)
             || isFetchLikeRequest(req)

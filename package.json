@@ -8,7 +8,11 @@
     "serve": "node serve.js",
     "compare": "node scripts/compare-runtime.js",
     "install-browsers": "node scripts/install-browsers.js",
-    "postinstall": "node scripts/install-browsers.js"
+    "postinstall": "node scripts/install-browsers.js",
+    "promote-input": "node scripts/promote-input.js",
+    "export-migrated": "node scripts/export-migrated.js",
+    "verify-p0": "node scripts/verify-p0.js",
+    "analyze-apis": "node scripts/analyze-apis.js"
   },
   "engines": {
     "node": ">=14.0.0"
@@ -17,6 +21,7 @@
     "axios": "^0.27.2",
     "cheerio": "1.0.0-rc.12",
     "crypto-js": "4.2.0",
+    "https-proxy-agent": "7",
     "playwright": "1.37.1",
     "postcss": "^8.4.31",
     "postcss-value-parser": "^4.2.0",

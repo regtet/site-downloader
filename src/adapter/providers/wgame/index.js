@@ -98,13 +98,12 @@ function toCanonicalUser(account, password, res) {
   const uid = String(res.dwUserID != null ? res.dwUserID : '');
   const game_gold = res.game_gold != null ? Number(res.game_gold) : 0;
   const nickname = res.nickname || account;
-  return {
+  const out = {
     account,
     password: password || '',
     session,
     userId: uid,
     game_gold,
-    currency: 'BRL',
     nickname,
     phone: res.phone || '',
     email: res.email || '',
@@ -120,6 +119,10 @@ function toCanonicalUser(account, password, res) {
     has_recharge: res.bHasRecharge,
     raw_hall: res.hall || null
   };
+  // 大厅真实 accountType（有才带；不硬编码）
+  if (res.accountType != null) out.account_type = Number(res.accountType);
+  else if (res.hall && res.hall.accountType != null) out.account_type = Number(res.hall.accountType);
+  return out;
 }
 
 function rememberSession(user) {
@@ -299,8 +302,9 @@ async function execute(op, ctx) {
 
   if (op === OP.WALLET_GOLD) {
     const row = findSession(body, headers);
-    const gold = row && row.user ? Number(row.user.game_gold || 0) : 0;
-    return ok({ game_gold: gold, totalGold: gold, bonus: 0, bonusRequireBet: 0, auditMode: 0 }, 'ok');
+    if (!row || !row.user) return fail(401, 'not logged in');
+    const gold = Number(row.user.game_gold || 0);
+    return ok({ game_gold: gold }, 'ok');
   }
 
   return fail(404, 'unknown op: ' + op);

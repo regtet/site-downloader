@@ -23,7 +23,7 @@
         </span>
         <div class="brand-text">
           <h1>Site Downloader</h1>
-          <p class="subtitle">粘贴网址，生成可本地运行的站点包</p>
+          <p class="subtitle">两步：获取 dist → 替换接口</p>
         </div>
       </div>
       <div id="queueStatus" class="queue-status" aria-live="polite"></div>
@@ -50,7 +50,7 @@
             />
             <datalist id="urlHistoryList"></datalist>
             <button type="submit" id="downloadBtn" class="btn btn-primary">
-              <span class="btn-text">开始生成</span>
+              <span class="btn-text">获取 dist</span>
               <span class="btn-loading hidden">
                 <span class="spinner"></span>
                 处理中
@@ -118,9 +118,11 @@
             </div>
           </div>
           <div class="result-actions">
-            <button id="previewBtn" class="btn btn-secondary">本地预览</button>
-            <button id="stopPreviewBtn" class="btn btn-ghost hidden">关闭预览</button>
+            <button type="button" id="migrateBtn" class="btn btn-primary" disabled>替换接口</button>
+            <button type="button" id="previewBtn" class="btn btn-secondary" disabled>本地预览</button>
+            <button type="button" id="stopPreviewBtn" class="btn btn-ghost hidden">关闭预览</button>
           </div>
+          <p id="migrateStatus" class="migrate-status hidden"></p>
           <p id="outputPath" class="output-path"></p>
           <div id="errorList" class="error-list scrollable hidden"></div>
         </div>
@@ -133,7 +135,7 @@
             <button id="clearLogBtn" class="btn btn-ghost btn-sm">清空</button>
           </div>
           <div id="logContainer" class="log-container scrollable">
-            <p class="log-empty">输入网址后点「开始生成」</p>
+            <p class="log-empty">输入网址后点「获取 dist」</p>
           </div>
         </section>
 

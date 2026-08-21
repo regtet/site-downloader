@@ -1,7 +1,8 @@
-const http = require('http');
-const https = require('https');
 const path = require('path');
 const { URL } = require('url');
+const axios = require('axios');
+const { applySystemProxy } = require('./system-proxy');
+applySystemProxy({ log: false });
 
 const PROXY_PREFIX = '/__sd_proxy__';
 const BOOT_PATH = '/__sd_boot.js';
@@ -102,7 +103,14 @@ function parseProxyTarget(reqUrl) {
 
 function normalizeBootCfg(adapterHostsOrCfg) {
   if (Array.isArray(adapterHostsOrCfg)) {
-    return { hosts: adapterHostsOrCfg, apiHostPatterns: [], excludeHosts: [], ossHosts: [] };
+    return {
+      hosts: adapterHostsOrCfg,
+      apiHostPatterns: [],
+      excludeHosts: [],
+      ossHosts: [],
+      ossOrigin: '',
+      upstreamOrigin: ''
+    };
   }
   const c = adapterHostsOrCfg && typeof adapterHostsOrCfg === 'object' ? adapterHostsOrCfg : {};
   const ossHosts = Array.isArray(c.ossHosts) ? c.ossHosts.map(String) : [];
@@ -116,7 +124,9 @@ function normalizeBootCfg(adapterHostsOrCfg) {
     hosts: Array.isArray(c.hosts) ? c.hosts : [],
     apiHostPatterns: Array.isArray(c.apiHostPatterns) ? c.apiHostPatterns : [],
     excludeHosts: Array.isArray(c.excludeHosts) ? c.excludeHosts : [],
-    ossHosts
+    ossHosts,
+    ossOrigin: c.ossOrigin ? String(c.ossOrigin) : '',
+    upstreamOrigin: c.upstreamOrigin ? String(c.upstreamOrigin) : ''
   };
 }
 
@@ -284,6 +294,10 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
       var u = new URL(href);
       if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
       if (u.origin === LOCAL_ORIGIN) return null;
+      // 业务 API 一律改本地短 path。oniw OSS 只允许 GET 对象；POST 打上去会 405 MethodNotAllowed
+      if (u.pathname.indexOf('/hall/api/') === 0 || u.pathname.indexOf('/api/') === 0) {
+        return LOCAL_ORIGIN + u.pathname + u.search + u.hash;
+      }
       // OSS(oniw)：已下载的图片/静态走本地；version.json 等元数据必须回源（本地 404 会触发域名探测失败→整页图闪没）
       if (isOssHost(u.hostname)) {
         if (isMirroredAssetPath(u.pathname)) {
@@ -291,7 +305,7 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
         }
         return toProxy(href);
       }
-      // 业务 API → 本地短 path
+      // 其它业务 API 主机 → 本地短 path
       if (isAdapterApiHost(u.hostname) && isLocalShortPath(u.pathname)) {
         return LOCAL_ORIGIN + u.pathname + u.search + u.hash;
       }
@@ -699,7 +713,7 @@ function buildServiceWorkerScript(adapterHostsOrCfg) {
   const patternsJson = JSON.stringify(cfg.apiHostPatterns);
   const excludeJson = JSON.stringify(cfg.excludeHosts);
   const ossHostsJson = JSON.stringify(cfg.ossHosts || []);
-  return `/*! site-downloader api adapter sw v9 */
+  return `/*! site-downloader api adapter sw v10 */
 self.addEventListener('install', function (e) { self.skipWaiting(); });
 self.addEventListener('activate', function (e) { e.waitUntil(self.clients.claim()); });
 
@@ -774,6 +788,13 @@ self.addEventListener('fetch', function (event) {
   var url;
   try { url = new URL(req.url); } catch (e) { return; }
   if (url.origin === self.location.origin) return;
+
+  // 业务 API 一律改本地短 path，禁止 POST 打到 oniw OSS（会 405 MethodNotAllowed）
+  if (url.pathname.indexOf('/hall/api/') === 0 || url.pathname.indexOf('/api/') === 0) {
+    var apiLocal = self.location.origin + url.pathname + url.search;
+    event.respondWith(relay(req, apiLocal));
+    return;
+  }
 
   // OSS(oniw)：镜像静态→本地；version.json 等→代理回源（避免本地 404 触发 OSS 探测失败）
   if (isOssHost(url.hostname)) {
@@ -903,81 +924,77 @@ function filterResponseHeaders(headers) {
 }
 
 function proxyRequest(req, res, target, refererOrigin, options = {}) {
-  const isHttps = target.protocol === 'https:';
-  const lib = isHttps ? https : http;
   // 默认用目标站 origin 作 Referer（OSS/CDN 防盗链）；可显式传入
   const ref = refererOrigin || (target.origin + '/');
   const headers = copyRequestHeaders(req, ref, options);
   headers.Host = target.host;
-  const sanitizeAuth = !!(options.stripAuth || options.sanitizeAuthKick);
+  const sanitizeAuth = options.sanitizeAuthKick != null
+    ? !!options.sanitizeAuthKick
+    : !!options.stripAuth;
+  const method = String(req.method || 'GET').toUpperCase();
 
-  const upstream = lib.request(
-    {
-      protocol: target.protocol,
-      hostname: target.hostname,
-      port: target.port || (isHttps ? 443 : 80),
-      path: target.pathname + target.search,
-      method: req.method || 'GET',
+  // 走 axios：自动尊重 HTTPS_PROXY / 系统代理（浏览器能开、Node https 直连常 ECONNRESET）
+  const run = async () => {
+    let body = undefined;
+    if (method !== 'GET' && method !== 'HEAD') {
+      body = await new Promise((resolve, reject) => {
+        const chunks = [];
+        req.on('data', (c) => chunks.push(c));
+        req.on('end', () => resolve(Buffer.concat(chunks)));
+        req.on('error', reject);
+      });
+    }
+
+    const upRes = await axios({
+      url: target.href,
+      method,
       headers,
-      timeout: 30000
-    },
-    (upRes) => {
-      const outHeaders = filterResponseHeaders(upRes.headers);
-      outHeaders['X-SD-Proxy'] = '1';
+      data: body,
+      responseType: 'arraybuffer',
+      timeout: 30000,
+      maxRedirects: 5,
+      decompress: false,
+      validateStatus: () => true,
+      // false = 让 axios 读 HTTPS_PROXY；显式对象会覆盖 env
+      proxy: undefined
+    });
 
-      if (!sanitizeAuth) {
-        res.writeHead(upRes.statusCode || 502, outHeaders);
-        upRes.pipe(res);
-        return;
+    const outHeaders = filterResponseHeaders(upRes.headers || {});
+    outHeaders['X-SD-Proxy'] = '1';
+    let buf = Buffer.from(upRes.data || []);
+
+    if (sanitizeAuth) {
+      const ct = String((upRes.headers && (upRes.headers['content-type'] || upRes.headers['Content-Type'])) || '');
+      if (/json|text|javascript/i.test(ct) || buf.length < 2e6) {
+        const raw = buf.toString('utf8');
+        const next = sanitizeUpstreamAuthJson(raw);
+        if (next !== raw) {
+          outHeaders['X-SD-Auth-Sanitized'] = '1';
+          buf = Buffer.from(next, 'utf8');
+          try { console.info('[sd-proxy] sanitized auth kick', target.pathname); } catch (_) { /* ignore */ }
+        }
       }
-
-      const chunks = [];
-      upRes.on('data', (c) => chunks.push(c));
-      upRes.on('end', () => {
-        let buf = Buffer.concat(chunks);
-        const ct = String((upRes.headers && (upRes.headers['content-type'] || upRes.headers['Content-Type'])) || '');
-        if (/json|text|javascript/i.test(ct) || buf.length < 2e6) {
-          const raw = buf.toString('utf8');
-          const next = sanitizeUpstreamAuthJson(raw);
-          if (next !== raw) {
-            outHeaders['X-SD-Auth-Sanitized'] = '1';
-            buf = Buffer.from(next, 'utf8');
-            try { console.info('[sd-proxy] sanitized auth kick', target.pathname); } catch (_) { /* ignore */ }
-          }
-        }
-        outHeaders['Content-Length'] = String(buf.length);
-        res.writeHead(upRes.statusCode || 502, outHeaders);
-        res.end(buf);
-      });
-      upRes.on('error', () => {
-        if (!res.headersSent) {
-          res.writeHead(502, { 'Content-Type': 'text/plain; charset=utf-8' });
-          res.end('upstream error');
-        }
-      });
+      outHeaders['Content-Length'] = String(buf.length);
+    } else if (!outHeaders['Content-Length'] && !outHeaders['content-length']) {
+      outHeaders['Content-Length'] = String(buf.length);
     }
-  );
 
-  upstream.on('timeout', () => {
-    upstream.destroy();
     if (!res.headersSent) {
-      res.writeHead(504, { 'Content-Type': 'text/plain; charset=utf-8' });
-      res.end('proxy timeout');
+      res.writeHead(upRes.status || 502, outHeaders);
+    }
+    res.end(buf);
+  };
+
+  run().catch((err) => {
+    if (!res.headersSent) {
+      const isTimeout = err && (err.code === 'ECONNABORTED' || /timeout/i.test(String(err.message || '')));
+      res.writeHead(isTimeout ? 504 : 502, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        error: isTimeout ? 'proxy timeout' : 'proxy failed',
+        message: String(err && err.message || err)
+      }));
     }
   });
-
-  upstream.on('error', (err) => {
-    if (!res.headersSent) {
-      res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ error: 'proxy failed', message: String(err && err.message || err) }));
-    }
-  });
-
-  if (req.method === 'GET' || req.method === 'HEAD') {
-    upstream.end();
-  } else {
-    req.pipe(upstream);
-  }
 }
 
 /**
@@ -1007,9 +1024,13 @@ function tryFallbackMissingAsset(req, res, fallbackOrigin, pathname, search, opt
   if (target.protocol !== 'http:' && target.protocol !== 'https:') return false;
 
   const referer = options.refererOrigin || target.origin + '/';
+  const stripAuth = !!options.stripAuth;
+  const sanitizeAuthKick = options.sanitizeAuthKick != null
+    ? !!options.sanitizeAuthKick
+    : stripAuth;
   proxyRequest(req, res, target, referer, {
-    stripAuth: !!options.stripAuth,
-    sanitizeAuthKick: !!(options.stripAuth || options.sanitizeAuthKick)
+    stripAuth,
+    sanitizeAuthKick
   });
   return true;
 }
@@ -1053,11 +1074,28 @@ function tryHandleProxy(req, res, sourceOrigin, adapterHosts) {
     return true;
   }
 
+  const bootCfg = normalizeBootCfg(adapterHosts);
+  const method = String(req.method || 'GET').toUpperCase();
+  const isMutating = method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS';
+  const pth = target.pathname || '';
+  const isApi = pth.indexOf('/api/') === 0 || pth.indexOf('/hall/api/') === 0;
+  const targetHost = String(target.hostname || '').toLowerCase();
+  const isOniw = /^oniw\d*\./i.test(targetHost)
+    || (bootCfg.ossHosts || []).some((h) => String(h).toLowerCase() === targetHost);
+
+  // POST/PUT 打到 OSS 会 405；改写到 aniw 业务上游
+  let finalTarget = target;
+  if (isApi && isMutating && isOniw && bootCfg.upstreamOrigin) {
+    try {
+      finalTarget = new URL(pth + (target.search || ''), bootCfg.upstreamOrigin.endsWith('/')
+        ? bootCfg.upstreamOrigin
+        : bootCfg.upstreamOrigin + '/');
+    } catch (_) { /* keep original */ }
+  }
+
   // 代理到 API 主机时：本地 wgame Token 不能转给真实上游（会 -1 踢下线）
   let stripAuth = false;
   try {
-    const pth = target.pathname || '';
-    const isApi = pth.indexOf('/api/') === 0 || pth.indexOf('/hall/api/') === 0;
     if (isApi) {
       const { getProvider } = require('./adapter/providers');
       const provider = getProvider('wgame');
@@ -1067,7 +1105,7 @@ function tryHandleProxy(req, res, sourceOrigin, adapterHosts) {
     }
   } catch (_) { /* ignore */ }
 
-  proxyRequest(req, res, target, target.origin + '/', { stripAuth, sanitizeAuthKick: stripAuth });
+  proxyRequest(req, res, finalTarget, finalTarget.origin + '/', { stripAuth, sanitizeAuthKick: stripAuth });
   return true;
 }
 

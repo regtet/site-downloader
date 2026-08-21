@@ -3,6 +3,8 @@
  */
 const WebSocket = require('ws');
 const proto = require('./protocol');
+const { applySystemProxy, getHttpsProxyAgent, resolveProxyUrl } = require('../../../system-proxy');
+applySystemProxy({ log: false });
 
 function defaultDeviceId(account) {
   return proto.md5Hex('sd-' + String(account || 'device') + '-' + Date.now()).slice(0, 32);
@@ -45,10 +47,16 @@ function wgameAuth(options) {
     }, timeoutMs);
 
     try {
-      ws = new WebSocket(wssUrl, {
+      const agent = getHttpsProxyAgent();
+      const wsOpts = {
         handshakeTimeout: Math.min(10000, timeoutMs),
         rejectUnauthorized: false
-      });
+      };
+      if (agent) wsOpts.agent = agent;
+      ws = new WebSocket(wssUrl, wsOpts);
+      if (agent && resolveProxyUrl()) {
+        try { console.info('[wgame] connect via proxy', wssUrl); } catch (_) { /* ignore */ }
+      }
     } catch (e) {
       done(e);
       return;
@@ -66,6 +74,10 @@ function wgameAuth(options) {
 
     ws.on('error', (err) => {
       done(err || new Error('wgame websocket error'));
+    });
+
+    ws.on('unexpected-response', (_req, res) => {
+      done(new Error('Unexpected server response: ' + (res && res.statusCode)));
     });
 
     ws.on('close', () => {
@@ -169,7 +181,8 @@ function wgameAuth(options) {
         happyMoney: hall ? hall.happyMoney : 0,
         lGameScore: hall ? hall.lGameScore : 0,
         bFirstLogin: hall ? hall.bFirstLogin : 0,
-        bHasRecharge: hall ? hall.bHasRecharge : 0
+        bHasRecharge: hall ? hall.bHasRecharge : 0,
+        accountType: hall && hall.accountType != null ? hall.accountType : undefined
       });
     };
 

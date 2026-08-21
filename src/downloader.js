@@ -4,6 +4,8 @@ const path = require('path');
 const http = require('http');
 const https = require('https');
 const zlib = require('zlib');
+const { applySystemProxy } = require('./system-proxy');
+applySystemProxy({ log: false });
 
 const httpAgent = new http.Agent({ keepAlive: true, maxSockets: 16, maxFreeSockets: 8 });
 const httpsAgent = new https.Agent({

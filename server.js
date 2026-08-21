@@ -1,4 +1,5 @@
 require('./src/playwright-env');
+require('./src/system-proxy').applySystemProxy();
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -6,6 +7,12 @@ const { URL } = require('url');
 const JobManager = require('./src/job-manager');
 const PreviewServer = require('./src/preview-server');
 const { checkBrowser, getBrowserInfo } = require('./src/browser-check');
+const {
+  migrateFromDist,
+  findMigrated,
+  isAllowedSiteDir,
+  toSiteId
+} = require('./src/migrate');
 
 const BASE_PORT = Number(process.env.PORT) || 3000;
 const MAX_PORT_ATTEMPTS = 20;
@@ -77,8 +84,11 @@ function listDownloads() {
             try { manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')); } catch { }
             try { report = JSON.parse(fs.readFileSync(reportPath, 'utf-8')); } catch { }
             const errorItems = (manifest && manifest.errors || []).filter((item) => item.category !== 'api-skipped' && item.category !== 'optional-missing');
+            const siteId = toSiteId(d.name);
+            const migrated = findMigrated(siteId);
             return {
                 name: d.name,
+                siteId,
                 path: dir,
                 modifiedAt: stat.mtime.toISOString(),
                 source: manifest ? manifest.source : null,
@@ -88,7 +98,10 @@ function listDownloads() {
                 unresolvedItems: manifest ? (manifest.unresolved || []) : [],
                 brokenItems: manifest ? (manifest.brokenReferences || []) : [],
                 missingItems: manifest ? (manifest.missing || []) : [],
-                report
+                report,
+                migrated: !!migrated,
+                migratedPath: migrated ? migrated.path : null,
+                migratedAt: migrated && migrated.manifest ? migrated.manifest.generatedAt : null
             };
         })
         .sort((a, b) => new Date(b.modifiedAt) - new Date(a.modifiedAt));
@@ -220,10 +233,38 @@ async function handleApi(req, res, pathname) {
         return;
     }
 
+    if (req.method === 'POST' && pathname === '/api/migrate') {
+        const body = await readBody(req);
+        const distDir = body.path ? path.resolve(body.path) : null;
+        if (!distDir || !isAllowedSiteDir(distDir)) {
+            sendJson(res, 400, { error: '无效的 dist 目录' });
+            return;
+        }
+        if (!fs.existsSync(distDir) || !fs.statSync(distDir).isDirectory()) {
+            sendJson(res, 400, { error: 'dist 目录不存在' });
+            return;
+        }
+        try {
+            const result = migrateFromDist(distDir, { siteId: body.siteId });
+            sendJson(res, 200, {
+                ok: true,
+                siteId: result.siteId,
+                sourceDist: result.sourceDist,
+                inputDir: result.inputDir,
+                outputDir: result.outputDir,
+                phase: result.phase,
+                ops: result.ops
+            });
+        } catch (err) {
+            sendJson(res, 500, { error: err.message });
+        }
+        return;
+    }
+
     if (req.method === 'POST' && pathname === '/api/preview/start') {
         const body = await readBody(req);
         const siteDir = body.path ? path.resolve(body.path) : null;
-        if (!siteDir || !siteDir.startsWith(OUTPUT_ROOT)) {
+        if (!siteDir || !isAllowedSiteDir(siteDir)) {
             sendJson(res, 400, { error: '无效的预览目录' });
             return;
         }
@@ -239,7 +280,7 @@ async function handleApi(req, res, pathname) {
     if (req.method === 'POST' && pathname === '/api/preview/stop') {
         const body = await readBody(req).catch(() => ({}));
         const siteDir = body.path ? path.resolve(body.path) : null;
-        if (siteDir && !siteDir.startsWith(OUTPUT_ROOT)) {
+        if (siteDir && !isAllowedSiteDir(siteDir)) {
             sendJson(res, 400, { error: '无效的预览目录' });
             return;
         }

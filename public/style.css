@@ -453,6 +453,28 @@ body {
 
 .result-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
 
+.migrate-status {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  word-break: break-all;
+}
+.migrate-status.is-ok {
+  color: var(--accent);
+  border-color: rgba(62, 207, 142, 0.35);
+  background: rgba(62, 207, 142, 0.08);
+}
+.migrate-status.is-err {
+  color: var(--error);
+  border-color: rgba(255, 138, 122, 0.35);
+  background: var(--error-soft);
+}
+
 .output-path {
   font-size: 0.875rem;
   color: var(--text-dim);
@@ -653,6 +675,15 @@ body {
   color: var(--accent);
   font-variant-numeric: tabular-nums;
   font-family: var(--mono);
+}
+
+.migrate-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(62, 207, 142, 0.14);
+  color: var(--accent);
 }
 
 .run-count { opacity: 0.75; }

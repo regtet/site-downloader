@@ -1,5 +1,7 @@
 require('./playwright-env');
 const { chromium } = require('playwright');
+const { getPlaywrightProxy, applySystemProxy } = require('./system-proxy');
+applySystemProxy({ log: false });
 
 const TAB_SELECTORS = [
   '[role="tab"]:visible',
@@ -106,7 +108,11 @@ class Capture {
     this.documentUrl = '';
     this._aborted = false;
 
-    const browser = await chromium.launch({ headless: true });
+    const proxy = getPlaywrightProxy();
+    const browser = await chromium.launch({
+      headless: true,
+      ...(proxy ? { proxy } : {})
+    });
     this._browser = browser;
     const context = await browser.newContext({
       userAgent: this.userAgent,

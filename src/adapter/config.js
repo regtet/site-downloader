@@ -7,6 +7,72 @@
 const { getSeries } = require('./series');
 const { getProvider } = require('./providers');
 
+/**
+ * 从抓包 network.json 推断：
+ * - upstreamOrigin: aniw* 上的 POST /hall/api（真正业务 API）
+ * - ossOrigin: oniw* 静态/JSON 对象存储（只允许 GET，POST 会 405 MethodNotAllowed）
+ */
+function inferOriginsFromNetwork(siteDir, fs, path) {
+  const empty = { upstreamOrigin: '', ossOrigin: '' };
+  try {
+    const networkPath = path.join(siteDir, 'network.json');
+    if (!fs.existsSync(networkPath)) return empty;
+    const raw = JSON.parse(fs.readFileSync(networkPath, 'utf8'));
+    const entries = Array.isArray(raw) ? raw : (raw.entries || raw.network || []);
+    const apiPost = Object.create(null);
+    const ossGet = Object.create(null);
+
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i] || {};
+      let u;
+      try {
+        u = new URL(String(e.url || ''));
+      } catch (_) {
+        continue;
+      }
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') continue;
+      const host = u.hostname.toLowerCase();
+      const method = String(e.method || 'GET').toUpperCase();
+      const p = u.pathname || '';
+      const origin = u.origin;
+      const isHallApi = p.indexOf('/hall/api/') === 0 || p.indexOf('/api/') === 0;
+      const isOniw = /^oniw\d*\./i.test(host);
+      const isAniw = /^aniw\d*\./i.test(host);
+
+      if (isHallApi && method !== 'GET' && method !== 'HEAD') {
+        apiPost[origin] = (apiPost[origin] || 0) + 10;
+      } else if (isHallApi && isAniw) {
+        apiPost[origin] = (apiPost[origin] || 0) + 2;
+      } else if (isAniw && (p.indexOf('/hall/') === 0 || p.indexOf('/api/') === 0)) {
+        apiPost[origin] = (apiPost[origin] || 0) + 1;
+      }
+
+      if (isOniw) {
+        ossGet[origin] = (ossGet[origin] || 0) + 1;
+      }
+    }
+
+    const pickBest = (map) => {
+      let best = '';
+      let score = 0;
+      for (const k of Object.keys(map)) {
+        if (map[k] > score) {
+          score = map[k];
+          best = k;
+        }
+      }
+      return best;
+    };
+
+    return {
+      upstreamOrigin: pickBest(apiPost),
+      ossOrigin: pickBest(ossGet)
+    };
+  } catch (_) {
+    return empty;
+  }
+}
+
 function loadAdapterConfig(siteDir, fs, path) {
   let raw = {};
   try {
@@ -39,6 +105,8 @@ function loadAdapterConfig(siteDir, fs, path) {
     (raw.providerOptions && typeof raw.providerOptions === 'object') ? raw.providerOptions : {}
   );
 
+  const inferred = inferOriginsFromNetwork(siteDir, fs, path);
+
   return {
     series: seriesId,
     provider: providerId,
@@ -47,8 +115,8 @@ function loadAdapterConfig(siteDir, fs, path) {
     hosts,
     apiHostPatterns,
     excludeHosts,
-    upstreamOrigin: raw.upstreamOrigin ? String(raw.upstreamOrigin) : '',
-    ossOrigin: raw.ossOrigin ? String(raw.ossOrigin) : '',
+    upstreamOrigin: raw.upstreamOrigin ? String(raw.upstreamOrigin) : (inferred.upstreamOrigin || ''),
+    ossOrigin: raw.ossOrigin ? String(raw.ossOrigin) : (inferred.ossOrigin || ''),
     providerOptions
   };
 }
@@ -60,6 +128,7 @@ function loadAdapterHosts(siteDir, fs, path) {
 module.exports = {
   loadAdapterConfig,
   loadAdapterHosts,
+  inferOriginsFromNetwork,
   getSeries,
   getProvider
 };

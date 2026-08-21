@@ -17,6 +17,8 @@ const statMissing = $('#statMissing');
 const statUnresolved = $('#statUnresolved');
 const statBroken = $('#statBroken');
 const previewBtn = $('#previewBtn');
+const migrateBtn = $('#migrateBtn');
+const migrateStatus = $('#migrateStatus');
 const stopPreviewBtn = $('#stopPreviewBtn');
 const cancelJobBtn = $('#cancelJobBtn');
 const outputPath = $('#outputPath');
@@ -284,11 +286,25 @@ function taskProgressPercent(progress) {
   return 0;
 }
 
+function previewDirForTask(task) {
+  if (!task) return '';
+  return task.migratedPath
+    || task.historyMeta?.migratedPath
+    || task.outputDir
+    || task.summary?.outputDir
+    || '';
+}
+
 function previewForTask(task) {
   if (!task) return null;
-  const dir = (task.outputDir || task.summary?.outputDir || '').replace(/\\/g, '/');
-  if (!dir) return null;
-  return activePreviews.find((p) => (p.path || '').replace(/\\/g, '/') === dir) || null;
+  const dirs = [
+    task.migratedPath,
+    task.historyMeta?.migratedPath,
+    task.outputDir,
+    task.summary?.outputDir
+  ].filter(Boolean).map((d) => String(d).replace(/\\/g, '/'));
+  if (!dirs.length) return null;
+  return activePreviews.find((p) => dirs.includes((p.path || '').replace(/\\/g, '/'))) || null;
 }
 
 function renderTaskList() {
@@ -308,12 +324,14 @@ function renderTaskList() {
     const time = formatTime(task.finishedAt || task.createdAt);
     const preview = previewForTask(task);
     const runs = task.runCount > 1 ? `<span class="run-count">${task.runCount} 次</span>` : '';
+    const migrated = !!(task.migratedPath || task.historyMeta?.migrated);
 
     return `
       <button type="button" class="task-item${task.id === selectedTaskId ? ' active' : ''}" data-task-id="${encodeURIComponent(task.id)}">
         <div class="task-item-head">
           <span class="task-status-badge status-${status}">${statusLabels[status] || status}</span>
           <span class="task-host">${escapeHtml(host)}</span>
+          ${migrated ? '<span class="migrate-badge">已替换</span>' : ''}
           ${preview ? `<span class="preview-badge">:${preview.port}</span>` : ''}
         </div>
         <div class="task-url" title="${escapeHtml(task.url || '')}">${escapeHtml(task.url || task.outputDir || '未知')}</div>
@@ -462,6 +480,9 @@ function showResultForTask(task) {
   statBroken.closest('.stat')?.classList.toggle('is-zero', !nBroken);
 
   let pathText = summary?.outputDir ?? task.outputDir ?? '';
+  if (task.migratedPath || task.historyMeta?.migratedPath) {
+    pathText += `\n部署包: ${task.migratedPath || task.historyMeta.migratedPath}`;
+  }
   if (summary?.manifestStats?.listed) {
     pathText += `\n皮肤清单: ${summary.manifestStats.success}/${summary.manifestStats.listed} 成功`;
   }
@@ -487,13 +508,33 @@ function showResultForTask(task) {
   }
 
   const dir = summary?.outputDir || task.outputDir;
+  const migratedPath = task.migratedPath || task.historyMeta?.migratedPath || '';
+  if (migrateBtn) {
+    migrateBtn.disabled = !dir || !!task.migrating;
+    migrateBtn.textContent = task.migrating ? '替换中…' : (migratedPath ? '重新替换接口' : '替换接口');
+  }
+  if (migrateStatus) {
+    if (task.migrateError) {
+      migrateStatus.className = 'migrate-status is-err';
+      migrateStatus.textContent = task.migrateError;
+      migrateStatus.classList.remove('hidden');
+    } else if (migratedPath) {
+      migrateStatus.className = 'migrate-status is-ok';
+      migrateStatus.textContent = `接口已替换 → ${migratedPath}`;
+      migrateStatus.classList.remove('hidden');
+    } else {
+      migrateStatus.className = 'migrate-status hidden';
+      migrateStatus.textContent = '';
+    }
+  }
+
   previewBtn.disabled = !dir;
   const preview = previewForTask(task);
   stopPreviewBtn.classList.toggle('hidden', !preview);
   if (preview) {
     previewBtn.textContent = `打开预览 :${preview.port}`;
   } else {
-    previewBtn.textContent = '本地预览';
+    previewBtn.textContent = migratedPath ? '预览部署包' : '本地预览';
   }
 
   if (summary) renderErrors(summary.errors, summary);
@@ -884,7 +925,8 @@ async function loadTaskList() {
         for (const task of tasks.values()) {
           if (projectKey(task) === host) {
             task.outputDir = task.outputDir || item.path;
-            task.historyMeta = task.historyMeta || item;
+            task.historyMeta = item;
+            if (item.migratedPath) task.migratedPath = item.migratedPath;
             if (!task.summary && item.report) {
               task.summary = {
                 resources: item.resources,
@@ -904,6 +946,7 @@ async function loadTaskList() {
         url: item.source || `https://${item.name}/`,
         status: 'archived',
         outputDir: item.path,
+        migratedPath: item.migratedPath || null,
         createdAt: item.modifiedAt,
         finishedAt: item.modifiedAt,
         historyMeta: item
@@ -932,7 +975,7 @@ downloadForm.addEventListener('submit', (e) => {
 
 previewBtn.addEventListener('click', async () => {
   const task = getTask(selectedTaskId);
-  const dir = task?.outputDir || task?.summary?.outputDir;
+  const dir = previewDirForTask(task);
   if (!dir) return;
   const existing = previewForTask(task);
   if (existing) {
@@ -944,9 +987,56 @@ previewBtn.addEventListener('click', async () => {
 
 stopPreviewBtn.addEventListener('click', () => {
   const task = getTask(selectedTaskId);
-  const dir = task?.outputDir || task?.summary?.outputDir;
+  const dir = previewDirForTask(task) || task?.outputDir || task?.summary?.outputDir;
   if (dir) stopPreview(dir);
 });
+
+async function runMigrate() {
+  const task = getTask(selectedTaskId);
+  const distDir = task?.outputDir || task?.summary?.outputDir;
+  if (!task || !distDir) return;
+  task.migrating = true;
+  task.migrateError = '';
+  refreshTaskPanel();
+  appendTaskLog(task.id, '开始替换接口…', false);
+  try {
+    const res = await fetch('/api/migrate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: distDir })
+    });
+    const data = await res.json().catch(() => ({}));
+    task.migrating = false;
+    if (!res.ok) {
+      task.migrateError = data.error || '替换失败';
+      appendTaskLog(task.id, task.migrateError, true);
+      refreshTaskPanel();
+      return;
+    }
+    task.migratedPath = data.outputDir;
+    task.historyMeta = {
+      ...(task.historyMeta || {}),
+      migrated: true,
+      migratedPath: data.outputDir,
+      siteId: data.siteId,
+      migratedAt: new Date().toISOString()
+    };
+    appendTaskLog(task.id, `接口已替换 → ${data.outputDir}`, false);
+    refreshTaskPanel();
+    renderTaskList();
+  } catch (err) {
+    task.migrating = false;
+    task.migrateError = err.message || '替换失败';
+    appendTaskLog(task.id, task.migrateError, true);
+    refreshTaskPanel();
+  }
+}
+
+if (migrateBtn) {
+  migrateBtn.addEventListener('click', () => {
+    runMigrate();
+  });
+}
 
 cancelJobBtn.addEventListener('click', async () => {
   const task = getTask(selectedTaskId);

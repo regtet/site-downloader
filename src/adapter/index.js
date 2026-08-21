@@ -1,11 +1,23 @@
 /**
- * 适配层入口：站点配置 → series 匹配 path → provider 执行 OP → series 映射响应
+ * Migration Bridge —— 目标 dist 与我们后端之间的唯一边界
  *
- *   dist(目标站) --HTTP--> series(aniw-lobby) --OP--> provider(wgame)
+ *   目标 dist UI/JS
+ *         │
+ *         ▼
+ *   ┌─ Migration Bridge ─────────────┐
+ *   │ ① 请求映射  migration-map       │
+ *   │ ② 数据 Adapter  series.adapters │
+ *   │ ③ 登录态    provider session    │
+ *   └────────────┬───────────────────┘
+ *                ▼
+ *            provider (wgame)
+ *
+ * 不在这里改 HTML/CSS/目标 JS；只保证返回「目标接口格式」。
  */
 const { isAdapterApiHost } = require('./hosts');
 const { loadAdapterConfig } = require('./config');
 const { PROXY_PREFIX, parseProxyTarget } = require('../preview-proxy');
+const { OP } = require('./ops');
 const fs = require('fs');
 const path = require('path');
 
@@ -18,16 +30,16 @@ function readRawBody(req) {
   });
 }
 
-function sendJson(res, status, obj) {
+function sendJson(res, status, obj, extraHeaders) {
   const body = JSON.stringify(obj);
-  res.writeHead(status, {
+  res.writeHead(status, Object.assign({
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': '*',
     'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-    'X-SD-Adapter': 'series'
-  });
+    'X-SD-Adapter': 'migration-bridge'
+  }, extraHeaders || {}));
   res.end(body);
 }
 
@@ -62,11 +74,32 @@ function resolveAdapterPath(reqUrl, hostCfg, series) {
   return { pathname, via: 'local', host: null };
 }
 
+function shouldPassthroughAuth(cfg, matched) {
+  try {
+    const { loadWgameConfig } = require('./providers/wgame/config');
+    const wcfg = Object.assign(
+      {},
+      loadWgameConfig(cfg._siteDir || ''),
+      cfg.providerOptions || {}
+    );
+    const mode = String(wcfg.mode || 'wgame').toLowerCase();
+    if (mode !== 'upstream' && mode !== 'passthrough' && mode !== 'real') return false;
+    return (
+      matched.op === OP.AUTH_LOGIN
+      || matched.op === OP.AUTH_REGISTER
+      || matched.op === OP.AUTH_CHECK_REGISTER
+    );
+  } catch (_) {
+    return false;
+  }
+}
+
 /**
  * @returns {Promise<boolean>} true if handled
  */
 async function tryHandleAdapter(req, res, options = {}) {
   const cfg = resolveSiteConfig(options);
+  cfg._siteDir = options.siteDir || '';
   const series = cfg.seriesMod;
   const provider = cfg.providerMod;
   if (!series || !provider) return false;
@@ -85,11 +118,14 @@ async function tryHandleAdapter(req, res, options = {}) {
     excludeHosts: cfg.excludeHosts
   };
 
+  // ① 请求映射
   const resolved = resolveAdapterPath(reqUrl, hostCfg, series);
   if (!resolved) return false;
 
   const matched = series.matchRoute(resolved.pathname);
   if (!matched) return false;
+
+  if (shouldPassthroughAuth(cfg, matched)) return false;
 
   if (req.method === 'OPTIONS') {
     sendJson(res, 204, {});
@@ -117,24 +153,27 @@ async function tryHandleAdapter(req, res, options = {}) {
     }
   }
 
+  // provider 执行（③ 登录态在 auth.* / user.info / wallet 内维护）
   const providerResult = await provider.execute(matched.op, {
     body,
     headers: req.headers || {},
     siteDir: options.siteDir || '',
-    providerOptions: cfg.providerOptions
+    providerOptions: cfg.providerOptions,
+    routePath: matched.path,
+    adapter: matched.adapter
   });
-  const result = series.mapResponse(matched.op, providerResult);
+
+  // ② 数据适配
+  const result = series.mapResponse(matched.op, providerResult, { adapter: matched.adapter });
 
   console.log(
-    '[adapter]',
+    '[bridge]',
     cfg.series + '/' + cfg.provider,
     req.method,
-    resolved.via === 'proxy' ? `(proxy ${resolved.host})` : '',
     matched.path,
-    '->',
-    matched.op,
-    result.code,
-    result.msg
+    '→',
+    matched.op + '/' + matched.adapter,
+    result.code
   );
   sendJson(res, 200, result);
   return true;
