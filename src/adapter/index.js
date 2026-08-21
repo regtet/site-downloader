@@ -105,9 +105,10 @@ async function tryHandleAdapter(req, res, options = {}) {
   }
 
   let result;
-  if (route === 'login') result = handleLogin(body);
-  else if (route === 'register') result = handleRegister(body);
-  else result = handleCheckRegister(body);
+  const ctx = { siteDir: options.siteDir || '' };
+  if (route === 'login') result = await handleLogin(body, ctx);
+  else if (route === 'register') result = await handleRegister(body, ctx);
+  else result = await handleCheckRegister(body);
 
   console.log(
     '[adapter:auth]',

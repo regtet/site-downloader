@@ -16,8 +16,10 @@
   "dependencies": {
     "axios": "^0.27.2",
     "cheerio": "1.0.0-rc.12",
+    "crypto-js": "4.2.0",
     "playwright": "1.37.1",
     "postcss": "^8.4.31",
-    "postcss-value-parser": "^4.2.0"
+    "postcss-value-parser": "^4.2.0",
+    "ws": "8.18.0"
   }
 }

@@ -104,7 +104,7 @@ function createStaticServer(siteDir, options = {}) {
 
   return http.createServer((req, res) => {
     const handle = async () => {
-      if (await tryHandleAdapter(req, res, { adapterHosts })) return;
+      if (await tryHandleAdapter(req, res, { adapterHosts, siteDir: root })) return;
 
       if (headerProxy && tryHandleProxy(req, res, sourceOrigin, adapterHosts)) {
         return;
