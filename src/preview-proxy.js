@@ -102,13 +102,21 @@ function parseProxyTarget(reqUrl) {
 
 function normalizeBootCfg(adapterHostsOrCfg) {
   if (Array.isArray(adapterHostsOrCfg)) {
-    return { hosts: adapterHostsOrCfg, apiHostPatterns: [], excludeHosts: [] };
+    return { hosts: adapterHostsOrCfg, apiHostPatterns: [], excludeHosts: [], ossHosts: [] };
   }
   const c = adapterHostsOrCfg && typeof adapterHostsOrCfg === 'object' ? adapterHostsOrCfg : {};
+  const ossHosts = Array.isArray(c.ossHosts) ? c.ossHosts.map(String) : [];
+  if (c.ossOrigin) {
+    try {
+      const h = new URL(String(c.ossOrigin)).hostname;
+      if (h && !ossHosts.includes(h)) ossHosts.push(h);
+    } catch (_) { /* ignore */ }
+  }
   return {
     hosts: Array.isArray(c.hosts) ? c.hosts : [],
     apiHostPatterns: Array.isArray(c.apiHostPatterns) ? c.apiHostPatterns : [],
-    excludeHosts: Array.isArray(c.excludeHosts) ? c.excludeHosts : []
+    excludeHosts: Array.isArray(c.excludeHosts) ? c.excludeHosts : [],
+    ossHosts
   };
 }
 
@@ -119,6 +127,7 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
   const hostsJson = JSON.stringify(cfg.hosts);
   const patternsJson = JSON.stringify(cfg.apiHostPatterns);
   const excludeJson = JSON.stringify(cfg.excludeHosts);
+  const ossHostsJson = JSON.stringify(cfg.ossHosts || []);
   return `/*! site-downloader preview proxy boot */
 (function () {
   var SOURCE_ORIGIN = ${origin};
@@ -126,6 +135,7 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
   var ADAPTER_HOSTS = ${hostsJson};
   var API_HOST_PATTERNS = ${patternsJson};
   var EXCLUDE_HOSTS = ${excludeJson};
+  var OSS_HOSTS = ${ossHostsJson};
   if (!SOURCE_ORIGIN) return;
   if (window.__SD_PROXY_BOOT__) return;
   window.__SD_PROXY_BOOT__ = true;
@@ -135,6 +145,8 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
   for (var hi = 0; hi < ADAPTER_HOSTS.length; hi++) ADAPTER_HOST_SET[String(ADAPTER_HOSTS[hi]).toLowerCase()] = true;
   var EXCLUDE_HOST_SET = {};
   for (var ei = 0; ei < EXCLUDE_HOSTS.length; ei++) EXCLUDE_HOST_SET[String(EXCLUDE_HOSTS[ei]).toLowerCase()] = true;
+  var OSS_HOST_SET = {};
+  for (var oi = 0; oi < OSS_HOSTS.length; oi++) OSS_HOST_SET[String(OSS_HOSTS[oi]).toLowerCase()] = true;
   var API_HOST_REGS = [];
   for (var pi = 0; pi < API_HOST_PATTERNS.length; pi++) {
     try { API_HOST_REGS.push(new RegExp(String(API_HOST_PATTERNS[pi]), 'i')); } catch (e) {}
@@ -166,6 +178,15 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
     return false;
   }
 
+  /** OSS/图片 CDN（oniw*）：远端防盗链，必须改本地 */
+  function isOssHost(hostname) {
+    if (!hostname) return false;
+    var h = String(hostname).toLowerCase();
+    if (OSS_HOST_SET[h]) return true;
+    if (/^oniw\\d*\\./i.test(h)) return true;
+    return false;
+  }
+
   /**
    * 改写到本地短 path：
    * - 业务 API（/hall/api、/api）→ adapter / 上游
@@ -174,12 +195,12 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
    */
   function isMirroredAssetPath(pathname) {
     var p = pathname || '';
+    // 只认本地下载过的镜像目录；其它 CDN 图走 __sd_proxy__ 保留原 host
     if (p.indexOf('/siteadmin/') === 0) return true;
     if (p.indexOf('/lobby_asset/') === 0) return true;
     if (p.indexOf('/game_pictures/') === 0) return true;
-    if (p.indexOf('/hall/api/game/') === 0) return true;
     if (p.indexOf('/upload/') !== -1) return true;
-    return /\\.(?:png|jpe?g|gif|webp|avif|svg|ico|mp4|webm|mp3|m4a|woff2?|ttf|otf)(?:$|\\?)/i.test(p);
+    return false;
   }
 
   function isLocalShortPath(pathname) {
@@ -263,25 +284,112 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
       var u = new URL(href);
       if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
       if (u.origin === LOCAL_ORIGIN) return null;
+      // OSS(oniw)：已下载的图片/静态走本地；version.json 等元数据必须回源（本地 404 会触发域名探测失败→整页图闪没）
+      if (isOssHost(u.hostname)) {
+        if (isMirroredAssetPath(u.pathname)) {
+          return LOCAL_ORIGIN + u.pathname + u.search + u.hash;
+        }
+        return toProxy(href);
+      }
       // 业务 API → 本地短 path
-      if (isAdapterApiHost(u.hostname) && isLocalApiPath(u.pathname)) {
+      if (isAdapterApiHost(u.hostname) && isLocalShortPath(u.pathname)) {
         return LOCAL_ORIGIN + u.pathname + u.search + u.hash;
       }
-      // 其它跨域（含 OSS 图片）→ 本地代理，带源站 Referer，避免防盗链
+      // 其它跨域 → 本地代理
       return toProxy(href);
     } catch (e) {
       return null;
     }
   }
 
+  /**
+   * 官网图片组件会把失败 URL 记进 localStorage（lobby@image@cache@error，约 5 分钟）。
+   * key 会把 ossHost 归一成 {$WG_BUCKET_SITE$}，所以之前 oniw 403 后，本地同 path 也会被当成失败：
+   * 先画出真图 → initAssets 命中失败缓存 → 换成 1x1 透明图（一闪而过）。
+   */
+  try {
+    localStorage.removeItem('lobby@image@cache@error');
+    localStorage.removeItem('lobby@image@cache@success');
+    localStorage.removeItem('lobby@image@cache');
+  } catch (e) {}
+
+  /** 把响应/样式里的 oniw OSS 域名改成本地；并强制 bucket 模式让 ossHost=location.origin */
+  function localizeOssInText(text) {
+    if (!text || typeof text !== 'string') return text;
+    var out = text;
+    // 强制站点走「OSS=当前页 origin」，避免 ping/回切把图片域名改回 oniw 后整页重绘闪没
+    if (out.indexOf('siteBucketSwitchStatus') !== -1) {
+      out = out.replace(/"siteBucketSwitchStatus"\\s*:\\s*\\d+/g, '"siteBucketSwitchStatus":1');
+    }
+    if (out.indexOf('oss_domain') !== -1) {
+      out = out.replace(/"oss_domain"\\s*:\\s*\\[[^\\]]*\\]/g, '"oss_domain":["' + LOCAL_ORIGIN + '"]');
+    }
+    if (out.indexOf('oniw') === -1 && out.indexOf('://') === -1) return out;
+    out = out.replace(/https?:\\/\\/oniw\\d*\\.679win\\.(?:cc|me|co|net)/gi, LOCAL_ORIGIN);
+    for (var i = 0; i < OSS_HOSTS.length; i++) {
+      var host = String(OSS_HOSTS[i] || '');
+      if (!host) continue;
+      out = out.split('https://' + host).join(LOCAL_ORIGIN);
+      out = out.split('http://' + host).join(LOCAL_ORIGIN);
+    }
+    return out;
+  }
+
   /** img/script 等属性赋值不走 XHR，需单独改写到代理 */
   function rewriteMediaUrl(v) {
     if (!v || typeof v !== 'string') return v;
     if (v.indexOf('__sd_proxy__') !== -1) return v;
+    v = localizeOssInText(v);
     var href = absUrl(v);
     var next = href && planUrl(href);
     return next || v;
   }
+
+  /** CSS url("https://oniw.../game_pictures/...") → 本地短 path */
+  function rewriteCssUrls(text) {
+    if (!text || typeof text !== 'string') return text;
+    text = localizeOssInText(text);
+    if (text.indexOf('url(') === -1) {
+      // Vue 有时直接赋裸 URL
+      if (/^https?:\\/\\//i.test(text.trim())) return rewriteMediaUrl(text.trim());
+      return text;
+    }
+    return text.replace(/url\\((['\"]?)([^)'\"]+)\\1\\)/gi, function (_m, q, raw) {
+      var cleaned = String(raw || '').trim();
+      if (!cleaned || cleaned.indexOf('data:') === 0) return _m;
+      var next = rewriteMediaUrl(cleaned);
+      if (!next || next === cleaned) return _m;
+      return 'url(' + (q || '"') + next + (q || '"') + ')';
+    });
+  }
+
+  // 官网启动脚本稍后会写 LOBBY_SITE_CONFIG；提前劫持，把 ossBaseUrl 指到本地
+  try {
+    var __sdLobbyCfg;
+    Object.defineProperty(window, 'LOBBY_SITE_CONFIG', {
+      configurable: true,
+      enumerable: true,
+      get: function () { return __sdLobbyCfg; },
+      set: function (v) {
+        __sdLobbyCfg = v;
+        try {
+          if (v && typeof v === 'object') {
+            if ('ossBaseUrl' in v) v.ossBaseUrl = LOCAL_ORIGIN + '/';
+          }
+        } catch (e) {}
+      }
+    });
+  } catch (e) {}
+
+  try {
+    var metas = document.querySelectorAll('meta[name="siteinfos"]');
+    for (var mi = 0; mi < metas.length; mi++) {
+      var content = metas[mi].getAttribute('content') || '';
+      if (content.indexOf('ossBaseUrl') !== -1) {
+        metas[mi].setAttribute('content', localizeOssInText(content));
+      }
+    }
+  } catch (e) {}
 
   try {
     var imgProto = window.HTMLImageElement && HTMLImageElement.prototype;
@@ -296,6 +404,33 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
         });
       }
     }
+
+    // Vue/内联样式常用 backgroundImage，不走 <img src>
+    var cssProto = window.CSSStyleDeclaration && CSSStyleDeclaration.prototype;
+    if (cssProto) {
+      ['background', 'backgroundImage', 'cssText'].forEach(function (prop) {
+        var desc = Object.getOwnPropertyDescriptor(cssProto, prop);
+        if (desc && desc.set) {
+          Object.defineProperty(cssProto, prop, {
+            configurable: true,
+            enumerable: desc.enumerable,
+            get: desc.get,
+            set: function (v) { return desc.set.call(this, rewriteCssUrls(String(v == null ? '' : v))); }
+          });
+        }
+      });
+      if (typeof cssProto.setProperty === 'function') {
+        var rawSetProp = cssProto.setProperty;
+        cssProto.setProperty = function (name, value, priority) {
+          var n = String(name || '').toLowerCase();
+          if ((n === 'background' || n === 'background-image' || n === 'css-text') && typeof value === 'string') {
+            value = rewriteCssUrls(value);
+          }
+          return rawSetProp.call(this, name, value, priority);
+        };
+      }
+    }
+
     var rawSetAttr = Element.prototype.setAttribute;
     Element.prototype.setAttribute = function (name, value) {
       var n = String(name || '').toLowerCase();
@@ -309,6 +444,8 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
         } else {
           value = rewriteMediaUrl(value);
         }
+      } else if (n === 'style' && typeof value === 'string') {
+        value = rewriteCssUrls(value);
       }
       return rawSetAttr.call(this, name, value);
     };
@@ -387,6 +524,23 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
       var needBody = !!(body && (next || rumLike));
       var self = this;
 
+      function wrapResponse(res) {
+        try {
+          var ct = (res.headers && res.headers.get && res.headers.get('content-type')) || '';
+          if (!/json|text|javascript|css|xml|svg/i.test(ct)) return res;
+          return res.text().then(function (text) {
+            var rewritten = localizeOssInText(text);
+            return new Response(rewritten, {
+              status: res.status,
+              statusText: res.statusText,
+              headers: res.headers
+            });
+          });
+        } catch (e) {
+          return res;
+        }
+      }
+
       function dispatch(finalInit) {
         if (next || (href && isAuthApiPath((function () { try { return new URL(href).pathname; } catch (e) { return ''; } })()))) {
           var authHref = next || href;
@@ -395,13 +549,17 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
             finalInit.body = withPlainAuthBody(authHref, finalInit.body);
           }
         }
+        var p;
         if (next) {
           if (input && typeof input === 'object' && typeof Request !== 'undefined' && input instanceof Request) {
-            return rawFetch.call(self, new Request(next, finalInit || {}));
+            p = rawFetch.call(self, new Request(next, finalInit || {}));
+          } else {
+            p = rawFetch.call(self, next, finalInit);
           }
-          return rawFetch.call(self, next, finalInit);
+        } else {
+          p = rawFetch.call(self, input, finalInit);
         }
-        return rawFetch.call(self, input, finalInit);
+        return Promise.resolve(p).then(wrapResponse);
       }
 
       if (needBody) {
@@ -411,11 +569,14 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
           return dispatch(opts);
         });
       }
-      if (!next) return rawFetch.apply(this, arguments);
-      if (input && typeof input === 'object' && typeof Request !== 'undefined' && input instanceof Request) {
-        return rawFetch.call(this, new Request(next, init || input));
+      if (!next && !href) return rawFetch.apply(this, arguments);
+      if (!next) {
+        return Promise.resolve(rawFetch.apply(this, arguments)).then(wrapResponse);
       }
-      return rawFetch.call(this, next, init);
+      if (input && typeof input === 'object' && typeof Request !== 'undefined' && input instanceof Request) {
+        return Promise.resolve(rawFetch.call(this, new Request(next, init || input))).then(wrapResponse);
+      }
+      return Promise.resolve(rawFetch.call(this, next, init)).then(wrapResponse);
     };
   }
 
@@ -453,6 +614,31 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
       }
       return xoSend.call(this, body);
     };
+
+    // axios 走 XHR：把响应里的 oniw URL 改成本地
+    try {
+      var rtDesc = Object.getOwnPropertyDescriptor(XO.prototype, 'responseText');
+      if (rtDesc && rtDesc.get) {
+        Object.defineProperty(XO.prototype, 'responseText', {
+          configurable: true,
+          enumerable: rtDesc.enumerable,
+          get: function () {
+            return localizeOssInText(rtDesc.get.call(this));
+          }
+        });
+      }
+      var respDesc = Object.getOwnPropertyDescriptor(XO.prototype, 'response');
+      if (respDesc && respDesc.get) {
+        Object.defineProperty(XO.prototype, 'response', {
+          configurable: true,
+          enumerable: respDesc.enumerable,
+          get: function () {
+            var v = respDesc.get.call(this);
+            return typeof v === 'string' ? localizeOssInText(v) : v;
+          }
+        });
+      }
+    } catch (e) {}
   }
 
   /** 不再整页替换 aniw/oniw 域名：会把 ossDomain/图片地址也改坏 */
@@ -489,13 +675,13 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
   }
 
   if (navigator.serviceWorker) {
-    var swUrl = ${JSON.stringify(SW_PATH + '?v=3')};
+    var swUrl = ${JSON.stringify(SW_PATH + '?v=9')};
     navigator.serviceWorker.getRegistrations().then(function (regs) {
       return Promise.all((regs || []).map(function (r) { return r.unregister(); }));
     }).then(function () {
       return navigator.serviceWorker.register(swUrl, { scope: '/', updateViaCache: 'none' });
     }).then(function () {
-      try { console.info('[sd-adapter] service worker v3 registered'); } catch (e) {}
+      try { console.info('[sd-adapter] service worker v9 registered'); } catch (e) {}
     }).catch(function (err) {
       try { console.warn('[sd-adapter] sw register failed', err); } catch (e) {}
     });
@@ -512,7 +698,8 @@ function buildServiceWorkerScript(adapterHostsOrCfg) {
   const hostsJson = JSON.stringify(cfg.hosts);
   const patternsJson = JSON.stringify(cfg.apiHostPatterns);
   const excludeJson = JSON.stringify(cfg.excludeHosts);
-  return `/*! site-downloader api adapter sw v3 */
+  const ossHostsJson = JSON.stringify(cfg.ossHosts || []);
+  return `/*! site-downloader api adapter sw v9 */
 self.addEventListener('install', function (e) { self.skipWaiting(); });
 self.addEventListener('activate', function (e) { e.waitUntil(self.clients.claim()); });
 
@@ -520,10 +707,13 @@ var PROXY_PREFIX = ${proxyPrefix};
 var ADAPTER_HOSTS = ${hostsJson};
 var API_HOST_PATTERNS = ${patternsJson};
 var EXCLUDE_HOSTS = ${excludeJson};
+var OSS_HOSTS = ${ossHostsJson};
 var ADAPTER_HOST_SET = {};
 for (var hi = 0; hi < ADAPTER_HOSTS.length; hi++) ADAPTER_HOST_SET[String(ADAPTER_HOSTS[hi]).toLowerCase()] = true;
 var EXCLUDE_HOST_SET = {};
 for (var ei = 0; ei < EXCLUDE_HOSTS.length; ei++) EXCLUDE_HOST_SET[String(EXCLUDE_HOSTS[ei]).toLowerCase()] = true;
+var OSS_HOST_SET = {};
+for (var oi = 0; oi < OSS_HOSTS.length; oi++) OSS_HOST_SET[String(OSS_HOSTS[oi]).toLowerCase()] = true;
 var API_HOST_REGS = [];
 for (var pi = 0; pi < API_HOST_PATTERNS.length; pi++) {
   try { API_HOST_REGS.push(new RegExp(String(API_HOST_PATTERNS[pi]), 'i')); } catch (e) {}
@@ -539,9 +729,27 @@ function isApiHost(hostname) {
   return false;
 }
 
-function isLocalApiPath(pathname) {
+function isOssHost(hostname) {
+  var h = String(hostname || '').toLowerCase();
+  if (!h) return false;
+  if (OSS_HOST_SET[h]) return true;
+  if (/^oniw\\d*\\./i.test(h)) return true;
+  return false;
+}
+
+function isMirroredAssetPath(pathname) {
   var p = pathname || '';
-  return p.indexOf('/hall/api/') === 0 || p.indexOf('/api/') === 0;
+  if (p.indexOf('/siteadmin/') === 0) return true;
+  if (p.indexOf('/lobby_asset/') === 0) return true;
+  if (p.indexOf('/game_pictures/') === 0) return true;
+  if (p.indexOf('/upload/') !== -1) return true;
+  return false;
+}
+
+function isLocalShortPath(pathname) {
+  var p = pathname || '';
+  if (p.indexOf('/hall/api/') === 0 || p.indexOf('/api/') === 0) return true;
+  return isMirroredAssetPath(p);
 }
 
 function relay(req, targetUrl) {
@@ -566,22 +774,32 @@ self.addEventListener('fetch', function (event) {
   var url;
   try { url = new URL(req.url); } catch (e) { return; }
   if (url.origin === self.location.origin) return;
+
+  // OSS(oniw)：镜像静态→本地；version.json 等→代理回源（避免本地 404 触发 OSS 探测失败）
+  if (isOssHost(url.hostname)) {
+    if (isMirroredAssetPath(url.pathname)) {
+      var ossLocal = self.location.origin + url.pathname + url.search;
+      event.respondWith(relay(req, ossLocal));
+      return;
+    }
+    var ossProxy = self.location.origin + PROXY_PREFIX + encodeURIComponent(req.url);
+    event.respondWith(relay(req, ossProxy));
+    return;
+  }
+
   if (!isApiHost(url.hostname)) return;
 
-  // 业务 API → 本地短 path（adapter / 上游）
-  if (isLocalApiPath(url.pathname)) {
+  if (isLocalShortPath(url.pathname)) {
     var localUrl = self.location.origin + url.pathname + url.search;
     event.respondWith(relay(req, localUrl));
     return;
   }
 
-  // 图片/OSS → 本地代理（伪造 Referer，避免 CDN 防盗链）
   var proxyUrl = self.location.origin + PROXY_PREFIX + encodeURIComponent(req.url);
   event.respondWith(relay(req, proxyUrl));
 });
 `;
 }
-
 function injectBootIntoHtml(html, sourceOrigin, adapterHosts) {
   if (!sourceOrigin || !html) return html;
   if (html.includes('__SD_PROXY_BOOT__') || html.includes('data-sd-boot=')) return html;
@@ -594,23 +812,26 @@ function injectBootIntoHtml(html, sourceOrigin, adapterHosts) {
   return tag + html;
 }
 
-function copyRequestHeaders(req, sourceOrigin) {
+function copyRequestHeaders(req, refererOrigin, options = {}) {
   const out = {};
   const headers = req.headers || {};
+  const stripAuth = !!options.stripAuth;
   for (const key of Object.keys(headers)) {
     const lower = key.toLowerCase();
     if (HOP_BY_HOP.has(lower)) continue;
     if (lower === 'origin' || lower === 'referer') continue;
-    // 浏览器打到本地代理的 cookie 属于 127.0.0.1，不能转给上游
     if (lower === 'cookie') continue;
-    // 避免上游 gzip 后我们剥掉 content-encoding 导致正文损坏
     if (lower === 'accept-encoding') continue;
+    if (stripAuth && (lower === 'token' || lower === 'authorization' || lower === 'userid' || lower === 'user-id' || lower === 'useridx')) {
+      continue;
+    }
     out[key] = headers[key];
   }
   out['Accept-Encoding'] = 'identity';
-  if (sourceOrigin) {
-    out.Origin = sourceOrigin;
-    out.Referer = sourceOrigin.endsWith('/') ? sourceOrigin : sourceOrigin + '/';
+  if (refererOrigin) {
+    const origin = String(refererOrigin).replace(/\/$/, '');
+    out.Origin = origin;
+    out.Referer = origin + '/';
   }
   if (!out['User-Agent'] && !out['user-agent']) {
     out['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -637,10 +858,12 @@ function filterResponseHeaders(headers) {
   return out;
 }
 
-function proxyRequest(req, res, target, sourceOrigin) {
+function proxyRequest(req, res, target, refererOrigin, options = {}) {
   const isHttps = target.protocol === 'https:';
   const lib = isHttps ? https : http;
-  const headers = copyRequestHeaders(req, sourceOrigin);
+  // 默认用目标站 origin 作 Referer（OSS/CDN 防盗链）；可显式传入
+  const ref = refererOrigin || (target.origin + '/');
+  const headers = copyRequestHeaders(req, ref, options);
   headers.Host = target.host;
 
   const upstream = lib.request(
@@ -685,10 +908,13 @@ function proxyRequest(req, res, target, sourceOrigin) {
 
 /**
  * 本地缺失的静态资源 / 同源接口 → 回源站（保留原 path/query，含末尾单独的 ?）
+ * @param {object} [options]
+ * @param {boolean} [options.stripAuth] 去掉 Token，避免本地 wgame 会话打到真实上游触发 TOKEN_EXPIRED(-1)
+ * @param {string} [options.refererOrigin]
  * @returns {boolean}
  */
-function tryFallbackMissingAsset(req, res, sourceOrigin, pathname, search) {
-  if (!sourceOrigin || !pathname) return false;
+function tryFallbackMissingAsset(req, res, fallbackOrigin, pathname, search, options = {}) {
+  if (!fallbackOrigin || !pathname) return false;
 
   let pathAndQuery = pathname + (search || '');
   try {
@@ -700,13 +926,14 @@ function tryFallbackMissingAsset(req, res, sourceOrigin, pathname, search) {
 
   let target;
   try {
-    target = new URL(pathAndQuery, sourceOrigin.endsWith('/') ? sourceOrigin : sourceOrigin + '/');
+    target = new URL(pathAndQuery, fallbackOrigin.endsWith('/') ? fallbackOrigin : fallbackOrigin + '/');
   } catch (_) {
     return false;
   }
   if (target.protocol !== 'http:' && target.protocol !== 'https:') return false;
 
-  proxyRequest(req, res, target, sourceOrigin);
+  const referer = options.refererOrigin || target.origin + '/';
+  proxyRequest(req, res, target, referer, { stripAuth: !!options.stripAuth });
   return true;
 }
 
@@ -749,7 +976,19 @@ function tryHandleProxy(req, res, sourceOrigin, adapterHosts) {
     return true;
   }
 
-  proxyRequest(req, res, target, sourceOrigin);
+  // 代理到 API 主机时：本地 wgame Token 不能转给真实上游（会 -1 踢下线）
+  let stripAuth = false;
+  try {
+    const pth = target.pathname || '';
+    const isApi = pth.indexOf('/api/') === 0 || pth.indexOf('/hall/api/') === 0;
+    if (isApi) {
+      const { getProvider } = require('./adapter/providers');
+      const provider = getProvider('wgame');
+      if (provider && provider.isOurSession(req.headers || {})) stripAuth = true;
+    }
+  } catch (_) { /* ignore */ }
+
+  proxyRequest(req, res, target, target.origin + '/', { stripAuth });
   return true;
 }
 

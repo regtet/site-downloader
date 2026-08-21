@@ -23,13 +23,15 @@ function matchRoute(pathname) {
 function toMemberProfile(user) {
   if (!user) return null;
   const game_gold = Number(user.game_gold || 0);
-  const username = user.nickname || user.account || '';
+  const username = user.account || user.nickname || '';
+  const session = user.session || '';
+  const userkey = String(user.userId || '');
   return {
     username,
-    userpass: user.password || '',
-    session_key: user.session || '',
-    jwt_token: user.session || '',
-    userkey: String(user.userId || ''),
+    userpass: '',
+    session_key: session,
+    jwt_token: session,
+    userkey,
     currency: user.currency || 'BRL',
     account_type: 15,
     game_gold,
@@ -38,11 +40,15 @@ function toMemberProfile(user) {
     phone: user.phone || '',
     email: user.email || '',
     realname: '',
-    nickname: username,
+    nickname: user.nickname || username,
     vip_level: user.vip_level || 0,
+    vip_status: 0,
+    portrait_id: user.face_id || '',
     headimg: user.face_id || '',
     avatar: user.face_id || '',
-    deviceFingerprint: user.device_id || ''
+    deviceFingerprint: user.device_id || '',
+    loginVerify: false,
+    firstLoginVerify: false
   };
 }
 
@@ -51,27 +57,34 @@ function toMemberProfile(user) {
  * @param {{ ok:boolean, code:number, msg:string, data:any }} providerResult
  */
 function mapResponse(op, providerResult) {
-  const code = providerResult && providerResult.code != null ? providerResult.code : 1;
-  const msg = (providerResult && providerResult.msg) || (code === 0 ? 'ok' : 'error');
+  // aniw/679win 业务成功码是 1（ze.SUCCESS），不是 0（SUCCESSCODE 仅作常量名）
+  const OK = 1;
   if (!providerResult || !providerResult.ok) {
-    return { code, msg, data: null };
+    const code = providerResult && providerResult.code != null ? providerResult.code : 1;
+    // 失败码不能是 1，否则会被当成成功
+    const failCode = code === OK ? 1011 : code;
+    return {
+      code: failCode,
+      msg: (providerResult && providerResult.msg) || 'error',
+      data: null
+    };
   }
 
   const data = providerResult.data;
   if (op === OP.AUTH_LOGIN || op === OP.AUTH_REGISTER || op === OP.USER_INFO) {
-    return { code: 0, msg: 'ok', data: toMemberProfile(data) };
+    return { code: OK, msg: '', data: toMemberProfile(data) };
   }
   if (op === OP.AUTH_CHECK_REGISTER) {
-    return { code: 0, msg: 'ok', data: data || { exists: false } };
+    return { code: OK, msg: '', data: data || { exists: false } };
   }
   if (op === OP.WALLET_GOLD) {
     return {
-      code: 0,
-      msg: 'ok',
+      code: OK,
+      msg: '',
       data: data || { game_gold: 0, totalGold: 0, bonus: 0, bonusRequireBet: 0, auditMode: 0 }
     };
   }
-  return { code: 0, msg: 'ok', data };
+  return { code: OK, msg: '', data };
 }
 
 module.exports = {

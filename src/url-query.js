@@ -1,5 +1,7 @@
 const CACHE_BUST_PARAMS = new Set([
-  '_t', 't', 'timestamp', 'ts', 'v', 'version', 'manualVersion', 'web_v', '_ts', 'cacheBust'
+  '_t', 't', 'timestamp', 'ts', 'v', 'version', 'manualVersion', 'web_v', '_ts', 'cacheBust',
+  // 679win / aniw OSS 图片防缓存参数
+  'g0', 'g1', 'g2', 't0', 'r'
 ]);
 
 const HASHED_FILENAME_RE = /\.[A-Za-z0-9_-]{6,}\.[a-z0-9]+$/i;

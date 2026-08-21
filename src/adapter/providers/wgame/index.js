@@ -111,6 +111,8 @@ function findSession(body, headers) {
     h['x-session-key']
     || h['session-key']
     || h['session_key']
+    || h.token
+    || h.Token
     || (body && (body.session_key || body.sessionKey || body.jwt_token || body.userkey))
     || ''
   );
@@ -131,6 +133,28 @@ function findSession(body, headers) {
     if (!latest || (row.at || 0) > (latest.at || 0)) latest = row;
   }
   return latest;
+}
+
+/** 请求 Token 是否为我们适配层登录产生的会话（不能直接打真实上游） */
+function isOurSession(headersOrToken) {
+  let token = '';
+  if (typeof headersOrToken === 'string') {
+    token = headersOrToken;
+  } else if (headersOrToken && typeof headersOrToken === 'object') {
+    token = String(
+      headersOrToken.token
+      || headersOrToken.Token
+      || headersOrToken['x-session-key']
+      || headersOrToken['session-key']
+      || ''
+    );
+  }
+  if (!token) return false;
+  if (sessions.has('sk:' + token)) return true;
+  for (const row of sessions.values()) {
+    if (row && row.user && row.user.session === token) return true;
+  }
+  return false;
 }
 
 function mapError(err) {
@@ -263,5 +287,6 @@ module.exports = {
   users,
   normalizeBody,
   loadWgameConfig,
+  isOurSession,
   CATALOG: require('./catalog').CATALOG
 };

@@ -63,17 +63,17 @@ function isHallApiPath(pathname) {
 
 function isOssAssetPath(pathname) {
   const p = String(pathname || '');
+  // 已下载镜像目录
   if (
     p.startsWith('/siteadmin/')
     || p.startsWith('/lobby_asset/')
     || p.startsWith('/game_pictures/')
-    || p.startsWith('/hall/api/game/')
     || p.includes('/upload/')
-  ) {
-    return true;
-  }
-  // OSS/CDN 常见静态后缀（本地已下载的镜像资源）
-  return /\.(?:png|jpe?g|gif|webp|avif|svg|ico|mp4|webm|mp3|m4a|woff2?|ttf|otf)(?:$|\?)/i.test(p);
+  ) return true;
+  // OSS 元数据（version.json 等）：本地常缺，需回 oniw；404 会触发域名探测失败
+  if (p.startsWith('/hall/') && !p.startsWith('/hall/api/') && /\.json$/i.test(p)) return true;
+  if (/maintain-time\.json$/i.test(p)) return true;
+  return false;
 }
 
 module.exports = {

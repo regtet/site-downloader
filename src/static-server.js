@@ -13,6 +13,7 @@ const {
 } = require('./preview-proxy');
 const { tryHandleAdapter } = require('./adapter');
 const { loadAdapterConfig, isHallApiPath, isOssAssetPath } = require('./adapter/hosts');
+const { getProvider } = require('./adapter/providers');
 
 const MIME_TYPES = {
     '.html': 'text/html; charset=utf-8',
@@ -54,6 +55,16 @@ const STATIC_ASSET_EXTS = new Set([
 function isStaticAssetPath(pathname) {
     const ext = path.extname(String(pathname || '').split('?')[0]).toLowerCase();
     return STATIC_ASSET_EXTS.has(ext);
+}
+
+/** 本地 wgame 登录会话不能原样带给真实 HTTP 上游，否则会 TOKEN_EXPIRED(-1) */
+function shouldStripAuth(req) {
+  try {
+    const provider = getProvider('wgame');
+    return !!(provider && typeof provider.isOurSession === 'function' && provider.isOurSession(req.headers || {}));
+  } catch (_) {
+    return false;
+  }
 }
 
 function isPathInside(rootDir, targetPath) {
@@ -104,8 +115,13 @@ function createStaticServer(siteDir, options = {}) {
   const bootCfg = {
     hosts: adapterHosts,
     apiHostPatterns: adapterCfg.apiHostPatterns || [],
-    excludeHosts: adapterCfg.excludeHosts || []
+    excludeHosts: adapterCfg.excludeHosts || [],
+    ossOrigin: ossOrigin || '',
+    ossHosts: []
   };
+  try {
+    if (ossOrigin) bootCfg.ossHosts.push(new URL(ossOrigin).hostname);
+  } catch (_) { /* ignore */ }
 
   return http.createServer((req, res) => {
     const handle = async () => {
@@ -132,10 +148,14 @@ function createStaticServer(siteDir, options = {}) {
           return;
         }
         // 非登录类 /hall/api → 回 API 上游（不是主站 679win.com）
+        // 若带的是本地 wgame 会话 Token，必须剥掉，否则上游返回 -1 触发「设备已断开」
         if (
           apiUpstreamOrigin
           && isHallApiPath(reqUrl.pathname)
-          && tryFallbackMissingAsset(req, res, apiUpstreamOrigin, reqUrl.pathname, reqUrl.search)
+          && tryFallbackMissingAsset(req, res, apiUpstreamOrigin, reqUrl.pathname, reqUrl.search, {
+            stripAuth: shouldStripAuth(req),
+            refererOrigin: apiUpstreamOrigin
+          })
         ) {
           return;
         }
