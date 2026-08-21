@@ -110,9 +110,7 @@ function buildBootScript(sourceOrigin) {
   if (window.__SD_PROXY_BOOT__) return;
   window.__SD_PROXY_BOOT__ = true;
 
-  // 仅本地包内构建产物留在 127.0.0.1；/static、/cdn-cgi、/member 等基地址改为源站
-  var LOCAL_PREFIX = /^\\/(assets|libs|vendors|v1assets|v1fonts|v1locales|cocos|__sd_)\\b/i;
-  var STATIC_EXT = /\\.(?:js|mjs|cjs|css|map|json|wasm|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|otf|mp4|webm|mp3|m4a)(?:$|\\?)/i;
+  var LOCAL_ORIGIN = location.origin;
 
   function absUrl(input) {
     try {
@@ -122,33 +120,86 @@ function buildBootScript(sourceOrigin) {
     return null;
   }
 
-  function isLocalStaticPath(pathname) {
-    if (!pathname || pathname === '/') return false;
-    if (LOCAL_PREFIX.test(pathname)) return true;
-    if (STATIC_EXT.test(pathname)) return true;
-    return false;
-  }
-
   function toProxy(href) {
     return PROXY_PREFIX + encodeURIComponent(href);
   }
 
   /**
-   * 同源业务路径：基地址直接换成源站（如 /cdn-cgi/rum → https://源站/cdn-cgi/rum）
-   * 跨域 API：仍走本地代理，以便替换 Origin/Referer
+   * 跨域 API → 走本地代理（替换 Origin/Referer）
+   * 同源路径（/cdn-cgi/rum、/member/...）→ 不改浏览器请求地址，由服务端按原 path 透明回源
    */
   function planUrl(href) {
     try {
       var u = new URL(href);
       if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
-      if (u.origin === location.origin) {
-        if (isLocalStaticPath(u.pathname)) return null;
-        return SOURCE_ORIGIN + u.pathname + u.search + u.hash;
-      }
+      if (u.origin === LOCAL_ORIGIN) return null;
       return toProxy(href);
     } catch (e) {
       return null;
     }
+  }
+
+  /** 把荷载里的本地 origin 换成源站（如 RUM location 字段） */
+  function rewriteJsonText(text) {
+    if (!text || typeof text !== 'string') return text;
+    if (text.indexOf(LOCAL_ORIGIN) === -1) return text;
+    try {
+      return JSON.stringify(rewriteUrlsInValue(JSON.parse(text)));
+    } catch (e) {
+      return text.split(LOCAL_ORIGIN).join(SOURCE_ORIGIN);
+    }
+  }
+
+  function rewriteUrlsInValue(v) {
+    if (typeof v === 'string') {
+      return v.indexOf(LOCAL_ORIGIN) === -1 ? v : v.split(LOCAL_ORIGIN).join(SOURCE_ORIGIN);
+    }
+    if (Array.isArray(v)) {
+      for (var i = 0; i < v.length; i++) v[i] = rewriteUrlsInValue(v[i]);
+      return v;
+    }
+    if (v && typeof v === 'object') {
+      for (var k in v) {
+        if (Object.prototype.hasOwnProperty.call(v, k)) v[k] = rewriteUrlsInValue(v[k]);
+      }
+      return v;
+    }
+    return v;
+  }
+
+  function rewriteBodySync(data) {
+    if (data == null) return data;
+    if (typeof data === 'string') return rewriteJsonText(data);
+    if (typeof URLSearchParams !== 'undefined' && data instanceof URLSearchParams) {
+      return new URLSearchParams(rewriteJsonText(data.toString()));
+    }
+    if (typeof ArrayBuffer !== 'undefined' && data instanceof ArrayBuffer) {
+      var dec = typeof TextDecoder !== 'undefined' ? new TextDecoder().decode(data) : '';
+      if (!dec || dec.indexOf(LOCAL_ORIGIN) === -1) return data;
+      var enc = typeof TextEncoder !== 'undefined' ? new TextEncoder().encode(rewriteJsonText(dec)) : null;
+      return enc ? enc.buffer : data;
+    }
+    if (typeof Uint8Array !== 'undefined' && data instanceof Uint8Array) {
+      return rewriteBodySync(data.buffer);
+    }
+    return data;
+  }
+
+  function rewriteBodyAsync(data) {
+    if (data == null) return Promise.resolve(data);
+    if (typeof Blob !== 'undefined' && data instanceof Blob) {
+      return data.text().then(function (text) {
+        if (!text || text.indexOf(LOCAL_ORIGIN) === -1) return data;
+        return new Blob([rewriteJsonText(text)], { type: data.type || 'application/json' });
+      });
+    }
+    if (typeof Request !== 'undefined' && data instanceof Request) {
+      return data.clone().text().then(function (text) {
+        var rewritten = rewriteJsonText(text);
+        return new Request(data, { body: rewritten === text ? undefined : rewritten });
+      }).catch(function () { return data; });
+    }
+    return Promise.resolve(rewriteBodySync(data));
   }
 
   var rawFetch = window.fetch;
@@ -156,9 +207,31 @@ function buildBootScript(sourceOrigin) {
     window.fetch = function (input, init) {
       var href = absUrl(input);
       var next = href && planUrl(href);
+      var body = init && init.body;
+      var rumLike = !!(href && href.indexOf('cdn-cgi/rum') !== -1);
+      var needBody = !!(body && (next || rumLike));
+      var self = this;
+
+      function dispatch(finalInit) {
+        if (next) {
+          if (input && typeof input === 'object' && typeof Request !== 'undefined' && input instanceof Request) {
+            return rawFetch.call(self, new Request(next, finalInit || {}));
+          }
+          return rawFetch.call(self, next, finalInit);
+        }
+        return rawFetch.call(self, input, finalInit);
+      }
+
+      if (needBody) {
+        return rewriteBodyAsync(body).then(function (b) {
+          var opts = init ? Object.assign({}, init) : {};
+          opts.body = b;
+          return dispatch(opts);
+        });
+      }
       if (!next) return rawFetch.apply(this, arguments);
       if (input && typeof input === 'object' && typeof Request !== 'undefined' && input instanceof Request) {
-        return rawFetch.call(this, new Request(next, input));
+        return rawFetch.call(this, new Request(next, init || input));
       }
       return rawFetch.call(this, next, init);
     };
@@ -166,12 +239,25 @@ function buildBootScript(sourceOrigin) {
 
   var XO = window.XMLHttpRequest;
   if (XO) {
-    var open = XO.prototype.open;
+    var xoOpen = XO.prototype.open;
+    var xoSend = XO.prototype.send;
     XO.prototype.open = function (method, url) {
-      var href = absUrl(url);
-      var next = href && planUrl(href);
+      this.__sdHref = absUrl(url);
+      var next = this.__sdHref && planUrl(this.__sdHref);
       if (next) arguments[1] = next;
-      return open.apply(this, arguments);
+      return xoOpen.apply(this, arguments);
+    };
+    XO.prototype.send = function (body) {
+      var self = this;
+      var href = this.__sdHref || '';
+      if (body != null && href && (href.indexOf('cdn-cgi/rum') !== -1 || href.indexOf(LOCAL_ORIGIN) === 0)) {
+        if (typeof Blob !== 'undefined' && body instanceof Blob) {
+          rewriteBodyAsync(body).then(function (b) { xoSend.call(self, b); });
+          return;
+        }
+        body = rewriteBodySync(body);
+      }
+      return xoSend.call(this, body);
     };
   }
 
@@ -179,9 +265,30 @@ function buildBootScript(sourceOrigin) {
     var rawBeacon = navigator.sendBeacon.bind(navigator);
     navigator.sendBeacon = function (url, data) {
       var href = absUrl(url);
-      var next = href && planUrl(href);
-      if (next) return rawBeacon(next, data);
-      return rawBeacon(url, data);
+      var next = (href && planUrl(href)) || url;
+
+      function fire(body) {
+        try {
+          if (rawBeacon(next, body)) return true;
+        } catch (e) {}
+        try {
+          if (rawFetch) {
+            rawFetch(next, { method: 'POST', body: body, keepalive: true, mode: 'same-origin' });
+            return true;
+          }
+        } catch (e2) {}
+        return false;
+      }
+
+      if (data == null) return fire(data);
+      if (typeof data === 'string') return fire(rewriteJsonText(data));
+      if (typeof Blob !== 'undefined' && data instanceof Blob) {
+        data.text().then(function (text) {
+          fire(new Blob([rewriteJsonText(text)], { type: data.type || 'application/json' }));
+        });
+        return true;
+      }
+      return fire(rewriteBodySync(data));
     };
   }
 })();
@@ -288,17 +395,23 @@ function proxyRequest(req, res, target, sourceOrigin) {
 }
 
 /**
- * 本地缺失的静态资源（如 /static/editor/...）回源到源站，避免预览基址落在 127.0.0.1 后直接 404。
+ * 本地缺失的静态资源 / 同源接口 → 回源站（保留原 path/query，含末尾单独的 ?）
  * @returns {boolean}
  */
 function tryFallbackMissingAsset(req, res, sourceOrigin, pathname, search) {
   if (!sourceOrigin || !pathname) return false;
-  const method = (req.method || 'GET').toUpperCase();
-  if (method !== 'GET' && method !== 'HEAD') return false;
+
+  let pathAndQuery = pathname + (search || '');
+  try {
+    const raw = String(req.url || '').split('#')[0];
+    if (raw && raw.charAt(0) === '/') {
+      pathAndQuery = raw;
+    }
+  } catch (_) { /* ignore */ }
 
   let target;
   try {
-    target = new URL(pathname + (search || ''), sourceOrigin.endsWith('/') ? sourceOrigin : sourceOrigin + '/');
+    target = new URL(pathAndQuery, sourceOrigin.endsWith('/') ? sourceOrigin : sourceOrigin + '/');
   } catch (_) {
     return false;
   }

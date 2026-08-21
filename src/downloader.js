@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const https = require('https');
+const zlib = require('zlib');
 
 const httpAgent = new http.Agent({ keepAlive: true, maxSockets: 16, maxFreeSockets: 8 });
 const httpsAgent = new https.Agent({
@@ -23,6 +24,43 @@ function isTransientNetworkError(err) {
   ].includes(code)) return true;
   if (/socket disconnected|TLS|SSL|network|timeout|ECONNRESET|Client network socket/i.test(msg)) return true;
   return false;
+}
+
+/**
+ * axios + responseType:arraybuffer 时，br/gzip 可能仍是压缩字节。
+ * 必须按 Content-Encoding（或魔数）解压后再存盘，否则 JS 会显示乱码。
+ */
+function decompressIfNeeded(buffer, headers = {}) {
+  if (!buffer || !Buffer.isBuffer(buffer) || buffer.length < 2) return buffer;
+  const encoding = String(
+    headers['content-encoding'] || headers['Content-Encoding'] || ''
+  ).toLowerCase().trim();
+
+  const tryBr = () => zlib.brotliDecompressSync(buffer);
+  const tryGzip = () => zlib.gunzipSync(buffer);
+  const tryDeflate = () => {
+    try {
+      return zlib.inflateSync(buffer);
+    } catch (_) {
+      return zlib.inflateRawSync(buffer);
+    }
+  };
+
+  try {
+    if (encoding.includes('br')) return tryBr();
+    if (encoding.includes('gzip')) return tryGzip();
+    if (encoding.includes('deflate')) return tryDeflate();
+    // 部分 CDN 省略 Content-Encoding，用魔数兜底
+    if (buffer[0] === 0x1f && buffer[1] === 0x8b) return tryGzip();
+    if (buffer[0] === 0x1b || buffer[0] === 0xce) {
+      try {
+        return tryBr();
+      } catch (_) { /* not br */ }
+    }
+  } catch (_) {
+    return buffer;
+  }
+  return buffer;
 }
 
 const STATIC_TYPES = new Set([
@@ -64,6 +102,8 @@ class Downloader {
       timeout: this.timeout,
       maxRedirects: 5,
       responseType: 'arraybuffer',
+      // 关闭 axios 自动解压，统一由 decompressIfNeeded 处理，避免漏 br
+      decompress: false,
       httpAgent,
       httpsAgent,
       validateStatus: () => true,
@@ -111,7 +151,7 @@ class Downloader {
         const response = await this.client.get(url, {
           headers: {
             Referer: referer || url,
-            'Accept': '*/*',
+            Accept: '*/*',
             'Accept-Encoding': 'gzip, deflate, br'
           },
           timeout: options.timeout || this.timeout
@@ -120,11 +160,13 @@ class Downloader {
           await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
           continue;
         }
+        const raw = Buffer.from(response.data);
+        const data = decompressIfNeeded(raw, response.headers || {});
         return {
           url,
           status: response.status,
           headers: response.headers,
-          data: Buffer.from(response.data),
+          data,
           contentType: response.headers['content-type'] || ''
         };
       } catch (err) {
@@ -158,3 +200,4 @@ class Downloader {
 module.exports = Downloader;
 module.exports.assetPriority = assetPriority;
 module.exports.sortByAssetPriority = sortByAssetPriority;
+module.exports.decompressIfNeeded = decompressIfNeeded;
