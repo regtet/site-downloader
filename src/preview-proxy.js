@@ -6,8 +6,8 @@ const { URL } = require('url');
 const PROXY_PREFIX = '/__sd_proxy__';
 const BOOT_PATH = '/__sd_boot.js';
 
-/** 本地应优先走磁盘的路径（其余同源 XHR/fetch/beacon 回源站） */
-const LOCAL_STATIC_PREFIX_RE = /^\/(assets|static|libs|vendors|lobby_asset|siteadmin|v1assets|v1fonts|v1locales|cocos|__sd_)\b/i;
+/** 本地应优先走磁盘的路径（构建产物）；其余同源请求基地址改为源站 */
+const LOCAL_STATIC_PREFIX_RE = /^\/(assets|libs|vendors|v1assets|v1fonts|v1locales|cocos|__sd_)\b/i;
 
 const STATIC_PATH_EXT_RE = /\.(?:js|mjs|cjs|css|map|json|wasm|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|otf|mp4|webm|mp3|m4a|txt|xml|lottie)(?:$|\?)/i;
 
@@ -110,7 +110,8 @@ function buildBootScript(sourceOrigin) {
   if (window.__SD_PROXY_BOOT__) return;
   window.__SD_PROXY_BOOT__ = true;
 
-  var LOCAL_PREFIX = /^\\/(assets|static|libs|vendors|lobby_asset|siteadmin|v1assets|v1fonts|v1locales|cocos|__sd_)\\b/i;
+  // 仅本地包内构建产物留在 127.0.0.1；/static、/cdn-cgi、/member 等基地址改为源站
+  var LOCAL_PREFIX = /^\\/(assets|libs|vendors|v1assets|v1fonts|v1locales|cocos|__sd_)\\b/i;
   var STATIC_EXT = /\\.(?:js|mjs|cjs|css|map|json|wasm|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|otf|mp4|webm|mp3|m4a)(?:$|\\?)/i;
 
   function absUrl(input) {
@@ -128,34 +129,38 @@ function buildBootScript(sourceOrigin) {
     return false;
   }
 
-  /** 跨域整段回源；同源非本地静态资源（含 /cdn-cgi/rum、/member/...）改写到源站再代理 */
-  function rewriteToSource(href) {
+  function toProxy(href) {
+    return PROXY_PREFIX + encodeURIComponent(href);
+  }
+
+  /**
+   * 同源业务路径：基地址直接换成源站（如 /cdn-cgi/rum → https://源站/cdn-cgi/rum）
+   * 跨域 API：仍走本地代理，以便替换 Origin/Referer
+   */
+  function planUrl(href) {
     try {
       var u = new URL(href);
       if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
-      if (u.origin !== location.origin) return href;
-      if (isLocalStaticPath(u.pathname)) return null;
-      return SOURCE_ORIGIN + u.pathname + u.search + u.hash;
+      if (u.origin === location.origin) {
+        if (isLocalStaticPath(u.pathname)) return null;
+        return SOURCE_ORIGIN + u.pathname + u.search + u.hash;
+      }
+      return toProxy(href);
     } catch (e) {
       return null;
     }
-  }
-
-  function toProxy(href) {
-    return PROXY_PREFIX + encodeURIComponent(href);
   }
 
   var rawFetch = window.fetch;
   if (typeof rawFetch === 'function') {
     window.fetch = function (input, init) {
       var href = absUrl(input);
-      var target = href && rewriteToSource(href);
-      if (!target) return rawFetch.apply(this, arguments);
-      var proxyUrl = toProxy(target);
+      var next = href && planUrl(href);
+      if (!next) return rawFetch.apply(this, arguments);
       if (input && typeof input === 'object' && typeof Request !== 'undefined' && input instanceof Request) {
-        return rawFetch.call(this, new Request(proxyUrl, input));
+        return rawFetch.call(this, new Request(next, input));
       }
-      return rawFetch.call(this, proxyUrl, init);
+      return rawFetch.call(this, next, init);
     };
   }
 
@@ -164,13 +169,8 @@ function buildBootScript(sourceOrigin) {
     var open = XO.prototype.open;
     XO.prototype.open = function (method, url) {
       var href = absUrl(url);
-      var target = href && rewriteToSource(href);
-      if (target) {
-        arguments[1] = toProxy(target);
-        this.__sdProxied = true;
-      } else {
-        this.__sdProxied = false;
-      }
+      var next = href && planUrl(href);
+      if (next) arguments[1] = next;
       return open.apply(this, arguments);
     };
   }
@@ -179,8 +179,8 @@ function buildBootScript(sourceOrigin) {
     var rawBeacon = navigator.sendBeacon.bind(navigator);
     navigator.sendBeacon = function (url, data) {
       var href = absUrl(url);
-      var target = href && rewriteToSource(href);
-      if (target) return rawBeacon(toProxy(target), data);
+      var next = href && planUrl(href);
+      if (next) return rawBeacon(next, data);
       return rawBeacon(url, data);
     };
   }
