@@ -12,7 +12,8 @@
     "promote-input": "node scripts/promote-input.js",
     "export-migrated": "node scripts/export-migrated.js",
     "verify-p0": "node scripts/verify-p0.js",
-    "analyze-apis": "node scripts/analyze-apis.js"
+    "analyze-apis": "node scripts/analyze-apis.js",
+    "analyze-post-login": "node scripts/analyze-post-login.js"
   },
   "engines": {
     "node": ">=14.0.0"

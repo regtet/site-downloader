@@ -1,10 +1,8 @@
 /**
- * Migration Map —— P0 基础链（仅 wgame 已有能力）
+ * Migration Map —— 登录后基础链（仅 wgame 已有 / 可从会话推导的能力）
  *
- * auth.login / auth.register / user.info / wallet.gold
- * getFastLogin → 复用登录态（user.info），不二次打网关
- *
- * home / 充值 / 活动 / 代理等：不进本表，保持原接口（OSS/aniw）或 pending
+ * 支付渠道：显式 payPending（失败码），禁止空成功壳
+ * vipInfoV2 全量表、提现流水等：暂不进表
  */
 const { OP } = require('../../ops');
 
@@ -20,7 +18,7 @@ const MIGRATION_MAP = {
   '/api/member/fastRegister': { op: OP.AUTH_REGISTER, adapter: 'memberProfile' },
   '/api/member/check/register': { op: OP.AUTH_CHECK_REGISTER, adapter: 'checkRegister' },
 
-  // —— 复用当前登录态（不走 auth.login，避免 encryptString → 1003）——
+  // —— 会话复用 ——
   '/api/member/getFastLogin': {
     op: OP.USER_INFO,
     adapter: 'memberProfile',
@@ -31,13 +29,33 @@ const MIGRATION_MAP = {
   '/api/member/user/info': { op: OP.USER_INFO, adapter: 'memberProfile' },
   '/api/member/v2/user/info': { op: OP.USER_INFO, adapter: 'memberProfile' },
 
+  // —— 头像 ——
+  '/api/member/user/avatars': { op: OP.USER_AVATARS, adapter: 'avatars' },
+
+  // —— VIP（仅会话 vip_level；vipInfoV2 全量表暂不映射）——
+  '/api/member/user/vip': { op: OP.USER_VIP, adapter: 'vipSummary' },
+  '/api/member/user/vipDetails': { op: OP.USER_VIP, adapter: 'vipDetails' },
+
   // —— wallet.gold ——
   '/api/gameCenter/gold': { op: OP.WALLET_GOLD, adapter: 'walletGold' },
   '/api/gameCenter/gameApi/RefreshGold': { op: OP.WALLET_GOLD, adapter: 'walletGold' },
-  '/api/gameCenter/gameApi/getPlatformBalance': { op: OP.WALLET_GOLD, adapter: 'walletGold' }
+  '/api/gameCenter/gameApi/getPlatformBalance': { op: OP.WALLET_GOLD, adapter: 'walletGold' },
+
+  // —— 充值：无 wgame 渠道，明确 pending 失败（非空壳成功）——
+  '/api/finance/pay/payListV4': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'no-wgame-pay' },
+  '/api/finance/pay/payListV5': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'no-wgame-pay' },
+  '/api/finance/pay/payTypeV4': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'no-wgame-pay' },
+  '/api/finance/pay/payTypeV5': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'no-wgame-pay' },
+  '/api/finance/pay/payplatformlistV3': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'no-wgame-pay' },
+  '/api/finance/pay/payplatformlistV4': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'no-wgame-pay' },
+  '/api/finance/pay/getPayChannel': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'no-wgame-pay' },
+  '/api/finance/pay/payInfos': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'no-wgame-pay' },
+  '/api/finance/payListV4': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'no-wgame-pay' },
+  '/api/finance/payListV5': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'no-wgame-pay' },
+  '/api/finance/payTypeV4': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'no-wgame-pay' },
+  '/api/finance/payTypeV5': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'no-wgame-pay' }
 };
 
-/** 系列默认主机（aniw-lobby 族，非写死某一站点） */
 const DEFAULT_HOST = {
   apiHostPatterns: [
     '\\.679win\\.(cc|me|co|net)$',

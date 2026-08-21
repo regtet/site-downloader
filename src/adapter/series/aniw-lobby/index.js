@@ -27,7 +27,13 @@ function mapResponse(op, providerResult, meta) {
         ? 'checkRegister'
         : op === OP.WALLET_GOLD
           ? 'walletGold'
-          : null);
+          : op === OP.USER_VIP
+            ? 'vipSummary'
+            : op === OP.USER_AVATARS
+              ? 'avatars'
+              : op === OP.PAY_PENDING
+                ? 'payPending'
+                : null);
   return applyAdapter(adapterName, providerResult);
 }
 

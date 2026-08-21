@@ -1,8 +1,11 @@
 /**
- * P0 响应 Adapter：仅映射 wgame 真实有的字段 → 目标 dist 字段名
- * 禁止伪造 currency/account_type/permissionOpt/bonus 等缺失数据
+ * Response Adapters：仅映射 wgame 真实有的字段 → 目标 dist 字段名
+ * 禁止伪造 currency / permissionOpt / bonus / 支付渠道列表 等缺失数据
  */
 const OK = 1;
+
+/** 目标站 portrait_id 必须是可加载的图片 path/URL，不能是 face id 数字 */
+const DEFAULT_PORTRAIT = '/lobby_asset/common/common/common/default_man.png';
 
 function envelope(data, msg) {
   return { code: OK, msg: msg || '', data };
@@ -18,6 +21,20 @@ function failEnvelope(providerResult) {
   };
 }
 
+function resolvePortraitUrl(faceId) {
+  if (faceId == null || faceId === '') return DEFAULT_PORTRAIT;
+  const s = String(faceId).trim();
+  if (!s) return DEFAULT_PORTRAIT;
+  if (/^https?:\/\//i.test(s) || s.startsWith('/lobby_asset/') || s.startsWith('/')) {
+    // 纯数字 path 非法
+    if (/^\/?\d+$/.test(s)) return DEFAULT_PORTRAIT;
+    return s.startsWith('/') || /^https?:\/\//i.test(s) ? s : DEFAULT_PORTRAIT;
+  }
+  // wgame faceID 是整数，不能直接当 img src
+  if (/^\d+$/.test(s)) return DEFAULT_PORTRAIT;
+  return DEFAULT_PORTRAIT;
+}
+
 /**
  * CanonicalUser → 目标登录/用户 data（只含有值的字段）
  */
@@ -31,7 +48,6 @@ function memberProfile(user) {
   const session = user.session;
   if (session) {
     out.session_key = String(session);
-    // 目标站多处读 jwt_token / token，与 session 同源（字段别名，非伪造）
     out.jwt_token = String(session);
     out.token = String(session);
   }
@@ -47,6 +63,7 @@ function memberProfile(user) {
     out.game_gold = Number(user.game_gold);
   }
 
+  // 个人中心展示名：UI 主读 username；nickname 同步避免空白
   if (user.nickname) out.nickname = String(user.nickname);
   else if (username) out.nickname = String(username);
 
@@ -56,18 +73,21 @@ function memberProfile(user) {
   }
   if (user.email) out.email = String(user.email);
 
-  if (user.vip_level != null) out.vip_level = Number(user.vip_level);
+  if (user.vip_level != null && user.vip_level !== '') {
+    out.vip_level = Number(user.vip_level);
+  }
 
+  // 登录后必给可用头像 path（默认图来自目标站静态约定，非伪造用户资产）
+  const portrait = resolvePortraitUrl(user.face_id);
+  out.portrait_id = portrait;
+  out.headimg = portrait;
+  out.avatar = portrait;
   if (user.face_id != null && user.face_id !== '') {
-    const face = String(user.face_id);
-    out.portrait_id = face;
-    out.headimg = face;
-    out.avatar = face;
+    out.face_id = String(user.face_id);
   }
 
   if (user.device_id) out.deviceFingerprint = String(user.device_id);
 
-  // 大厅协议里的真实 accountType（有则映射，无则不写）
   if (user.account_type != null && user.account_type !== '') {
     out.account_type = Number(user.account_type);
   }
@@ -93,9 +113,6 @@ function adaptCheckRegister(providerResult) {
   return envelope({ exists });
 }
 
-/**
- * wallet.gold：只输出 wgame 会话里的金币；同值别名允许，禁止填 0 的 bonus 等
- */
 function adaptWalletGold(providerResult) {
   if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
   const d = providerResult.data || {};
@@ -103,17 +120,77 @@ function adaptWalletGold(providerResult) {
     return failEnvelope({ ok: false, code: 401, msg: 'no gold in session' });
   }
   const gold = Number(d.game_gold != null ? d.game_gold : d.totalGold);
-  const out = { game_gold: gold };
-  // 目标 UI 常读 totalGold / availableMargin，与 game_gold 同源
-  out.totalGold = gold;
-  out.availableMargin = gold;
-  return envelope(out);
+  return envelope({
+    game_gold: gold,
+    totalGold: gold,
+    availableMargin: gold
+  });
+}
+
+/**
+ * VIP 摘要：仅用会话 vip_level（wgame 大厅真实字段）
+ * 不填 need_deposit / 打码等未知进度
+ */
+function adaptVipSummary(providerResult) {
+  if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
+  const level = Number((providerResult.data && providerResult.data.vip_level) || 0);
+  return envelope({
+    vip: level,
+    vip_level: level
+  });
+}
+
+function adaptVipDetails(providerResult) {
+  if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
+  const level = Number((providerResult.data && providerResult.data.vip_level) || 0);
+  return envelope({
+    vip: level,
+    vip_level: level
+  });
+}
+
+/**
+ * 头像列表：返回目标站默认头像 path（静态资源约定）
+ * 供个人中心选头像；不含伪造的用户自定义 CDN
+ */
+function adaptAvatars(providerResult) {
+  if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
+  const current = resolvePortraitUrl(providerResult.data && providerResult.data.face_id);
+  const list = [
+    { id: 'default_man', url: DEFAULT_PORTRAIT, portrait_id: DEFAULT_PORTRAIT },
+    {
+      id: 'default_profile',
+      url: '/lobby_asset/common/common/profile/icon_wd_mrtx.png',
+      portrait_id: '/lobby_asset/common/common/profile/icon_wd_mrtx.png'
+    }
+  ];
+  return envelope({
+    list,
+    current,
+    portrait_id: current
+  });
+}
+
+/** wgame 尚无支付能力：明确失败，禁止空成功壳 */
+function adaptPayPending(providerResult) {
+  const msg = (providerResult && providerResult.msg)
+    || 'payment adapter pending: wgame has no pay channel';
+  const code = (providerResult && providerResult.code != null) ? providerResult.code : 10060;
+  return {
+    code: code === OK ? 10060 : code,
+    msg,
+    data: null
+  };
 }
 
 const ADAPTERS = {
   memberProfile: adaptMemberProfile,
   checkRegister: adaptCheckRegister,
-  walletGold: adaptWalletGold
+  walletGold: adaptWalletGold,
+  vipSummary: adaptVipSummary,
+  vipDetails: adaptVipDetails,
+  avatars: adaptAvatars,
+  payPending: adaptPayPending
 };
 
 function applyAdapter(adapterName, providerResult) {
@@ -130,11 +207,17 @@ function applyAdapter(adapterName, providerResult) {
 
 module.exports = {
   OK,
+  DEFAULT_PORTRAIT,
   ADAPTERS,
   applyAdapter,
   memberProfile,
   adaptMemberProfile,
   adaptWalletGold,
+  adaptVipSummary,
+  adaptVipDetails,
+  adaptAvatars,
+  adaptPayPending,
+  resolvePortraitUrl,
   failEnvelope,
   envelope
 };

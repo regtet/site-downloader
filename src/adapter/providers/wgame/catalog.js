@@ -43,10 +43,29 @@ const CATALOG = [
     out: ['profile']
   },
   {
+    op: OP.USER_VIP,
+    transport: 'local',
+    steps: ['session.vip_level'],
+    out: ['vip_level']
+  },
+  {
+    op: OP.USER_AVATARS,
+    transport: 'local',
+    steps: ['session.face_id', 'default_portraits'],
+    out: ['portrait_id']
+  },
+  {
     op: OP.WALLET_GOLD,
     transport: 'local',
     steps: ['session.gold'],
     out: ['game_gold', 'totalGold']
+  },
+  {
+    op: OP.PAY_PENDING,
+    transport: 'local',
+    steps: [],
+    out: [],
+    note: 'no wgame pay; bridge returns explicit failure'
   }
 ];
 

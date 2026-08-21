@@ -88,7 +88,15 @@ function exportMigrated(siteId) {
     sourceInput: src,
     output: out,
     phase: 'P0',
-    ops: ['auth.login', 'auth.register', 'user.info', 'wallet.gold'],
+    ops: [
+      'auth.login',
+      'auth.register',
+      'user.info',
+      'user.vip',
+      'user.avatars',
+      'wallet.gold',
+      'pay.pending'
+    ],
     migrationMap: MIGRATION_MAP
   };
   fs.writeFileSync(path.join(out, 'migration-manifest.json'), JSON.stringify(manifest, null, 2), 'utf8');

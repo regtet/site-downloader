@@ -300,11 +300,21 @@ async function execute(op, ctx) {
     return ok(row.user, 'ok');
   }
 
+  if (op === OP.USER_VIP || op === OP.USER_AVATARS) {
+    const row = findSession(body, headers);
+    if (!row || !row.user) return fail(401, 'not logged in');
+    return ok(row.user, 'ok');
+  }
+
   if (op === OP.WALLET_GOLD) {
     const row = findSession(body, headers);
     if (!row || !row.user) return fail(401, 'not logged in');
     const gold = Number(row.user.game_gold || 0);
     return ok({ game_gold: gold }, 'ok');
+  }
+
+  if (op === OP.PAY_PENDING) {
+    return fail(10060, 'payment adapter pending: wgame has no pay channel');
   }
 
   return fail(404, 'unknown op: ' + op);
