@@ -156,14 +156,56 @@ function buildBootScript(sourceOrigin, adapterHosts) {
       var u = new URL(href);
       if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
       if (u.origin === LOCAL_ORIGIN) return null;
+      // 业务 API → 本地短 path
       if (isAdapterApiHost(u.hostname) && isLocalApiPath(u.pathname)) {
         return LOCAL_ORIGIN + u.pathname + u.search + u.hash;
       }
+      // 其它跨域（含 OSS 图片）→ 本地代理，带源站 Referer，避免防盗链
       return toProxy(href);
     } catch (e) {
       return null;
     }
   }
+
+  /** img/script 等属性赋值不走 XHR，需单独改写到代理 */
+  function rewriteMediaUrl(v) {
+    if (!v || typeof v !== 'string') return v;
+    if (v.indexOf('__sd_proxy__') !== -1) return v;
+    var href = absUrl(v);
+    var next = href && planUrl(href);
+    return next || v;
+  }
+
+  try {
+    var imgProto = window.HTMLImageElement && HTMLImageElement.prototype;
+    if (imgProto) {
+      var srcDesc = Object.getOwnPropertyDescriptor(imgProto, 'src');
+      if (srcDesc && srcDesc.set) {
+        Object.defineProperty(imgProto, 'src', {
+          configurable: true,
+          enumerable: srcDesc.enumerable,
+          get: srcDesc.get,
+          set: function (v) { return srcDesc.set.call(this, rewriteMediaUrl(v)); }
+        });
+      }
+    }
+    var rawSetAttr = Element.prototype.setAttribute;
+    Element.prototype.setAttribute = function (name, value) {
+      var n = String(name || '').toLowerCase();
+      if ((n === 'src' || n === 'href' || n === 'poster' || n === 'srcset') && typeof value === 'string') {
+        if (n === 'srcset') {
+          value = value.split(',').map(function (part) {
+            var bits = part.trim().split(/\\s+/);
+            if (bits[0]) bits[0] = rewriteMediaUrl(bits[0]);
+            return bits.join(' ');
+          }).join(', ');
+        } else {
+          value = rewriteMediaUrl(value);
+        }
+      }
+      return rawSetAttr.call(this, name, value);
+    };
+  } catch (e) {}
 
   /** 把荷载里的本地 origin 换成源站（如 RUM location 字段） */
   function rewriteJsonText(text) {
