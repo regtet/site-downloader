@@ -3,12 +3,37 @@
  * data 为「规范用户态」，不含目标站字段名；由 series 再映射。
  */
 const crypto = require('crypto');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const { wgameAuth } = require('./client');
 const { loadWgameConfig } = require('./config');
 const { OP } = require('../../ops');
 
 const users = new Map();
 const sessions = new Map();
+const SESSION_STORE = path.join(os.tmpdir(), 'site-downloader-wgame-sessions.json');
+
+function loadPersistedSessions() {
+  try {
+    if (!fs.existsSync(SESSION_STORE)) return;
+    const obj = JSON.parse(fs.readFileSync(SESSION_STORE, 'utf8'));
+    if (!obj || typeof obj !== 'object') return;
+    for (const [k, v] of Object.entries(obj)) {
+      if (v && v.user) sessions.set(k, v);
+    }
+  } catch (_) { /* ignore */ }
+}
+
+function persistSessions() {
+  try {
+    const obj = {};
+    for (const [k, v] of sessions.entries()) obj[k] = v;
+    fs.writeFileSync(SESSION_STORE, JSON.stringify(obj));
+  } catch (_) { /* ignore */ }
+}
+
+loadPersistedSessions();
 
 function ok(data, msg) {
   return { ok: true, code: 0, msg: msg || 'ok', data };
@@ -102,6 +127,7 @@ function rememberSession(user) {
   if (user.account) sessions.set(user.account, row);
   if (user.userId) sessions.set('uid:' + user.userId, row);
   if (user.session) sessions.set('sk:' + user.session, row);
+  persistSessions();
   return row;
 }
 

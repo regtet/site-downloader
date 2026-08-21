@@ -58,10 +58,16 @@ function isStaticAssetPath(pathname) {
 }
 
 /** 本地 wgame 登录会话不能原样带给真实 HTTP 上游，否则会 TOKEN_EXPIRED(-1) */
-function shouldStripAuth(req) {
+function shouldStripAuth(req, adapterCfg) {
   try {
+    if (adapterCfg && adapterCfg.provider && adapterCfg.provider !== 'wgame') return false;
+    const h = req.headers || {};
+    const hasToken = !!(h.token || h.Token || h['x-session-key'] || h['session-key']);
+    if (!hasToken) return false;
     const provider = getProvider('wgame');
-    return !!(provider && typeof provider.isOurSession === 'function' && provider.isOurSession(req.headers || {}));
+    if (provider && typeof provider.isOurSession === 'function' && provider.isOurSession(h)) return true;
+    // 进程重启后 sessions 会丢，但浏览器仍带着登录 Token；wgame 预览下回源一律剥掉
+    return !!(adapterCfg && adapterCfg.provider === 'wgame');
   } catch (_) {
     return false;
   }
@@ -148,12 +154,12 @@ function createStaticServer(siteDir, options = {}) {
           return;
         }
         // 非登录类 /hall/api → 回 API 上游（不是主站 679win.com）
-        // 若带的是本地 wgame 会话 Token，必须剥掉，否则上游返回 -1 触发「设备已断开」
+        // 若带的是本地 wgame 会话 Token，必须剥掉并消毒 -1，否则触发「设备已断开」
         if (
           apiUpstreamOrigin
           && isHallApiPath(reqUrl.pathname)
           && tryFallbackMissingAsset(req, res, apiUpstreamOrigin, reqUrl.pathname, reqUrl.search, {
-            stripAuth: shouldStripAuth(req),
+            stripAuth: shouldStripAuth(req, adapterCfg),
             refererOrigin: apiUpstreamOrigin
           })
         ) {
@@ -172,7 +178,9 @@ function createStaticServer(siteDir, options = {}) {
             isLikelySameOriginApiPath(reqUrl.pathname, reqUrl.search)
             || isFetchLikeRequest(req)
           )
-          && tryFallbackMissingAsset(req, res, sourceOrigin, reqUrl.pathname, reqUrl.search)
+          && tryFallbackMissingAsset(req, res, sourceOrigin, reqUrl.pathname, reqUrl.search, {
+            stripAuth: shouldStripAuth(req, adapterCfg)
+          })
         ) {
           return;
         }

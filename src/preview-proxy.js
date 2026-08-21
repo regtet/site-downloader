@@ -822,7 +822,22 @@ function copyRequestHeaders(req, refererOrigin, options = {}) {
     if (lower === 'origin' || lower === 'referer') continue;
     if (lower === 'cookie') continue;
     if (lower === 'accept-encoding') continue;
-    if (stripAuth && (lower === 'token' || lower === 'authorization' || lower === 'userid' || lower === 'user-id' || lower === 'useridx')) {
+    if (
+      stripAuth
+      && (
+        lower === 'token'
+        || lower === 'authorization'
+        || lower === 'userid'
+        || lower === 'user-id'
+        || lower === 'useridx'
+        || lower === 'session-key'
+        || lower === 'session_key'
+        || lower === 'x-session-key'
+        || lower === 'jwt'
+        || lower === 'jwt-token'
+        || lower === 'jwt_token'
+      )
+    ) {
       continue;
     }
     out[key] = headers[key];
@@ -837,6 +852,35 @@ function copyRequestHeaders(req, refererOrigin, options = {}) {
     out['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
   }
   return out;
+}
+
+/**
+ * wgame 会话打真实 aniw HTTP 会返回 code:-1（TOKEN_EXPIRED）踢下线。
+ * 剥 Token 后上游也常回 -1 /「未授权」文案。预览里改成静默成功，避免断线弹窗。
+ */
+function sanitizeUpstreamAuthJson(text) {
+  if (!text || typeof text !== 'string') return text;
+  const trimmed = text.trim();
+  if (!trimmed || (trimmed[0] !== '{' && trimmed[0] !== '[')) return text;
+  try {
+    const j = JSON.parse(trimmed);
+    if (!j || typeof j !== 'object' || Array.isArray(j)) return text;
+    const code = j.code;
+    const num = Number(code);
+    const msg = String(j.msg || j.message || '');
+    const isKick =
+      num === -1
+      || code === '-1'
+      || /desconectad|token\s*expir|fa[cç]a login novamente|n[aã]o est[aá] autorizada|not\s*authorized|unauthorized|login\s*again/i.test(msg);
+    if (!isKick) return text;
+    return JSON.stringify({
+      code: 1,
+      msg: '',
+      data: j.data !== undefined ? j.data : null
+    });
+  } catch (_) {
+    return text;
+  }
 }
 
 function filterResponseHeaders(headers) {
@@ -865,6 +909,7 @@ function proxyRequest(req, res, target, refererOrigin, options = {}) {
   const ref = refererOrigin || (target.origin + '/');
   const headers = copyRequestHeaders(req, ref, options);
   headers.Host = target.host;
+  const sanitizeAuth = !!(options.stripAuth || options.sanitizeAuthKick);
 
   const upstream = lib.request(
     {
@@ -879,8 +924,37 @@ function proxyRequest(req, res, target, refererOrigin, options = {}) {
     (upRes) => {
       const outHeaders = filterResponseHeaders(upRes.headers);
       outHeaders['X-SD-Proxy'] = '1';
-      res.writeHead(upRes.statusCode || 502, outHeaders);
-      upRes.pipe(res);
+
+      if (!sanitizeAuth) {
+        res.writeHead(upRes.statusCode || 502, outHeaders);
+        upRes.pipe(res);
+        return;
+      }
+
+      const chunks = [];
+      upRes.on('data', (c) => chunks.push(c));
+      upRes.on('end', () => {
+        let buf = Buffer.concat(chunks);
+        const ct = String((upRes.headers && (upRes.headers['content-type'] || upRes.headers['Content-Type'])) || '');
+        if (/json|text|javascript/i.test(ct) || buf.length < 2e6) {
+          const raw = buf.toString('utf8');
+          const next = sanitizeUpstreamAuthJson(raw);
+          if (next !== raw) {
+            outHeaders['X-SD-Auth-Sanitized'] = '1';
+            buf = Buffer.from(next, 'utf8');
+            try { console.info('[sd-proxy] sanitized auth kick', target.pathname); } catch (_) { /* ignore */ }
+          }
+        }
+        outHeaders['Content-Length'] = String(buf.length);
+        res.writeHead(upRes.statusCode || 502, outHeaders);
+        res.end(buf);
+      });
+      upRes.on('error', () => {
+        if (!res.headersSent) {
+          res.writeHead(502, { 'Content-Type': 'text/plain; charset=utf-8' });
+          res.end('upstream error');
+        }
+      });
     }
   );
 
@@ -933,7 +1007,10 @@ function tryFallbackMissingAsset(req, res, fallbackOrigin, pathname, search, opt
   if (target.protocol !== 'http:' && target.protocol !== 'https:') return false;
 
   const referer = options.refererOrigin || target.origin + '/';
-  proxyRequest(req, res, target, referer, { stripAuth: !!options.stripAuth });
+  proxyRequest(req, res, target, referer, {
+    stripAuth: !!options.stripAuth,
+    sanitizeAuthKick: !!(options.stripAuth || options.sanitizeAuthKick)
+  });
   return true;
 }
 
@@ -984,11 +1061,13 @@ function tryHandleProxy(req, res, sourceOrigin, adapterHosts) {
     if (isApi) {
       const { getProvider } = require('./adapter/providers');
       const provider = getProvider('wgame');
-      if (provider && provider.isOurSession(req.headers || {})) stripAuth = true;
+      const h = req.headers || {};
+      const hasToken = !!(h.token || h.Token || h['x-session-key'] || h['session-key']);
+      if (provider && (provider.isOurSession(h) || hasToken)) stripAuth = true;
     }
   } catch (_) { /* ignore */ }
 
-  proxyRequest(req, res, target, target.origin + '/', { stripAuth });
+  proxyRequest(req, res, target, target.origin + '/', { stripAuth, sanitizeAuthKick: stripAuth });
   return true;
 }
 
