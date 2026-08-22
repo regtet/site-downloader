@@ -1,0 +1,32 @@
+{
+  "at": "2026-08-21T17:39:28.585Z",
+  "found": 552,
+  "mapped": 537,
+  "gaps": 23,
+  "ossOrLobby": [
+    "/api/domain/lobby/club/parentDomain",
+    "/api/domain/lobby/domainMatch",
+    "/api/lobby/aboutUs/index/getInfo",
+    "/api/lobby/channel/go/getChannelInfoById",
+    "/api/lobby/config/getAppDownloadInfo",
+    "/api/lobby/currencyInfo/getAllCurrency",
+    "/api/lobby/finance/getBankCurrencyAutoMappingCardNoRule",
+    "/api/lobby/finance/getPayChooseBank",
+    "/api/lobby/finance/getPayFieldOss",
+    "/api/lobby/finance/getSiteCurrencyExchangeRateForOss",
+    "/api/lobby/finance/getSiteGuaranteeRule",
+    "/api/lobby/footerConfigV2/getInfo",
+    "/api/lobby/h5/config/getAccessRestrictedInfo",
+    "/api/lobby/publicityInfo/list",
+    "/api/lobby/site/getChildSite",
+    "/api/lobby/site/getSiteInfo",
+    "/api/lobby/userAgreement/index/getInfo",
+    "/api/lobby/versionUpdate/getVersionList",
+    "/api/lobby/webapi/forceUpdate/getForceUpdate",
+    "/api/lobby/webapi/h5/config/getInfo",
+    "/api/lobby/webapi/optimizationV2/site/config",
+    "/api/lobby/webapi/selfRestraint/getInfo",
+    "/api/lobby/winnerCarousel/result"
+  ],
+  "other": []
+}

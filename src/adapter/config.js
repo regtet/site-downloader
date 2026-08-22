@@ -73,6 +73,33 @@ function inferOriginsFromNetwork(siteDir, fs, path) {
   }
 }
 
+/**
+ * 从 index.html 内联 LOBBY_SITE_CONFIG 提取官方 siteCode（如 "12025"）。
+ * 这是站点自带配置，不是伪造业务数据。
+ */
+function inferSiteCodeFromSite(siteDir, fs, path) {
+  try {
+    const htmlPath = path.join(siteDir, 'index.html');
+    if (!fs.existsSync(htmlPath)) return '';
+    const html = fs.readFileSync(htmlPath, 'utf8');
+    const m = html.match(/siteCode\s*:\s*["'](\d+)["']/);
+    return m ? String(m[1]) : '';
+  } catch (_) {
+    return '';
+  }
+}
+
+/** 若 query 缺 siteCode，则追加官方 siteCode（浏览器正式请求本就会带） */
+function ensureSiteCodeQuery(search, siteCode) {
+  const code = siteCode != null ? String(siteCode).trim() : '';
+  if (!code) return search || '';
+  const raw = search == null ? '' : String(search);
+  const body = raw.charAt(0) === '?' ? raw.slice(1) : raw;
+  if (/(?:^|&)siteCode=/i.test(body)) return raw.charAt(0) === '?' ? raw : (raw ? '?' + raw : '');
+  const next = body ? body + '&siteCode=' + encodeURIComponent(code) : 'siteCode=' + encodeURIComponent(code);
+  return '?' + next;
+}
+
 function loadAdapterConfig(siteDir, fs, path) {
   let raw = {};
   try {
@@ -106,6 +133,9 @@ function loadAdapterConfig(siteDir, fs, path) {
   );
 
   const inferred = inferOriginsFromNetwork(siteDir, fs, path);
+  const siteCode = raw.siteCode
+    ? String(raw.siteCode)
+    : inferSiteCodeFromSite(siteDir, fs, path);
 
   return {
     series: seriesId,
@@ -117,6 +147,7 @@ function loadAdapterConfig(siteDir, fs, path) {
     excludeHosts,
     upstreamOrigin: raw.upstreamOrigin ? String(raw.upstreamOrigin) : (inferred.upstreamOrigin || ''),
     ossOrigin: raw.ossOrigin ? String(raw.ossOrigin) : (inferred.ossOrigin || ''),
+    siteCode,
     providerOptions
   };
 }
@@ -129,6 +160,8 @@ module.exports = {
   loadAdapterConfig,
   loadAdapterHosts,
   inferOriginsFromNetwork,
+  inferSiteCodeFromSite,
+  ensureSiteCodeQuery,
   getSeries,
   getProvider
 };

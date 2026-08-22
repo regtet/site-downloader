@@ -1,0 +1,553 @@
+{
+  "ticks": [
+    {
+      "at": "2026-08-21T17:04:04.528Z",
+      "mapSize": 55,
+      "verifyOk": true,
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=65 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/agent/promote/binding/reportViewV2",
+        "/api/agent/promote/getIpBindInfo",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 12,
+      "actionableUnmapped": [
+        "/api/active/category"
+      ],
+      "deferred": {
+        "ossJson": 9,
+        "agent": 2
+      },
+      "note": "do not forge pay/agent; OSS json passthrough; progress in logs/"
+    },
+    {
+      "at": "2026-08-21T17:04:24.954Z",
+      "mapSize": 56,
+      "verifyOk": true,
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=65 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/agent/promote/binding/reportViewV2",
+        "/api/agent/promote/getIpBindInfo",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 11,
+      "actionableUnmapped": [],
+      "deferred": {
+        "ossJson": 9,
+        "agent": 2
+      },
+      "note": "do not forge pay/agent; OSS json passthrough; progress in logs/"
+    },
+    {
+      "at": "2026-08-21T17:07:22.411Z",
+      "mapSize": 102,
+      "verifyOk": false,
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=67 failed=1 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/agent/promote/binding/reportViewV2",
+        "/api/agent/promote/getIpBindInfo",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 11,
+      "actionableUnmapped": [],
+      "deferred": {
+        "ossJson": 9,
+        "agent": 2
+      },
+      "note": "do not forge pay/agent; OSS json passthrough; progress in logs/"
+    },
+    {
+      "at": "2026-08-21T17:08:31.190Z",
+      "mapSize": 102,
+      "verifyOk": true,
+      "passed": 69,
+      "distActionableLeft": 362,
+      "done": [
+        "listAccount",
+        "featurePending",
+        "message/game/finance/active batch",
+        "runtime unmapped logger"
+      ],
+      "next": [
+        "digest logs/runtime-unmapped.json after user traffic",
+        "more active list empties",
+        "keep agent deferred"
+      ]
+    },
+    {
+      "at": "2026-08-21T17:11:26.279Z",
+      "mapSize": 379,
+      "verifyOk": true,
+      "distActionableLeft": 86,
+      "done": [
+        "safe-bulk-map",
+        "expand-safe-bulk auto classify",
+        "map 300+"
+      ]
+    },
+    {
+      "at": "2026-08-21T17:19:11.331Z",
+      "mapSize": 537,
+      "agentMapped": 73,
+      "smokeFailed": 0,
+      "smokeSampled": 50,
+      "distActionable": 0,
+      "verifyHint": "see prior"
+    },
+    {
+      "at": "2026-08-21T17:21:02.417Z",
+      "mapSize": 537,
+      "done": [
+        "fix false lobbyOk writes to featurePending",
+        "message delete pending",
+        "smoke 50/50",
+        "verify 69"
+      ],
+      "phase": "quality-hardening"
+    },
+    {
+      "at": "2026-08-21T17:44:38.367Z",
+      "done": [
+        "getSiteInfo OSS403→aniw /hall/api rewrite",
+        "forcePath in tryFallback",
+        "adapter-hosts no _p0 dump"
+      ],
+      "verify": 71
+    },
+    {
+      "at": "2026-08-21T17:51:33.881Z",
+      "mapSize": 537,
+      "verifyOk": true,
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=73 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "agent/vip ladder = featurePending; OSS json passthrough; no forged team/pay channels"
+    },
+    {
+      "at": "2026-08-21T17:53:42.707Z",
+      "mapSize": 537,
+      "verifyOk": true,
+      "passed": 73,
+      "done": [
+        "getSiteInfo inject official siteCode from index.html",
+        "adapter-hosts.siteCode",
+        "ensureSiteCodeQuery on lobby/hall proxy",
+        "verify asserts data.siteCode not 118000000"
+      ],
+      "next": [
+        "restart yarn start for runtime-unmapped",
+        "OSS *.json passthrough only",
+        "no forge pay/vip/agent"
+      ],
+      "note": "siteCode=12025 from LOBBY_SITE_CONFIG; not forged"
+    },
+    {
+      "at": "2026-08-21T17:55:51.686Z",
+      "mapSize": 537,
+      "verifyHint": "run after",
+      "done": [
+        "OSS *.json short /api path → /hall/api before oniw",
+        "fixes AccessDenied on 9 residual HAR json gaps",
+        "siteCode inject still OK"
+      ],
+      "next": [
+        "restart yarn start",
+        "digest runtime-unmapped",
+        "keep pay/vip/agent non-forged"
+      ],
+      "note": "OSS json now real upstream data via /hall key"
+    },
+    {
+      "at": "2026-08-21T17:56:31.192Z",
+      "mapSize": 537,
+      "verifyOk": true,
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=73 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "agent/vip ladder = featurePending; OSS json passthrough; no forged team/pay channels"
+    },
+    {
+      "at": "2026-08-21T17:57:35.383Z",
+      "mapSize": 537,
+      "verifyOk": true,
+      "passed": 76,
+      "done": [
+        "verify covers OSS /hall json",
+        "night-continue still 0 actionable",
+        "await runtime-unmapped after yarn restart"
+      ],
+      "note": "HAR residual 9 are OSS json now working via /hall"
+    },
+    {
+      "at": "2026-08-21T18:00:43.036Z",
+      "passed": 79,
+      "verifyOk": true,
+      "done": [
+        "HAR gaps 24/25 OK",
+        "domainMatch /hall rewrite",
+        "exclude api/domain from unmapped"
+      ],
+      "note": "passthrough not forged"
+    },
+    {
+      "at": "2026-08-21T18:16:42.793Z",
+      "passed": 85,
+      "verifyOk": true,
+      "phase": "auth-popups",
+      "done": [
+        "register data.userInfos nest",
+        "newcomer_benefit_pop emptyList []",
+        "registerPopup emptyList",
+        "strip loginVerify/change_password force"
+      ],
+      "next": [
+        "user restart yarn start + test register/login popups",
+        "then pay channels",
+        "then agent data"
+      ],
+      "note": "priority auth then pay then agent"
+    },
+    {
+      "at": "2026-08-21T18:47:34.680Z",
+      "passed": 93,
+      "verifyOk": true,
+      "phase": "pay-config-driven",
+      "done": [
+        "auth register userInfos+emptyList popups live",
+        "payList/payType/channels/createOrder from providerOptions.pay",
+        "default PIX placeholder QR"
+      ],
+      "next": [
+        "user fill real pay channels in adapter-hosts.json",
+        "agent report data",
+        "restart yarn start"
+      ],
+      "note": "wgame has no native pay; config-driven bridge"
+    },
+    {
+      "at": "2026-08-21T18:57:19.785Z",
+      "mapSize": 537,
+      "verifyOk": true,
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=95 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [
+        {
+          "key": "GET /api/domain/lobby/domainMatch",
+          "count": 1,
+          "firstAt": 1787335189373,
+          "lastAt": 1787335189373
+        }
+      ],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "pay+agent config-driven (providerOptions.pay/agent); real channels/agent APIs still needed from user"
+    },
+    {
+      "at": "2026-08-21T19:03:19.660Z",
+      "phase": "live-preview-reloaded",
+      "verifyOk": true,
+      "liveSmoke": {
+        "preview": "http://127.0.0.1:3476",
+        "payList": 1,
+        "payCreate": 1,
+        "agentMode": 1,
+        "indexInfo": 1,
+        "myTotalData": 1,
+        "agentPromotion": 1,
+        "registerPopup": 1
+      },
+      "done": [
+        "restart yarn start+preview",
+        "pay PIX create live",
+        "agent zero-state live",
+        "register popup emptyList"
+      ],
+      "next": [
+        "user real pay httpUrl/channels",
+        "user real agent report payloads",
+        "manual confirm register/login dialogs"
+      ],
+      "note": "live preview now serves new adapters; still need real pay/agent APIs for goal complete"
+    },
+    {
+      "at": "2026-08-21T19:18:43.064Z",
+      "phase": "auth-ip-fallback+pay-agent-http-hooks",
+      "verifyOk": null,
+      "done": [
+        "fallbackMockOnIpLimit register→userInfos",
+        "pay http create+orderInfo",
+        "agent httpBase+routes",
+        "rechargePopup emptyList",
+        "live smoke register+pops"
+      ],
+      "blocked": [
+        "real pay channels/QR API from user",
+        "real agent report API payloads"
+      ],
+      "preview": "http://127.0.0.1:3476"
+    },
+    {
+      "at": "2026-08-21T19:34:25.940Z",
+      "phase": "wgame-hall-pay-protocol",
+      "verifyOk": true,
+      "passed": 98,
+      "done": [
+        "wgame QueryPayChannel+Charge protocol",
+        "pay.source=wgame with config fallback",
+        "channel binary parse unit ok",
+        "verify 98/98"
+      ],
+      "next": [
+        "restart yarn preview to load pay protocol",
+        "real-account smoke pay channels",
+        "wire proxy share from hall"
+      ],
+      "note": "own recharge via wgame hall pay; agent still config/http"
+    },
+    {
+      "at": "2026-08-21T19:51:46.046Z",
+      "phase": "wgame-proxy-invite+pay",
+      "verifyOk": true,
+      "passed": 98,
+      "done": [
+        "wgame pay channels/charge protocol",
+        "wgame ProxyValidInviteInfo→agent index/total/promo",
+        "verify 98/98"
+      ],
+      "next": [
+        "restart yarn start to load new provider",
+        "real-account smoke pay+agent"
+      ],
+      "note": "goal still needs live real-account confirmation"
+    },
+    {
+      "at": "2026-08-21T20:17:05.078Z",
+      "phase": "wgame-proxy-invite+pay",
+      "verifyOk": true,
+      "passed": 98,
+      "done": [
+        "wgame pay channels/charge protocol",
+        "wgame ProxyValidInviteInfo→agent index/total/promo",
+        "verify 98/98"
+      ],
+      "next": [
+        "restart yarn start to load new provider",
+        "real-account smoke pay+agent"
+      ],
+      "note": "goal still needs live real-account confirmation"
+    },
+    {
+      "at": "2026-08-21T21:16:13.059Z",
+      "phase": "wgame-proxy-invite+pay",
+      "verifyOk": true,
+      "passed": 98,
+      "done": [
+        "wgame pay channels/charge protocol",
+        "wgame ProxyValidInviteInfo→agent index/total/promo",
+        "verify 98/98"
+      ],
+      "next": [
+        "restart yarn start to load new provider",
+        "real-account smoke pay+agent"
+      ],
+      "note": "goal still needs live real-account confirmation"
+    },
+    {
+      "at": "2026-08-21T23:25:19.065Z",
+      "phase": "wgame-proxy-invite+pay",
+      "verifyOk": true,
+      "passed": 98,
+      "done": [
+        "wgame pay channels/charge protocol",
+        "wgame ProxyValidInviteInfo→agent index/total/promo",
+        "verify 98/98"
+      ],
+      "next": [
+        "restart yarn start to load new provider",
+        "real-account smoke pay+agent"
+      ],
+      "note": "goal still needs live real-account confirmation"
+    },
+    {
+      "at": "2026-08-21T23:37:38.451Z",
+      "phase": "wgame-proxy-invite+pay",
+      "verifyOk": true,
+      "passed": 98,
+      "done": [
+        "wgame pay channels/charge protocol",
+        "wgame ProxyValidInviteInfo→agent index/total/promo",
+        "verify 98/98"
+      ],
+      "next": [
+        "restart yarn start to load new provider",
+        "real-account smoke pay+agent"
+      ],
+      "note": "goal still needs live real-account confirmation"
+    },
+    {
+      "at": "2026-08-22T00:47:33.113Z",
+      "phase": "wgame-proxy-invite+pay",
+      "verifyOk": true,
+      "passed": 98,
+      "done": [
+        "wgame pay channels/charge protocol",
+        "wgame ProxyValidInviteInfo→agent index/total/promo",
+        "verify 98/98"
+      ],
+      "next": [
+        "restart yarn start to load new provider",
+        "real-account smoke pay+agent"
+      ],
+      "note": "goal still needs live real-account confirmation"
+    },
+    {
+      "at": "2026-08-22T01:54:44.142Z",
+      "phase": "wgame-proxy-invite+pay",
+      "verifyOk": true,
+      "passed": 98,
+      "done": [
+        "wgame pay channels/charge protocol",
+        "wgame ProxyValidInviteInfo→agent index/total/promo",
+        "verify 98/98"
+      ],
+      "next": [
+        "restart yarn start to load new provider",
+        "real-account smoke pay+agent"
+      ],
+      "note": "goal still needs live real-account confirmation"
+    },
+    {
+      "at": "2026-08-22T03:56:15.526Z",
+      "phase": "wgame-proxy-invite+pay",
+      "verifyOk": true,
+      "passed": 98,
+      "done": [
+        "wgame pay channels/charge protocol",
+        "wgame ProxyValidInviteInfo→agent index/total/promo",
+        "verify 98/98"
+      ],
+      "next": [
+        "restart yarn start to load new provider",
+        "real-account smoke pay+agent"
+      ],
+      "note": "goal still needs live real-account confirmation"
+    }
+  ],
+  "latest": {
+    "at": "2026-08-22T03:56:15.526Z",
+    "phase": "wgame-proxy-invite+pay",
+    "verifyOk": true,
+    "passed": 98,
+    "done": [
+      "wgame pay channels/charge protocol",
+      "wgame ProxyValidInviteInfo→agent index/total/promo",
+      "verify 98/98"
+    ],
+    "next": [
+      "restart yarn start to load new provider",
+      "real-account smoke pay+agent"
+    ],
+    "note": "goal still needs live real-account confirmation"
+  }
+}

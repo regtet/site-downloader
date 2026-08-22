@@ -7,7 +7,9 @@ const DEFAULTS = {
   packageId: 46,
   timeoutMs: 20000,
   nGmType: 7,
-  fallbackMock: false
+  fallbackMock: false,
+  /** 注册同 IP 超限(170)时本地落会话，便于打通注册成功弹框；生产请关 */
+  fallbackMockOnIpLimit: false
 };
 
 function applyBlock(out, w) {
@@ -18,6 +20,7 @@ function applyBlock(out, w) {
   if (w.timeoutMs != null) out.timeoutMs = Number(w.timeoutMs) || out.timeoutMs;
   if (w.nGmType != null) out.nGmType = Number(w.nGmType) || out.nGmType;
   if (w.fallbackMock != null) out.fallbackMock = !!w.fallbackMock;
+  if (w.fallbackMockOnIpLimit != null) out.fallbackMockOnIpLimit = !!w.fallbackMockOnIpLimit;
 }
 
 function loadWgameConfig(siteDir) {

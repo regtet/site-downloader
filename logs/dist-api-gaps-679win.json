@@ -1,0 +1,18 @@
+{
+  "at": "2026-08-21T18:57:19.737Z",
+  "siteId": "679win",
+  "found": 552,
+  "mapped": 537,
+  "gaps": 23,
+  "actionableCount": 0,
+  "actionable": [],
+  "buckets": {
+    "member": [],
+    "finance": [],
+    "gameCenter": [],
+    "active": [],
+    "gohal": [],
+    "message": [],
+    "other": []
+  }
+}

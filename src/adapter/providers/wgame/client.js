@@ -26,11 +26,15 @@ function wgameAuth(options) {
   const deviceId = options.deviceId || defaultDeviceId(account);
   const passwordMd5 = proto.md5Hex(password);
   const skipHall = !!options.skipHall;
+  const hallAction = options.hallAction || ''; // '' | payChannels | payCharge | proxyInvite
+  const chargeOpts = options.charge || {};
 
   return new Promise((resolve, reject) => {
     let settled = false;
     let verified = false;
     let passport = null;
+    let hallState = null;
+    let waitingPay = '';
     let ws;
 
     const done = (err, data) => {
@@ -165,7 +169,8 @@ function wgameAuth(options) {
     };
 
     const finishWithHall = (hall) => {
-      done(null, {
+      hallState = hall;
+      const base = {
         ok: true,
         action,
         account,
@@ -183,7 +188,46 @@ function wgameAuth(options) {
         bFirstLogin: hall ? hall.bFirstLogin : 0,
         bHasRecharge: hall ? hall.bHasRecharge : 0,
         accountType: hall && hall.accountType != null ? hall.accountType : undefined
-      });
+      };
+
+      if (!hallAction) {
+        done(null, base);
+        return;
+      }
+
+      const roleId = (passport && passport.dwUserID)
+        || (hall && hall.userID)
+        || 0;
+      if (!roleId) {
+        done(Object.assign(new Error('wgame hall userId missing for pay'), { code: 10063 }));
+        return;
+      }
+
+      try {
+        if (hallAction === 'payChannels') {
+          waitingPay = 'payChannels';
+          ws.send(proto.encodeQueryPayChannel(roleId));
+          return;
+        }
+        if (hallAction === 'payCharge') {
+          waitingPay = 'payCharge';
+          ws.send(proto.encodeCharge({
+            orderType: chargeOpts.orderType != null ? chargeOpts.orderType : 3,
+            channelId: chargeOpts.channelId,
+            money: chargeOpts.money
+          }));
+          return;
+        }
+        if (hallAction === 'proxyInvite') {
+          waitingPay = 'proxyInvite';
+          ws.send(proto.encodeProxyInviteInfoReq());
+          return;
+        }
+      } catch (e) {
+        done(e);
+        return;
+      }
+      done(null, base);
     };
 
     ws.on('message', (data) => {
@@ -257,11 +301,61 @@ function wgameAuth(options) {
           }
           if (head.wMainCmdID === proto.HALL.MDM_LOGON && head.wSubCmdID === proto.HALL.SUB_ERROR) {
             const err = proto.parseHallLoginError(buf);
-            // 大厅失败仍返回护照会话，金币为 0，避免整次登录失败
             console.warn('[wgame] hall login failed', err.errorCode, err.errorDescribe);
             finishWithHall(null);
             return;
           }
+        }
+
+        // 支付渠道
+        if (waitingPay === 'payChannels'
+          && head.wMainCmdID === proto.PAY.MDM_PAY
+          && head.wSubCmdID === proto.PAY.SUB_QUERY_CHANNEL) {
+          const channels = proto.parsePayChannels(buf);
+          done(null, {
+            ok: true,
+            action: 'payChannels',
+            account,
+            deviceId,
+            ...passport,
+            hall: hallState,
+            payChannels: channels.list || []
+          });
+          return;
+        }
+
+        // 下单
+        if (waitingPay === 'payCharge'
+          && head.wMainCmdID === proto.PAY.MDM_HTTP
+          && head.wSubCmdID === proto.PAY.SUB_CHARGE) {
+          const charge = proto.parseChargeRet(buf);
+          done(null, {
+            ok: true,
+            action: 'payCharge',
+            account,
+            deviceId,
+            ...passport,
+            hall: hallState,
+            charge
+          });
+          return;
+        }
+
+        // 代理邀请信息
+        if (waitingPay === 'proxyInvite'
+          && head.wMainCmdID === proto.ROLE.MDM_ROLE
+          && head.wSubCmdID === proto.ROLE.SUB_PROXY_INVITE_INFO) {
+          const proxyInvite = proto.parseProxyInviteInfo(buf);
+          done(null, {
+            ok: true,
+            action: 'proxyInvite',
+            account,
+            deviceId,
+            ...passport,
+            hall: hallState,
+            proxyInvite
+          });
+          return;
         }
       } catch (e) {
         done(e);

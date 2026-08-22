@@ -66,19 +66,32 @@ function exportMigrated(siteId) {
   copyRecursive(src, out, { skip: SKIP_META });
 
   let inferred = { upstreamOrigin: '', ossOrigin: '' };
+  let siteCode = '';
   try {
-    const { inferOriginsFromNetwork } = require('./adapter/config');
+    const { inferOriginsFromNetwork, inferSiteCodeFromSite } = require('./adapter/config');
     inferred = inferOriginsFromNetwork(src, fs, path) || inferred;
+    siteCode = inferSiteCodeFromSite(src, fs, path) || '';
   } catch (_) {}
 
   const { MIGRATION_MAP } = require('./adapter/series/aniw-lobby/migration-map');
   const adapterHosts = {
     series: 'aniw-lobby',
     provider: 'wgame',
-    providerOptions: { mode: 'wgame' },
+    providerOptions: {
+      mode: 'wgame',
+      pay: {
+        enabled: true,
+        note: 'Replace channels/createOrder with your real pay API; default is PIX placeholder. mode=http + httpUrl for remote create.'
+      },
+      agent: {
+        enabled: true,
+        note: 'Replace indexInfo/myTotalData/commission with your agent API payloads; default is zero-state'
+      }
+    },
     upstreamOrigin: inferred.upstreamOrigin || '',
     ossOrigin: inferred.ossOrigin || '',
-    _p0: Object.keys(MIGRATION_MAP)
+    siteCode: siteCode || '',
+    mapSize: Object.keys(MIGRATION_MAP).length
   };
   fs.writeFileSync(path.join(out, 'adapter-hosts.json'), JSON.stringify(adapterHosts, null, 2), 'utf8');
 
@@ -95,7 +108,10 @@ function exportMigrated(siteId) {
       'user.vip',
       'user.avatars',
       'wallet.gold',
-      'pay.pending'
+      'pay.list',
+      'pay.create',
+      'agent.mode',
+      'agent.index'
     ],
     migrationMap: MIGRATION_MAP
   };

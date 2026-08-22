@@ -65,7 +65,87 @@ const CATALOG = [
     transport: 'local',
     steps: [],
     out: [],
-    note: 'no wgame pay; bridge returns explicit failure'
+    note: 'legacy pending when pay.enabled=false'
+  },
+  {
+    op: OP.PAY_LIST,
+    transport: 'local',
+    steps: ['providerOptions.pay.categories'],
+    out: ['list']
+  },
+  {
+    op: OP.PAY_TYPE,
+    transport: 'local',
+    steps: ['providerOptions.pay.types'],
+    out: ['payKind.list']
+  },
+  {
+    op: OP.PAY_CHANNELS,
+    transport: 'local',
+    steps: ['providerOptions.pay.channelsByPayKind'],
+    out: ['list', 'min', 'max']
+  },
+  {
+    op: OP.PAY_INFOS,
+    transport: 'local',
+    steps: ['providerOptions.pay.payInfos'],
+    out: ['cards']
+  },
+  {
+    op: OP.PAY_CREATE,
+    transport: 'local',
+    steps: ['providerOptions.pay.createOrder'],
+    out: ['orderNo', 'qrCode', 'url']
+  },
+  {
+    op: OP.PAY_ORDER_INFO,
+    transport: 'local',
+    steps: ['pay-orders'],
+    out: ['orderNo', 'status']
+  },
+  {
+    op: OP.AGENT_MODE,
+    transport: 'local',
+    steps: ['providerOptions.agent.agentMode'],
+    out: ['agent_id']
+  },
+  {
+    op: OP.AGENT_INDEX,
+    transport: 'local',
+    steps: ['providerOptions.agent.indexInfo'],
+    out: []
+  },
+  {
+    op: OP.WITHDRAW_PENDING,
+    transport: 'local',
+    steps: [],
+    out: [],
+    note: 'no wgame withdraw; bridge returns explicit failure'
+  },
+  {
+    op: OP.AUTH_LOGOUT,
+    transport: 'local',
+    steps: ['session.clear'],
+    out: ['loggedOut']
+  },
+  {
+    op: OP.LOBBY_OK,
+    transport: 'local',
+    steps: [],
+    out: []
+  },
+  {
+    op: OP.EMPTY_RECORDS,
+    transport: 'local',
+    steps: [],
+    out: ['list', 'total']
+  },
+  {
+    op: OP.FEATURE_PENDING,
+    transport: 'local',
+    steps: [],
+    out: [],
+    note: 'feature not available; explicit failure'
   }
 ];
 

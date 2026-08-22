@@ -1,0 +1,168 @@
+/**
+ * 充值：优先 wgame 大厅真实渠道/下单；也可 providerOptions.pay 占位或 HTTP 收银台。
+ */
+const path = require('path');
+const fs = require('fs');
+
+const DEFAULT_PAY = {
+  enabled: true,
+  /** wgame=大厅真实渠道/下单；config=本地占位；http=自有 HTTP 收银台 */
+  source: 'wgame',
+  currency: 'BRL',
+  currencySign: 'R$',
+  categories: [
+    {
+      type: 1,
+      name: 'Online',
+      iconUrl: '',
+      paymentMode: 0
+    }
+  ],
+  types: [
+    {
+      id: 900001,
+      paymentid: 900001,
+      payplatformid: 900001,
+      payKind: 100,
+      type: 1,
+      iconUrl: '',
+      name: 'PIX',
+      noChannelTopUp: false
+    }
+  ],
+  channelsByPayKind: {
+    '100': {
+      min: '10',
+      max: '50000',
+      url: '',
+      realInfoRule: 0,
+      list: [
+        {
+          id: 900101,
+          payplatformid: 900101,
+          paymentid: 900101,
+          paymentMethodId: 900101,
+          channelId: 900101,
+          channelCode: 'pix',
+          merchCode: '',
+          merch_agent_id: 0,
+          merch_desc: 'PIX',
+          channlName: 'PIX',
+          payCurrency: 'BRL',
+          currencySign: 'R$',
+          min_recharge_limit: '10',
+          max_recharge_limit: '50000',
+          recommendList: ['20', '50', '100', '200', '500'],
+          iconUrl: '',
+          orderEffectiveTime: 900,
+          realNameSwitch: 0,
+          payment_type: 0,
+          channel_type: 0,
+          walletType: ''
+        }
+      ]
+    }
+  },
+  createOrder: {
+    mode: 'staticQr',
+    /** 占位二维码内容；换成你们收银台 URL 或真实 PIX payload */
+    qrPayload: '00020126580014br.gov.bcb.pix0136PLACEHOLDER-REPLACE-ME5204000053039865802BR5925SiteDownloader Pay6009SAO PAULO62070503***6304ABCD',
+    qrCodeUrl: '',
+    payUrl: '',
+    urlOpenWay: 4,
+    orderEffectiveTime: 900,
+    /** mode=http 时 POST JSON 到 httpUrl，响应可含 qrCode/url/urlOpenWay */
+    httpUrl: '',
+    httpMethod: 'POST'
+  }
+};
+
+function loadPayConfig(siteDir, providerOptions) {
+  let raw = {};
+  try {
+    if (providerOptions && providerOptions.pay && typeof providerOptions.pay === 'object') {
+      raw = providerOptions.pay;
+    } else if (siteDir) {
+      const p = path.join(siteDir, 'adapter-hosts.json');
+      if (fs.existsSync(p)) {
+        const hosts = JSON.parse(fs.readFileSync(p, 'utf8'));
+        const po = (hosts && hosts.providerOptions) || (hosts && hosts.wgame) || {};
+        if (po.pay && typeof po.pay === 'object') raw = po.pay;
+      }
+    }
+  } catch (_) { /* ignore */ }
+
+  const cfg = Object.assign({}, DEFAULT_PAY, raw || {});
+  cfg.categories = Array.isArray(raw.categories) ? raw.categories : DEFAULT_PAY.categories;
+  cfg.types = Array.isArray(raw.types) ? raw.types : DEFAULT_PAY.types;
+  cfg.channelsByPayKind = Object.assign(
+    {},
+    DEFAULT_PAY.channelsByPayKind,
+    (raw.channelsByPayKind && typeof raw.channelsByPayKind === 'object') ? raw.channelsByPayKind : {}
+  );
+  cfg.createOrder = Object.assign({}, DEFAULT_PAY.createOrder, raw.createOrder || {});
+  if (raw.enabled === false) cfg.enabled = false;
+  if (raw.source) cfg.source = String(raw.source);
+  return cfg;
+}
+
+function buildQrDataUrl(payload) {
+  // 不依赖外网：返回可被 <img> 识别的占位说明（前端优先用 qrCode 字符串画码时可直接用 payload）
+  return String(payload || '');
+}
+
+function mapWgameChannelsToPack(list, pay) {
+  const open = (Array.isArray(list) ? list : []).filter((c) => {
+    if (!c) return false;
+    if (c.nStatus != null && Number(c.nStatus) === 0) return false;
+    return true;
+  });
+  const mapped = open.map((c) => {
+    const id = Number(c.nChannelId) || 0;
+    const min = c.llMinMoney != null ? String(c.llMinMoney) : '10';
+    const max = c.llMaxMoney != null ? String(c.llMaxMoney) : '50000';
+    const name = c.szChannelName || ('CH' + id);
+    return {
+      id,
+      payplatformid: id,
+      paymentid: id,
+      paymentMethodId: id,
+      channelId: id,
+      channelCode: String(id),
+      merchCode: '',
+      merch_agent_id: 0,
+      merch_desc: name,
+      channlName: name,
+      payCurrency: (pay && pay.currency) || 'BRL',
+      currencySign: (pay && pay.currencySign) || 'R$',
+      min_recharge_limit: min,
+      max_recharge_limit: max,
+      recommendList: ['20', '50', '100', '200', '500'].filter((x) => {
+        const n = Number(x);
+        return n >= Number(min) && n <= Number(max);
+      }),
+      iconUrl: '',
+      orderEffectiveTime: 900,
+      realNameSwitch: c.kycFlag ? 1 : 0,
+      payment_type: 0,
+      channel_type: Number(c.nChannelType) || 0,
+      walletType: '',
+      _wgameUrl: c.szUrl || '',
+      _awardRate: c.nAwardRate
+    };
+  });
+  let min = '10';
+  let max = '50000';
+  if (mapped.length) {
+    min = String(Math.min(...mapped.map((m) => Number(m.min_recharge_limit) || 0)));
+    max = String(Math.max(...mapped.map((m) => Number(m.max_recharge_limit) || 0)));
+  }
+  return { list: mapped, min, max, url: '', realInfoRule: 0 };
+}
+
+module.exports = {
+  DEFAULT_PAY,
+  loadPayConfig,
+  buildQrDataUrl,
+  mapWgameChannelsToPack
+};

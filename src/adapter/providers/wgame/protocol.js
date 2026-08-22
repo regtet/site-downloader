@@ -41,6 +41,18 @@ const HALL = {
   SUB_OK: 1102
 };
 
+const PAY = {
+  MDM_PAY: 9,
+  SUB_QUERY_CHANNEL: 1101,
+  MDM_HTTP: 104,
+  SUB_CHARGE: 2
+};
+
+const ROLE = {
+  MDM_ROLE: 7,
+  SUB_PROXY_INVITE_INFO: 11320
+};
+
 const GATE = {
   MDM_SOCK: 1,
   SUB_CONNECT: 101,
@@ -303,11 +315,161 @@ function parseHallLoginError(buf) {
   return { errorCode, errorDescribe };
 }
 
+function readUtf8Fixed(buf, offset, size) {
+  const end = Math.min(offset + size, buf.length);
+  const slice = buf.slice(offset, end);
+  let z = slice.indexOf(0);
+  if (z < 0) z = slice.length;
+  return {
+    value: slice.slice(0, z).toString('utf8'),
+    next: offset + size
+  };
+}
+
+function readInt64LE(buf, offset) {
+  if (typeof buf.readBigInt64LE === 'function') {
+    try {
+      return Number(buf.readBigInt64LE(offset));
+    } catch (_) { /* fallthrough */ }
+  }
+  const lo = buf.readUInt32LE(offset);
+  const hi = buf.readInt32LE(offset + 4);
+  return hi * 0x100000000 + lo;
+}
+
+/** HT_QueryPayChannel_Req: dwRoleID */
+function encodeQueryPayChannel(roleId) {
+  const body = Buffer.alloc(4);
+  body.writeUInt32LE(Number(roleId) >>> 0, 0);
+  return encodePacket(EST.HALL, PAY.MDM_PAY, PAY.SUB_QUERY_CHANNEL, body);
+}
+
+/**
+ * HT_PayChannelItem fixed layout (395 bytes)
+ */
+function parsePayChannelItem(buf, offset) {
+  let o = offset;
+  if (o + 395 > buf.length) return null;
+  const nChannelId = buf.readInt32LE(o); o += 4;
+  let v = readUtf8Fixed(buf, o, 50); const szChannelName = v.value; o = v.next;
+  v = readUtf8Fixed(buf, o, 300); const szUrl = v.value; o = v.next;
+  const llMinMoney = readInt64LE(buf, o); o += 8;
+  const llMaxMoney = readInt64LE(buf, o); o += 8;
+  const nStatus = buf.readInt32LE(o); o += 4;
+  const bBindPhone = buf[o]; o += 1;
+  const nAwardRate = buf.readInt32LE(o); o += 4;
+  const nChannelType = buf.readInt32LE(o); o += 4;
+  const kycFlag = buf[o]; o += 1;
+  v = readUtf8Fixed(buf, o, 11); const szExtra = v.value; o = v.next;
+  return {
+    item: {
+      nChannelId,
+      szChannelName,
+      szUrl,
+      llMinMoney,
+      llMaxMoney,
+      nStatus,
+      bBindPhone,
+      nAwardRate,
+      nChannelType,
+      kycFlag,
+      szExtra
+    },
+    next: o
+  };
+}
+
+function parsePayChannels(buf) {
+  let o = 9;
+  if (o + 4 > buf.length) return { nCount: 0, list: [] };
+  const nCount = buf.readInt32LE(o); o += 4;
+  const list = [];
+  for (let i = 0; i < nCount; i++) {
+    const row = parsePayChannelItem(buf, o);
+    if (!row) break;
+    list.push(row.item);
+    o = row.next;
+  }
+  return { nCount, list };
+}
+
+/** CMD_Charge: nOrderType + nChannelId + nChargeMoney + nsize + cpf[256] */
+function encodeCharge({ orderType, channelId, money }) {
+  const body = Buffer.alloc(4 + 4 + 4 + 2 + 256);
+  let o = 0;
+  body.writeInt32LE(Number(orderType) || 3, o); o += 4;
+  body.writeInt32LE(Number(channelId) || 0, o); o += 4;
+  body.writeInt32LE(Number(money) || 0, o); o += 4;
+  body.writeUInt16LE(0, o); o += 2;
+  return encodePacket(EST.HALL, PAY.MDM_HTTP, PAY.SUB_CHARGE, body);
+}
+
+function parseChargeRet(buf) {
+  let o = 9;
+  const nRet = buf.readInt32LE(o); o += 4;
+  const szChargeUrl = readFixedString(buf, o, Math.min(1024, Math.max(0, buf.length - o)));
+  o += 1024;
+  const szOrderInfo = o < buf.length
+    ? readFixedString(buf, o, Math.min(1024, buf.length - o))
+    : '';
+  let orderInfo = null;
+  try {
+    if (szOrderInfo && szOrderInfo.trim().startsWith('{')) {
+      orderInfo = JSON.parse(szOrderInfo.trim());
+    }
+  } catch (_) { /* ignore */ }
+  return { nRet, szChargeUrl, szOrderInfo, orderInfo };
+}
+
+/** SUB_GP_GET_PROXY_VALID_INVITE_INFO：无 body */
+function encodeProxyInviteInfoReq() {
+  return encodePacket(EST.HALL, ROLE.MDM_ROLE, ROLE.SUB_PROXY_INVITE_INFO, null);
+}
+
+/** TCmd_ProxyValidInviteAwardCfg */
+function parseProxyInviteInfo(buf) {
+  let o = 9;
+  const nValidInviteCount = buf.readInt32LE(o); o += 4;
+  const nDirectCount = buf.readInt32LE(o); o += 4;
+  const nGetAwardCount = buf.readInt32LE(o); o += 4;
+  const nPerInviteAwardMoney = buf.readInt32LE(o); o += 4;
+  const llYesInviteBonus = readInt64LE(buf, o); o += 8;
+  const llTodayInviteBonus = readInt64LE(buf, o); o += 8;
+  const nAchieveInviteCount = buf.readInt32LE(o); o += 4;
+  const nAchieveAwardStatus = readInt64LE(buf, o); o += 8;
+  const szInviteCode = readFixedString(buf, o, 33); o += 33;
+  const nProxyRunningReturnRate1 = o + 4 <= buf.length ? buf.readInt32LE(o) : 0; o += 4;
+  const nProxyRunningReturnRate2 = o + 4 <= buf.length ? buf.readInt32LE(o) : 0; o += 4;
+  const nProxyRunningReturnRate3 = o + 4 <= buf.length ? buf.readInt32LE(o) : 0; o += 4;
+  const nTodayValidInviteCount = o + 4 <= buf.length ? buf.readInt32LE(o) : 0; o += 4;
+  const nYesValidInviteCount = o + 4 <= buf.length ? buf.readInt32LE(o) : 0; o += 4;
+  const nChestValidInviteCount = o + 4 <= buf.length ? buf.readInt32LE(o) : 0;
+  return {
+    nValidInviteCount,
+    nDirectCount,
+    nGetAwardCount,
+    nPerInviteAwardMoney,
+    llYesInviteBonus,
+    llTodayInviteBonus,
+    nAchieveInviteCount,
+    nAchieveAwardStatus,
+    szInviteCode,
+    nProxyRunningReturnRate1,
+    nProxyRunningReturnRate2,
+    nProxyRunningReturnRate3,
+    nTodayValidInviteCount,
+    nYesValidInviteCount,
+    nChestValidInviteCount
+  };
+}
+
 module.exports = {
   EST,
   KN,
   LOGIN,
   HALL,
+  PAY,
+  ROLE,
   GATE,
   COIN_RATE,
   DEF_KEY,
@@ -321,10 +483,16 @@ module.exports = {
   encodeRegisterBody,
   encodeHallConnect,
   encodeHallLoginBody,
+  encodeQueryPayChannel,
+  encodeCharge,
+  encodeProxyInviteInfoReq,
   parseLogonOK,
   parseLoginError,
   parseRegisterError,
   parseHallLogonRes,
   parseHallLoginError,
+  parsePayChannels,
+  parseChargeRet,
+  parseProxyInviteInfo,
   readToken
 };

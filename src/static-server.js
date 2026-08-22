@@ -12,6 +12,7 @@ const {
   isFetchLikeRequest
 } = require('./preview-proxy');
 const { tryHandleAdapter } = require('./adapter');
+const { noteUnmapped, isApiPath } = require('./adapter/unmapped-log');
 const { loadAdapterConfig, isHallApiPath, isOssAssetPath } = require('./adapter/hosts');
 const { getProvider } = require('./adapter/providers');
 
@@ -140,6 +141,11 @@ function createStaticServer(siteDir, options = {}) {
         siteDir: root
       })) return;
 
+      try {
+        const u = new URL(req.url || '/', `http://${host}`);
+        if (isApiPath(u.pathname)) noteUnmapped(u.pathname, req.method);
+      } catch (_) { /* ignore */ }
+
       if (headerProxy && tryHandleProxy(req, res, sourceOrigin, bootCfg)) {
         return;
       }
@@ -159,37 +165,91 @@ function createStaticServer(siteDir, options = {}) {
         ) {
           return;
         }
-        // home：/api/lobby/* 配置走 OSS（不接 wgame）
+        // home：lobby 静态 *.json 走 oniw（key 带 /hall）；getSiteInfo 等无后缀业务走 aniw
         if (
           !isMutating
           && ossOrigin
           && /^\/api\/lobby\//i.test(reqUrl.pathname)
-          && tryFallbackMissingAsset(req, res, ossOrigin, reqUrl.pathname, reqUrl.search)
+          && /\.json$/i.test(reqUrl.pathname)
         ) {
-          return;
+          const lobbyJsonPath = '/hall' + reqUrl.pathname;
+          if (
+            tryFallbackMissingAsset(req, res, ossOrigin, lobbyJsonPath, reqUrl.search, {
+              forcePath: lobbyJsonPath
+            })
+          ) {
+            return;
+          }
         }
-        // GET 的 /hall/api/**/*.json 实际在 OSS；本地没有时回 oniw（仍禁止 POST）
+        // lobby 业务 API（含 getSiteInfo）：回 aniw，并补 /hall 前缀（上游只认 /hall/api/lobby）
+        // 缺 siteCode 时补官方 LOBBY_SITE_CONFIG.siteCode（与浏览器正式请求一致，不伪造）
+        if (
+          apiUpstreamOrigin
+          && /^\/(?:hall\/)?api\/lobby\//i.test(reqUrl.pathname)
+        ) {
+          let lobbyPath = reqUrl.pathname;
+          if (lobbyPath.startsWith('/api/lobby/')) {
+            lobbyPath = '/hall' + lobbyPath;
+          }
+          const { ensureSiteCodeQuery } = require('./adapter/config');
+          const lobbySearch = ensureSiteCodeQuery(reqUrl.search, adapterCfg.siteCode);
+          if (
+            tryFallbackMissingAsset(req, res, apiUpstreamOrigin, lobbyPath, lobbySearch, {
+              stripAuth: shouldStripAuth(req, adapterCfg),
+              sanitizeAuthKick: false,
+              refererOrigin: apiUpstreamOrigin,
+              forcePath: lobbyPath
+            })
+          ) {
+            return;
+          }
+        }
+        // GET 的 /api/**/*.json 与 /hall/api/**/*.json：官方 OSS key 带 /hall 前缀；
+        // 短 path（/api/...json）直打 oniw 常 AccessDenied，需补 /hall 后再回源（仍禁止 POST）
         if (
           !isMutating
           && ossOrigin
           && isHallApiPath(reqUrl.pathname)
           && /\.json$/i.test(reqUrl.pathname)
-          && tryFallbackMissingAsset(req, res, ossOrigin, reqUrl.pathname, reqUrl.search)
         ) {
-          return;
+          let ossJsonPath = reqUrl.pathname;
+          if (ossJsonPath.startsWith('/api/') && !ossJsonPath.startsWith('/api/lobby/')) {
+            ossJsonPath = '/hall' + ossJsonPath;
+          } else if (ossJsonPath.startsWith('/api/lobby/')) {
+            // lobby 静态 json 也尝试 /hall 前缀（与业务 path 一致）
+            ossJsonPath = '/hall' + ossJsonPath;
+          }
+          if (
+            tryFallbackMissingAsset(req, res, ossOrigin, ossJsonPath, reqUrl.search, {
+              forcePath: ossJsonPath
+            })
+          ) {
+            return;
+          }
         }
         // home/lobby 等未映射接口：保持原站回源（OSS/aniw），不空数据覆盖
         // 本地 wgame 会话 Token 不能带给真实上游 → 剥 Token，但不再伪造 code:1
+        // 短 path /api/* 上游只认 /hall/api/*（如 domainMatch）
         if (
           apiUpstreamOrigin
           && isHallApiPath(reqUrl.pathname)
-          && tryFallbackMissingAsset(req, res, apiUpstreamOrigin, reqUrl.pathname, reqUrl.search, {
-            stripAuth: shouldStripAuth(req, adapterCfg),
-            sanitizeAuthKick: false,
-            refererOrigin: apiUpstreamOrigin
-          })
         ) {
-          return;
+          let hallPath = reqUrl.pathname;
+          if (hallPath.startsWith('/api/') && !hallPath.startsWith('/hall/')) {
+            hallPath = '/hall' + hallPath;
+          }
+          const { ensureSiteCodeQuery } = require('./adapter/config');
+          const hallSearch = ensureSiteCodeQuery(reqUrl.search, adapterCfg.siteCode);
+          if (
+            tryFallbackMissingAsset(req, res, apiUpstreamOrigin, hallPath, hallSearch, {
+              stripAuth: shouldStripAuth(req, adapterCfg),
+              sanitizeAuthKick: false,
+              refererOrigin: apiUpstreamOrigin,
+              forcePath: hallPath
+            })
+          ) {
+            return;
+          }
         }
         if (
           sourceOrigin

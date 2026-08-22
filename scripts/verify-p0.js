@@ -45,6 +45,7 @@ function testAdapters() {
     adaptWalletGold,
     adaptMemberProfile,
     adaptVipSummary,
+    adaptVipDetails,
     adaptAvatars,
     adaptPayPending,
     DEFAULT_PORTRAIT
@@ -63,33 +64,38 @@ function testAdapters() {
     account_type: 2
   };
   const m = memberProfile(user);
-  assert(m.username === 'u1', 'username');
-  assert(m.nickname === 'Nick', 'nickname');
+  assert(m.username === 42, 'username is numeric member id');
+  assert(m.nickname === 'Nick', 'nickname from wgame when present');
   assert(m.session_key === 'sk_test' && m.jwt_token === 'sk_test', 'session aliases');
-  assert(m.userkey === '42', 'userkey');
+  assert(m.userkey === 'sk_test', 'userkey uses session (no fil_ protocol)');
   assert(m.game_gold === 12.5, 'game_gold');
-  assert(m.account_type === 2, 'account_type from wgame only');
-  assert(m.currency === undefined, 'no forged currency');
-  assert(m.permissionOpt === undefined, 'no forged permissionOpt');
-  assert(m.bonus === undefined, 'no forged bonus');
-  assert(m.platfromid === undefined, 'no forged platfromid');
-  assert(m.portrait_id === DEFAULT_PORTRAIT, 'portrait_id is URL path not face id');
-  assert(m.face_id === '7', 'keep raw face_id separately');
+  assert(m.account_type === 2, 'account_type from wgame');
+  assert(m.currency === 'BRL', 'site default currency BRL');
+  assert(m.permissionOpt && m.permissionOpt.hasPassword === true, 'permissionOpt.hasPassword');
+  assert(m.permissionOpt.hasPhone === true, 'permissionOpt.hasPhone from session');
+  assert(m.bonus === '0' && m.totalGold === '12.5', 'bonus/totalGold shape');
+  assert(String(m.portrait_id).startsWith('https://'), 'portrait_id CDN url');
   assert(m.vip_level === 3, 'vip_level');
 
-  const lean = memberProfile({ account: 'a', session: 's', userId: '1', game_gold: 0 });
-  assert(lean.phone === undefined, 'omit missing phone');
-  assert(lean.portrait_id === DEFAULT_PORTRAIT, 'default portrait always');
+  const lean = memberProfile({ account: 'a', session: 's', userId: '10001', game_gold: 0 });
+  assert(lean.username === 10001, 'username from userId number');
+  assert(lean.nickname === '', 'empty nickname ok like official register');
+  assert(lean.phone === '' || lean.phone === undefined || lean.mobile_phone === '', 'empty phone');
+  assert(String(lean.portrait_id).startsWith('https://'), 'default CDN portrait');
 
   const w = adaptWalletGold({ ok: true, data: { game_gold: 9 } });
-  assert(w.code === 1 && w.data.game_gold === 9 && w.data.totalGold === 9, 'walletGold aliases');
-  assert(w.data.bonus === undefined, 'wallet no forged bonus');
+  assert(w.code === 1 && w.data.game_gold === 9, 'walletGold');
+  assert(w.data.totalGold === '9', 'wallet totalGold string');
 
   const fail = adaptMemberProfile({ ok: false, code: 139, msg: 'Password error' });
   assert(fail.code === 139 && fail.data === null, 'login fail envelope');
 
   const vip = adaptVipSummary({ ok: true, data: { vip_level: 2 } });
-  assert(vip.code === 1 && vip.data.vip === 2 && vip.data.need_deposit === undefined, 'vip no forged deposit');
+  assert(vip.code === 1 && vip.data.vip === 2, 'vip summary');
+
+  const vd = adaptVipDetails({ ok: true, data: { vip_level: 0 } });
+  assert(vd.code === 1 && vd.data.vip === 0 && vd.data.current_style === 2, 'vipDetails official shape');
+  assert(vd.data.icon_style && vd.data.icon_color, 'vipDetails icons');
 
   const av = adaptAvatars({ ok: true, data: { face_id: '3' } });
   assert(av.code === 1 && Array.isArray(av.data.list) && av.data.list.length >= 1, 'avatars list');
@@ -102,15 +108,57 @@ function testMap() {
   console.log('\n[2] migration-map');
   const series = getSeries('aniw-lobby');
   assert(series.matchRoute('/hall/api/member/login').op === 'auth.login', 'login map');
+  assert(series.matchRoute('/api/member/register').adapter === 'registerProfile', 'register wraps userInfos');
+  assert(series.matchRoute('/api/active/tasks/newcomer_benefit_pop').adapter === 'emptyList', 'newcomer pop empty list');
+  assert(series.matchRoute('/api/member/user/registerPopupDlgInfo').adapter === 'emptyList', 'register popup empty list');
   assert(series.matchRoute('/api/member/getFastLogin').op === 'user.info', 'getFastLogin → session');
+
+  const {
+    adaptRegisterProfile,
+    adaptEmptyList
+  } = require('../src/adapter/series/aniw-lobby/adapters');
+  const reg = adaptRegisterProfile({
+    ok: true,
+    data: { account: 'u', session: 'sk', userId: '99', game_gold: 0 }
+  });
+  assert(
+    reg.code === 1 && reg.data && reg.data.userInfos && reg.data.userInfos.username === 99,
+    'register data.userInfos'
+  );
+  assert(reg.data.needApprove === false, 'register needApprove false');
+  const el = adaptEmptyList({ ok: true, data: {} });
+  assert(el.code === 1 && Array.isArray(el.data) && el.data.length === 0, 'emptyList is []');
+
   assert(series.matchRoute('/api/member/user/info').adapter === 'memberProfile', 'user.info');
   assert(series.matchRoute('/api/gameCenter/gold').op === 'wallet.gold', 'gold');
   assert(series.matchRoute('/api/member/user/vip').adapter === 'vipSummary', 'vip');
   assert(series.matchRoute('/api/member/user/avatars').adapter === 'avatars', 'avatars');
-  assert(series.matchRoute('/api/finance/pay/payListV4').adapter === 'payPending', 'payList pending fail');
-  assert(series.matchRoute('/api/member/user/vipInfoV2') === null, 'vipInfoV2 still pending');
-  assert(series.matchRoute('/api/active/receivedAwardList') === null, 'no empty stub for activity');
-  assert(Object.keys(MIGRATION_MAP).length >= 15, 'map size');
+  assert(series.matchRoute('/api/finance/pay/payListV4').adapter === 'payList', 'payList config-driven');
+  assert(series.matchRoute('/api/finance/pay/payTypeV4').adapter === 'payType', 'payType config-driven');
+  assert(series.matchRoute('/api/finance/pay/payplatformlistV3').adapter === 'payChannels', 'payChannels');
+  assert(series.matchRoute('/api/finance/pay/offlineOrderV3').adapter === 'payCreate', 'payCreate');
+  assert(series.matchRoute('/api/finance/pay/payInfos').adapter === 'payInfos', 'payInfos');
+  assert(series.matchRoute('/api/finance/certify/withdrawRecord').adapter === 'emptyRecords', 'withdrawRecord empty');
+  assert(series.matchRoute('/api/finance/certify/withdrawSettingV3').adapter === 'withdrawPending', 'withdrawSetting pending');
+  assert(series.matchRoute('/api/member/logout').adapter === 'logout', 'logout');
+  assert(series.matchRoute('/api/gohal/heartbeat').adapter === 'lobbyOk', 'heartbeat');
+  assert(series.matchRoute('/api/active/getRedDotV2').adapter === 'redDotEmpty', 'redDotEmpty');
+  assert(series.matchRoute('/api/member/getFingerprint').adapter === 'fingerprint', 'fingerprint');
+  assert(series.matchRoute('/api/member/listAccount').adapter === 'listAccount', 'listAccount');
+  assert(series.matchRoute('/api/member/user/vipInfoV2').adapter === 'emptyRecords', 'vipInfoV2 empty not 10060');
+  assert(series.matchRoute('/api/agent/promote/config/agentMode').adapter === 'agentBlob', 'agentMode config-driven');
+  assert(series.matchRoute('/api/active/receivedAwardList').adapter === 'emptyRecords', 'award list empty not forged');
+  assert(series.matchRoute('/api/active/receiveOne').adapter === 'featurePending', 'receiveOne pending not empty-ok');
+  assert(series.matchRoute('/api/agent/promote/getIpBindInfo').adapter === 'agentBlob', 'agent bind config-driven');
+  assert(series.matchRoute('/api/agent/promote/report/indexInfo').adapter === 'agentBlob', 'agent indexInfo');
+  assert(series.matchRoute('/api/finance/pay/orderInfo').adapter === 'payOrderInfo', 'pay orderInfo');
+  assert(Object.keys(MIGRATION_MAP).length >= 80, 'map size');
+
+  const writeOk = Object.entries(MIGRATION_MAP).filter(([p, e]) => {
+    if (e.adapter !== 'lobbyOk') return false;
+    return /cancelOrder|setdefault|rejectManual|cancelFavorites|cancelFollow|cancelLike|\/delete$|\/delall$|customDel|\/bind|\/receive|\/redeem|\/upload|\/settle$|transferConfirm|offlineOrder/i.test(p);
+  });
+  assert(writeOk.length === 0, 'no lobbyOk on mutating paths');
 }
 
 function httpRequest(port, method, urlPath, { body, headers } = {}) {
@@ -160,7 +208,7 @@ async function testLive() {
   console.log('  server', info.url);
 
   try {
-    // home：应能回 OSS/本地，不经 wgame
+    // home：应能回 OSS/本地，不经 wgame；缺参时由服务端补官方 siteCode
     console.log('\n[3a] 首页配置（OSS/aniw，不接 wgame）');
     const home = await httpRequest(port, 'GET', '/api/lobby/site/getSiteInfo');
     assert(
@@ -172,10 +220,61 @@ async function testLive() {
       || (home.json && home.json.code !== 1 && !home.json.data),
       'getSiteInfo 不应被 P0 bridge 空数据覆盖'
     );
-    // 更准：adapter 头不存在则 OK
     const homeIsBridge = home.headers['x-sd-adapter'] === 'migration-bridge';
     assert(!homeIsBridge, 'getSiteInfo not handled by migration-bridge');
+    // 补 siteCode 后：应拿到官方站点配置 data.siteCode（非伪造）
+    if (home.status === 200 && home.json) {
+      const sc = home.json.data && home.json.data.siteCode;
+      assert(!!sc, 'getSiteInfo data.siteCode from upstream');
+      console.log('  OK  getSiteInfo siteCode=' + sc + ' status=' + (home.json.data && home.json.data.status));
+      assert(
+        home.json.code == null || home.json.code === 1 || Number(home.json.data && home.json.data.status) === 0,
+        'getSiteInfo not Site-id-empty error'
+      );
+      assert(
+        !(home.json.code === 118000000),
+        'getSiteInfo must not be Site id empty (118000000)'
+      );
+    }
 
+    // OSS 静态 *.json：短 /api 路径需补 /hall，否则 oniw AccessDenied
+    console.log('\n[3a2] OSS 静态 json（/hall 前缀回源）');
+    const ossJson = await httpRequest(
+      port,
+      'GET',
+      '/api/active/category/currency/BRL/language/pt.json'
+    );
+    assert(ossJson.status === 200, 'OSS json status=' + ossJson.status);
+    assert(
+      !(typeof ossJson.raw === 'string' && /AccessDenied/i.test(ossJson.raw)),
+      'OSS json not AccessDenied'
+    );
+    assert(
+      !!(ossJson.json && (ossJson.json.code === 1 || ossJson.json.data)),
+      'OSS json upstream envelope'
+    );
+    console.log(
+      '  OK  OSS json code=' +
+        (ossJson.json && ossJson.json.code) +
+        ' list=' +
+        !!(ossJson.json && ossJson.json.data && ossJson.json.data.activeList)
+    );
+
+    // domainMatch：短 /api 需 /hall 回 aniw（加密串由前端生成；此处只验证非 404 HTML）
+    // 经本地代理偶发 502，最多重试 3 次
+    let dm = null;
+    for (let i = 0; i < 3; i++) {
+      dm = await httpRequest(port, 'GET', '/api/domain/lobby/domainMatch?siteCode=12025');
+      if (dm.status === 200 && dm.json) break;
+      await new Promise((r) => setTimeout(r, 800 * (i + 1)));
+    }
+    assert(dm.status === 200, 'domainMatch status=' + dm.status);
+    assert(
+      !(typeof dm.raw === 'string' && /<html/i.test(dm.raw)),
+      'domainMatch not upstream 404 HTML'
+    );
+    assert(!!dm.json, 'domainMatch JSON from aniw');
+    console.log('  OK  domainMatch code=' + (dm.json && dm.json.code));
     const account = process.env.WGAME_TEST_ACCOUNT || '';
     const password = process.env.WGAME_TEST_PASSWORD || '';
 
@@ -191,7 +290,8 @@ async function testLive() {
         game_gold: 88,
         nickname: 'verify_p0',
         vip_level: 1,
-        account_type: 2
+        account_type: 2,
+        device_id: 'fp_test'
       };
       provider.sessions.set(fake.account, { user: fake, at: Date.now() });
       provider.sessions.set('sk:' + fake.session, { user: fake, at: Date.now() });
@@ -205,33 +305,49 @@ async function testLive() {
       assert(infoRes.json && infoRes.json.code === 1, 'user.info code=1');
       assert(infoRes.json.data && infoRes.json.data.session_key === fake.session, 'user.info session');
       assert(infoRes.json.data.game_gold === 88, 'user.info gold');
-      assert(infoRes.json.data.permissionOpt === undefined, 'user.info no forged permissionOpt');
+      assert(infoRes.json.data.permissionOpt && infoRes.json.data.permissionOpt.hasPassword === true, 'permissionOpt');
       assert(
         infoRes.json.data.portrait_id
-        && String(infoRes.json.data.portrait_id).startsWith('/lobby_asset/'),
-        'user.info portrait_id is asset path'
+        && String(infoRes.json.data.portrait_id).startsWith('https://'),
+        'user.info portrait_id CDN'
       );
+      assert(infoRes.json.data.username === 10001 || infoRes.json.data.username === '10001', 'username is member id');
+      assert(infoRes.json.data.nickname === 'verify_p0' || infoRes.json.data.nickname === '', 'nickname present or empty');
 
       const fast = await httpRequest(port, 'POST', '/api/member/getFastLogin', {
         body: { encryptString: 'x' },
         headers: { token: fake.session }
       });
       assert(fast.json && fast.json.code === 1, 'getFastLogin session-reuse code=1');
-      assert(fast.json.data && fast.json.data.username === 'verify_p0', 'getFastLogin profile');
+      assert(
+        fast.json.data
+        && (fast.json.data.username === 10001 || fast.json.data.username === '10001'),
+        'getFastLogin profile'
+      );
 
       const gold = await httpRequest(port, 'POST', '/api/gameCenter/gold', {
         body: {},
         headers: { token: fake.session }
       });
       assert(gold.json && gold.json.code === 1 && gold.json.data.game_gold === 88, 'wallet.gold');
-      assert(gold.json.data.bonus === undefined, 'wallet no forged bonus');
 
       const vip = await httpRequest(port, 'POST', '/api/member/user/vip', {
         body: {},
         headers: { token: fake.session }
       });
       assert(vip.json && vip.json.code === 1 && vip.json.data.vip === 1, 'user.vip from session');
-      assert(vip.json.data.need_deposit === undefined, 'vip no forged deposit');
+
+      const vipDetails = await httpRequest(port, 'POST', '/api/member/user/vipDetails', {
+        body: {},
+        headers: { token: fake.session }
+      });
+      assert(
+        vipDetails.json
+        && vipDetails.json.code === 1
+        && vipDetails.json.data.current_style === 2
+        && vipDetails.json.data.icon_style,
+        'vipDetails official-like shape'
+      );
 
       const avatars = await httpRequest(port, 'POST', '/api/member/user/avatars', {
         body: {},
@@ -244,7 +360,129 @@ async function testLive() {
         headers: { token: fake.session }
       });
       assert(pay.headers['x-sd-adapter'] === 'migration-bridge', 'payList via bridge');
-      assert(pay.json && pay.json.code === 10060 && pay.json.data === null, 'payList explicit pending fail');
+      assert(
+        pay.json && pay.json.code === 1 && pay.json.data && Array.isArray(pay.json.data.list) && pay.json.data.list.length >= 1,
+        'payList categories from config'
+      );
+
+      const payType = await httpRequest(port, 'POST', '/api/finance/pay/payTypeV4', {
+        body: { type: 0 },
+        headers: { token: fake.session }
+      });
+      assert(
+        payType.json
+        && payType.json.code === 1
+        && payType.json.data
+        && payType.json.data.payKind
+        && Array.isArray(payType.json.data.payKind.list)
+        && payType.json.data.payKind.list.length >= 1,
+        'payType payKind.list'
+      );
+
+      const channels = await httpRequest(port, 'POST', '/api/finance/pay/payplatformlistV3', {
+        body: { payKind: 100 },
+        headers: { token: fake.session }
+      });
+      assert(
+        channels.json
+        && channels.json.code === 1
+        && channels.json.data
+        && Array.isArray(channels.json.data.list)
+        && channels.json.data.list.length >= 1,
+        'payChannels list'
+      );
+
+      const order = await httpRequest(port, 'POST', '/api/finance/pay/offlineOrderV3', {
+        body: { money: '50', payCurrency: 'BRL' },
+        headers: { token: fake.session }
+      });
+      assert(
+        order.json
+        && order.json.code === 1
+        && order.json.data
+        && order.json.data.success === true
+        && order.json.data.orderNo
+        && order.json.data.qrCode,
+        'payCreate order+qr'
+      );
+
+      const orderInfo = await httpRequest(port, 'POST', '/api/finance/pay/orderInfo', {
+        body: { orderNo: order.json.data.orderNo },
+        headers: { token: fake.session }
+      });
+      assert(
+        orderInfo.json
+        && orderInfo.json.code === 1
+        && orderInfo.json.data
+        && orderInfo.json.data.orderNo === order.json.data.orderNo,
+        'pay orderInfo poll'
+      );
+
+      const agentMode = await httpRequest(port, 'POST', '/api/agent/promote/config/agentMode', {
+        body: {},
+        headers: { token: fake.session }
+      });
+      assert(
+        agentMode.json
+        && agentMode.json.code === 1
+        && agentMode.json.data
+        && agentMode.json.data.agent_id != null,
+        'agentMode blob'
+      );
+
+      const agentIndex = await httpRequest(port, 'POST', '/api/agent/promote/report/indexInfo', {
+        body: {},
+        headers: { token: fake.session }
+      });
+      assert(agentIndex.json && agentIndex.json.code === 1 && agentIndex.json.data, 'agent indexInfo');
+
+      const wd = await httpRequest(port, 'POST', '/api/finance/certify/withdrawRecord', {
+        body: {},
+        headers: { token: fake.session }
+      });
+      assert(wd.json && wd.json.code === 1 && Array.isArray(wd.json.data.list), 'withdrawRecord empty list');
+
+      const ws = await httpRequest(port, 'POST', '/api/finance/certify/withdrawSettingV3', {
+        body: {},
+        headers: { token: fake.session }
+      });
+      assert(ws.json && ws.json.code === 10060 && ws.json.data === null, 'withdrawSetting pending');
+
+      const hb = await httpRequest(port, 'POST', '/api/gohal/heartbeat', {
+        body: {},
+        headers: { token: fake.session }
+      });
+      assert(hb.json && hb.json.code === 1, 'heartbeat lobbyOk');
+
+      const rd = await httpRequest(port, 'POST', '/api/active/getRedDotV2', {
+        body: {},
+        headers: { token: fake.session }
+      });
+      assert(rd.json && rd.json.code === 1 && rd.json.data.activeCount === 0, 'redDotEmpty');
+
+      const fp = await httpRequest(port, 'POST', '/api/member/getFingerprint', {
+        body: {},
+        headers: { token: fake.session }
+      });
+      assert(
+        fp.json && fp.json.code === 1 && fp.json.data.deviceFingerprint === 'fp_test',
+        'fingerprint from session'
+      );
+
+      const la = await httpRequest(port, 'POST', '/api/member/listAccount', {
+        body: {},
+        headers: { token: fake.session }
+      });
+      assert(
+        la.json && la.json.code === 1 && Array.isArray(la.json.data.list) && la.json.data.list.length === 1,
+        'listAccount current only'
+      );
+
+      const lo = await httpRequest(port, 'POST', '/api/member/logout', {
+        body: {},
+        headers: { token: fake.session }
+      });
+      assert(lo.json && lo.json.code === 1, 'logout ok');
       return;
     }
 

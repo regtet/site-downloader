@@ -1,0 +1,308 @@
+{
+  "at": "2026-08-21T17:20:43.567Z",
+  "mapSize": 537,
+  "sampled": 50,
+  "failed": 0,
+  "results": [
+    {
+      "path": "/api/member/user/info",
+      "ok": true,
+      "code": 1,
+      "adapter": "memberProfile"
+    },
+    {
+      "path": "/api/member/listAccount",
+      "ok": true,
+      "code": 1,
+      "adapter": "listAccount"
+    },
+    {
+      "path": "/api/member/getFingerprint",
+      "ok": true,
+      "code": 1,
+      "adapter": "fingerprint"
+    },
+    {
+      "path": "/api/member/user/vipInfoV2",
+      "ok": true,
+      "code": 10060,
+      "adapter": "featurePending"
+    },
+    {
+      "path": "/api/agent/promote/getIpBindInfo",
+      "ok": true,
+      "code": 10060,
+      "adapter": "featurePending"
+    },
+    {
+      "path": "/api/gameCenter/gold",
+      "ok": true,
+      "code": 1,
+      "adapter": "walletGold"
+    },
+    {
+      "path": "/api/finance/pay/payListV4",
+      "ok": true,
+      "code": 10060,
+      "adapter": "payPending"
+    },
+    {
+      "path": "/api/finance/certify/withdrawRecord",
+      "ok": true,
+      "code": 1,
+      "adapter": "emptyRecords"
+    },
+    {
+      "path": "/api/active/getRedDotV2",
+      "ok": true,
+      "code": 1,
+      "adapter": "redDotEmpty"
+    },
+    {
+      "path": "/api/message/list/all",
+      "ok": true,
+      "code": 1,
+      "adapter": "emptyRecords"
+    },
+    {
+      "path": "/api/gohal/heartbeat",
+      "ok": true,
+      "code": 1,
+      "adapter": "lobbyOk"
+    },
+    {
+      "path": "/api/active/activeTaskCompleteList",
+      "ok": true,
+      "code": 1,
+      "adapter": "emptyRecords"
+    },
+    {
+      "path": "/api/active/chop_one_knife_new_my_logs",
+      "ok": true,
+      "code": 1,
+      "adapter": "emptyRecords"
+    },
+    {
+      "path": "/api/active/cutADeal/cut_a_deal_turn",
+      "ok": true,
+      "code": 10060,
+      "adapter": "featurePending"
+    },
+    {
+      "path": "/api/active/getred",
+      "ok": true,
+      "code": 1,
+      "adapter": "emptyRecords"
+    },
+    {
+      "path": "/api/active/receiveManualSend",
+      "ok": true,
+      "code": 10060,
+      "adapter": "featurePending"
+    },
+    {
+      "path": "/api/active/redactive",
+      "ok": true,
+      "code": 1,
+      "adapter": "emptyRecords"
+    },
+    {
+      "path": "/api/active/shop/product/list",
+      "ok": true,
+      "code": 1,
+      "adapter": "emptyRecords"
+    },
+    {
+      "path": "/api/active/svip/point/lottery",
+      "ok": true,
+      "code": 10060,
+      "adapter": "featurePending"
+    },
+    {
+      "path": "/api/active/tasks/vitality/boxs",
+      "ok": true,
+      "code": 1,
+      "adapter": "emptyRecords"
+    },
+    {
+      "path": "/api/active/turntableTaskList",
+      "ok": true,
+      "code": 1,
+      "adapter": "emptyRecords"
+    },
+    {
+      "path": "/api/agent/promote/childLoan/quota/adjust",
+      "ok": true,
+      "code": 10060,
+      "adapter": "featurePending"
+    },
+    {
+      "path": "/api/agent/promote/config/tutorial",
+      "ok": true,
+      "code": 10060,
+      "adapter": "featurePending"
+    },
+    {
+      "path": "/api/agent/promote/linkSetting",
+      "ok": true,
+      "code": 10060,
+      "adapter": "featurePending"
+    },
+    {
+      "path": "/api/agent/promote/report/directReportV5",
+      "ok": true,
+      "code": 10060,
+      "adapter": "featurePending"
+    },
+    {
+      "path": "/api/agent/promote/report/reward/myPerformance",
+      "ok": true,
+      "code": 10060,
+      "adapter": "featurePending"
+    },
+    {
+      "path": "/api/backstage/customer/feedback",
+      "ok": true,
+      "code": 10060,
+      "adapter": "featurePending"
+    },
+    {
+      "path": "/api/bet-manager/recentreport/betrecords/_query",
+      "ok": true,
+      "code": 1,
+      "adapter": "emptyRecords"
+    },
+    {
+      "path": "/api/club/manager/uploadFile",
+      "ok": true,
+      "code": 10060,
+      "adapter": "featurePending"
+    },
+    {
+      "path": "/api/competition/football/match/detail",
+      "ok": true,
+      "code": 1,
+      "adapter": "emptyRecords"
+    },
+    {
+      "path": "/api/finance/certify/bindTonWallet",
+      "ok": true,
+      "code": 10060,
+      "adapter": "withdrawPending"
+    },
+    {
+      "path": "/api/finance/certify/getWithdrawFeeSetting",
+      "ok": true,
+      "code": 10060,
+      "adapter": "withdrawPending"
+    },
+    {
+      "path": "/api/finance/certify/withdrawAccountList",
+      "ok": true,
+      "code": 1,
+      "adapter": "emptyRecords"
+    },
+    {
+      "path": "/api/finance/claim/cancelOrder",
+      "ok": true,
+      "code": 10060,
+      "adapter": "featurePending"
+    },
+    {
+      "path": "/api/finance/maxChargeRate",
+      "ok": true,
+      "code": 1,
+      "adapter": "lobbyOk"
+    },
+    {
+      "path": "/api/finance/pay/orderInfo",
+      "ok": true,
+      "code": 1,
+      "adapter": "emptyRecords"
+    },
+    {
+      "path": "/api/finance/pay/transferCancel",
+      "ok": true,
+      "code": 10060,
+      "adapter": "payPending"
+    },
+    {
+      "path": "/api/finance/payplatformlistV4",
+      "ok": true,
+      "code": 10060,
+      "adapter": "payPending"
+    },
+    {
+      "path": "/api/game/hall/listSearchGameV2",
+      "ok": true,
+      "code": 1,
+      "adapter": "emptyRecords"
+    },
+    {
+      "path": "/api/gameCenter/gameApi/favorite-list-all/v3",
+      "ok": true,
+      "code": 1,
+      "adapter": "emptyRecords"
+    },
+    {
+      "path": "/api/gameCenter/wgLottery/freshToken",
+      "ok": true,
+      "code": 10060,
+      "adapter": "featurePending"
+    },
+    {
+      "path": "/api/member/fastRegister",
+      "ok": true,
+      "code": 1004,
+      "adapter": "memberProfile"
+    },
+    {
+      "path": "/api/member/restrict/update",
+      "ok": true,
+      "code": 10060,
+      "adapter": "featurePending"
+    },
+    {
+      "path": "/api/member/user/email/creatEmail",
+      "ok": true,
+      "code": 10060,
+      "adapter": "featurePending"
+    },
+    {
+      "path": "/api/member/user/kyc/state",
+      "ok": true,
+      "code": 10060,
+      "adapter": "featurePending"
+    },
+    {
+      "path": "/api/member/user/notLogin/resetPassVerify",
+      "ok": true,
+      "code": 10060,
+      "adapter": "featurePending"
+    },
+    {
+      "path": "/api/member/user/security/bindGoogleAuth",
+      "ok": true,
+      "code": 10060,
+      "adapter": "featurePending"
+    },
+    {
+      "path": "/api/member/user/security/verifyLoginPass",
+      "ok": true,
+      "code": 10060,
+      "adapter": "featurePending"
+    },
+    {
+      "path": "/api/member/v2/user/temporary/upgrade",
+      "ok": true,
+      "code": 10060,
+      "adapter": "featurePending"
+    },
+    {
+      "path": "/api/message/publicityPlaza/all",
+      "ok": true,
+      "code": 1,
+      "adapter": "emptyRecords"
+    }
+  ]
+}

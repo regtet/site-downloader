@@ -1,0 +1,12 @@
+{
+  "at": "2026-08-21T17:59:49.373Z",
+  "totalKeys": 1,
+  "top": [
+    {
+      "key": "GET /api/domain/lobby/domainMatch",
+      "count": 1,
+      "firstAt": 1787335189373,
+      "lastAt": 1787335189373
+    }
+  ]
+}

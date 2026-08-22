@@ -1008,12 +1008,17 @@ function tryFallbackMissingAsset(req, res, fallbackOrigin, pathname, search, opt
   if (!fallbackOrigin || !pathname) return false;
 
   let pathAndQuery = pathname + (search || '');
-  try {
-    const raw = String(req.url || '').split('#')[0];
-    if (raw && raw.charAt(0) === '/') {
-      pathAndQuery = raw;
-    }
-  } catch (_) { /* ignore */ }
+  // 允许调用方强制改写上游 path（如 /api/lobby → /hall/api/lobby）
+  if (options.forcePath) {
+    pathAndQuery = String(options.forcePath) + (search || '');
+  } else {
+    try {
+      const raw = String(req.url || '').split('#')[0];
+      if (raw && raw.charAt(0) === '/') {
+        pathAndQuery = raw;
+      }
+    } catch (_) { /* ignore */ }
+  }
 
   let target;
   try {
