@@ -12,7 +12,17 @@
     "promote-input": "node scripts/promote-input.js",
     "export-migrated": "node scripts/export-migrated.js",
     "verify-p0": "node scripts/verify-p0.js",
+    "smoke-e2e": "node scripts/smoke-e2e-679win.js",
+    "wgame-live-probe": "node scripts/wgame-live-probe.js",
+    "night-continue": "node scripts/night-continue.js",
     "analyze-apis": "node scripts/analyze-apis.js",
+    "extract-har-pay": "node scripts/extract-har-pay.js",
+    "extract-har-agent": "node scripts/extract-har-agent.js",
+    "import-capture-agent": "node scripts/import-capture-agent.js",
+    "apply-production-env": "node scripts/apply-production-env.js",
+    "probe-production-hooks": "node scripts/probe-production-hooks.js",
+    "export-api-contract": "node scripts/export-api-contract.js",
+    "wire-status": "node scripts/wire-status.js",
     "analyze-post-login": "node scripts/analyze-post-login.js"
   },
   "engines": {

@@ -1,0 +1,25 @@
+{
+  "at": "2026-08-22T23:44:15.442Z",
+  "siteId": "679win",
+  "skipped": false,
+  "steps": {
+    "login": {
+      "ok": true
+    },
+    "payChannels": {
+      "ok": true,
+      "count": 2
+    },
+    "payCharge": {
+      "ok": true,
+      "hasQr": false,
+      "hasUrl": true
+    },
+    "proxyInvite": {
+      "ok": true,
+      "hasCode": true,
+      "directCount": 0
+    }
+  },
+  "ok": true
+}

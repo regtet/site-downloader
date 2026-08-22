@@ -20,6 +20,8 @@ const {
   stopManualCapture,
   getManualCaptureResult
 } = require('./src/post-login-capture');
+const { isMockCashierPath, handleMockCashierRequest } = require('./src/mock-cashier');
+const { isMockAgentPath, handleMockAgentRequest } = require('./src/mock-agent-api');
 
 const BASE_PORT = Number(process.env.PORT) || 3000;
 const MAX_PORT_ATTEMPTS = 20;
@@ -118,6 +120,15 @@ function listDownloads() {
 }
 
 async function handleApi(req, res, pathname) {
+  if (isMockCashierPath(pathname)) {
+    await handleMockCashierRequest(req, res);
+    return;
+  }
+  if (isMockAgentPath(pathname)) {
+    await handleMockAgentRequest(req, res, pathname);
+    return;
+  }
+
   if (req.method === 'GET' && pathname === '/api/status') {
     const browser = await checkBrowser();
     sendJson(res, 200, { browser, ...getBrowserInfo(), queue: jobManager.getQueueInfo() });
@@ -281,6 +292,7 @@ async function handleApi(req, res, pathname) {
             sendJson(res, 400, { error: '本地抓包需要有效的站点目录' });
             return;
           }
+          const siteId = toSiteId(body.siteId || path.basename(siteDir));
           try {
             const info = await previewServer.start(siteDir);
             pageUrl = info.url;
@@ -288,6 +300,13 @@ async function handleApi(req, res, pathname) {
             sendJson(res, 500, { error: '启动本地预览失败: ' + err.message });
             return;
           }
+          try {
+            const info = await startManualCapture({ side, pageUrl, siteId });
+            sendJson(res, 200, info);
+          } catch (err) {
+            sendJson(res, 500, { error: err.message });
+          }
+          return;
         }
         if (!pageUrl) {
           sendJson(res, 400, { error: '缺少页面 URL' });
@@ -322,13 +341,33 @@ async function handleApi(req, res, pathname) {
           fs.mkdirSync(outDir, { recursive: true });
           const dumpPath = path.join(outDir, `${capId}.json`);
           fs.writeFileSync(dumpPath, JSON.stringify(capture, null, 2), 'utf8');
+          const siteId = (capture.meta && capture.meta.siteId) || '679win';
+          const hasAgent = (capture.entries || []).some((e) =>
+            /\/api\/agent\/promote\//i.test(e.pathname || e.url || '')
+          );
+          let agentImport = null;
+          if (hasAgent) {
+            const { spawnSync } = require('child_process');
+            const imp = spawnSync(process.execPath, ['scripts/import-capture-agent.js', siteId], {
+              cwd: __dirname,
+              encoding: 'utf8',
+              timeout: 30000
+            });
+            try {
+              agentImport = JSON.parse(String(imp.stdout || '').trim());
+            } catch (_) {
+              agentImport = { ok: false, stderr: String(imp.stderr || '').slice(0, 200) };
+            }
+          }
           sendJson(res, 200, {
             id: capId,
             dumpPath,
             meta: capture.meta || null,
             apiCount: (capture.entries || []).length,
             hasLoginApi: !!(capture.meta && capture.meta.hasLoginApi),
-            hasPostLogin: !!(capture.meta && capture.meta.hasPostLogin)
+            hasPostLogin: !!(capture.meta && capture.meta.hasPostLogin),
+            hasAgentApi: !!(capture.meta && capture.meta.hasAgentApi),
+            agentImport
           });
         } catch (err) {
           sendJson(res, 500, { error: err.message });

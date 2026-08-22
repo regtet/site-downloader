@@ -8,6 +8,8 @@ const DEFAULT_PAY = {
   enabled: true,
   /** wgame=大厅真实渠道/下单；config=本地占位；http=自有 HTTP 收银台 */
   source: 'wgame',
+  /** source=wgame 时 wss 下单失败是否回退占位 QR；开发/IP 限注册时可 true */
+  allowPlaceholderFallback: false,
   currency: 'BRL',
   currencySign: 'R$',
   categories: [
@@ -73,7 +75,9 @@ const DEFAULT_PAY = {
     orderEffectiveTime: 900,
     /** mode=http 时 POST JSON 到 httpUrl，响应可含 qrCode/url/urlOpenWay */
     httpUrl: '',
-    httpMethod: 'POST'
+    httpMethod: 'POST',
+    /** 无 httpUrl 时用内置 mock 收银台（开发）；生产请填真实 httpUrl */
+    useBuiltinMock: false
   }
 };
 
@@ -103,6 +107,21 @@ function loadPayConfig(siteDir, providerOptions) {
   cfg.createOrder = Object.assign({}, DEFAULT_PAY.createOrder, raw.createOrder || {});
   if (raw.enabled === false) cfg.enabled = false;
   if (raw.source) cfg.source = String(raw.source);
+  if (raw.allowPlaceholderFallback != null) {
+    cfg.allowPlaceholderFallback = !!raw.allowPlaceholderFallback;
+  } else if (String(cfg.source).toLowerCase() === 'config') {
+    cfg.allowPlaceholderFallback = true;
+  }
+  if (process.env.PAY_HTTP_URL) {
+    cfg.createOrder.httpUrl = String(process.env.PAY_HTTP_URL);
+    cfg.createOrder.mode = 'http';
+    cfg.createOrder.useBuiltinMock = false;
+  }
+  if (process.env.PAY_USE_BUILTIN_MOCK === '1') {
+    cfg.createOrder.useBuiltinMock = true;
+  }
+  const har = loadHarPaySnapshot(siteDir);
+  applyHarPaySnapshot(cfg, har);
   return cfg;
 }
 
@@ -160,9 +179,38 @@ function mapWgameChannelsToPack(list, pay) {
   return { list: mapped, min, max, url: '', realInfoRule: 0 };
 }
 
+function loadHarPaySnapshot(siteDir) {
+  const candidates = [];
+  if (siteDir) candidates.push(path.join(siteDir, 'har-pay-snapshot.json'));
+  try {
+    const root = path.join(__dirname, '..', '..', '..', '..');
+    const siteId = siteDir ? path.basename(siteDir) : '679win';
+    candidates.push(path.join(root, 'logs', `har-pay-snapshot-${siteId}.json`));
+  } catch (_) { /* ignore */ }
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf8'));
+    } catch (_) { /* ignore */ }
+  }
+  return null;
+}
+
+function applyHarPaySnapshot(cfg, har) {
+  if (!har || typeof har !== 'object') return cfg;
+  if (Array.isArray(har.categories) && har.categories.length) cfg.categories = har.categories;
+  if (Array.isArray(har.types) && har.types.length) cfg.types = har.types;
+  if (har.channelsByPayKind && typeof har.channelsByPayKind === 'object') {
+    cfg.channelsByPayKind = Object.assign({}, cfg.channelsByPayKind, har.channelsByPayKind);
+  }
+  // paysubmitUrl 是收银台页面基址（channelData.url），不是 createOrder.httpUrl JSON API
+  return cfg;
+}
+
 module.exports = {
   DEFAULT_PAY,
   loadPayConfig,
   buildQrDataUrl,
-  mapWgameChannelsToPack
+  mapWgameChannelsToPack,
+  loadHarPaySnapshot,
+  applyHarPaySnapshot
 };

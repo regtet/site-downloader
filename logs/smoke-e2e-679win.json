@@ -1,0 +1,95 @@
+{
+  "at": "2026-08-22T16:04:22.747Z",
+  "siteId": "679win",
+  "preview": "http://127.0.0.1:3476",
+  "via": "yarn",
+  "steps": {
+    "register": {
+      "code": 1,
+      "ok": true
+    },
+    "login": {
+      "code": 1,
+      "ok": true
+    },
+    "registerPopup": {
+      "code": 1,
+      "ok": true
+    },
+    "registerPopupAlias": {
+      "code": 1,
+      "ok": true
+    },
+    "newcomerPop": {
+      "code": 1,
+      "ok": true
+    },
+    "payList": {
+      "code": 1,
+      "ok": true
+    },
+    "payChannels": {
+      "code": 1,
+      "count": 6,
+      "harExpected": true,
+      "ok": true
+    },
+    "payOrder": {
+      "code": 1,
+      "orderNo": "WG1787414667688832",
+      "mockQr": true,
+      "ok": true
+    },
+    "payOrderInfo": {
+      "code": 1,
+      "ok": true
+    },
+    "agentPromotion": {
+      "code": 1,
+      "hasInviteUrl": true,
+      "ok": true
+    },
+    "agentIndex": {
+      "code": 1,
+      "ok": true
+    },
+    "agentIndexDirect": {
+      "code": 1,
+      "ok": true
+    },
+    "agentTeamData": {
+      "code": 1,
+      "ok": true
+    },
+    "agentClubCommission": {
+      "code": 1,
+      "ok": true
+    },
+    "agentMode": {
+      "code": 1,
+      "ok": true
+    },
+    "agentTotal": {
+      "code": 1,
+      "ok": true
+    },
+    "agentCommission": {
+      "code": 1,
+      "ok": true
+    },
+    "httpCashier": {
+      "code": 1,
+      "mockQr": true,
+      "ok": true
+    },
+    "httpAgent": {
+      "code": 1,
+      "ok": true
+    },
+    "httpAgentTeam": {
+      "code": 1,
+      "ok": true
+    }
+  },
+  "ok": true
+}

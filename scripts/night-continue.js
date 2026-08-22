@@ -69,8 +69,26 @@ function main() {
     const rt = JSON.parse(
       fs.readFileSync(path.join(logsDir, 'runtime-unmapped.json'), 'utf8')
     );
-    runtimeTop = (rt.top || []).slice(0, 20);
+    runtimeTop = (rt.top || []).slice(0, 20).filter((row) => {
+      const m = String(row.key || '').match(/^(?:GET|POST|PUT|DELETE|PATCH)\s+(\S+)/i);
+      return !m || !mapped.has(m[1]);
+    });
   } catch (_) { /* ignore */ }
+
+  // HAR 渠道快照（若 Downloads 有 679win.com.har）
+  const harFile = path.join(process.env.USERPROFILE || '', 'Downloads', '679win.com.har');
+  if (fs.existsSync(harFile)) {
+    spawnSync(process.execPath, ['scripts/extract-har-pay.js', siteId, harFile], {
+      cwd: root,
+      encoding: 'utf8',
+      timeout: 30000
+    });
+    spawnSync(process.execPath, ['scripts/extract-har-agent.js', siteId, harFile], {
+      cwd: root,
+      encoding: 'utf8',
+      timeout: 30000
+    });
+  }
 
   const verify = spawnSync(process.execPath, ['scripts/verify-p0.js', siteId], {
     cwd: root,
@@ -84,6 +102,48 @@ function main() {
       cwd: root,
       encoding: 'utf8',
       timeout: 60000
+    });
+    if (fs.existsSync(harFile)) {
+      spawnSync(process.execPath, ['scripts/extract-har-pay.js', siteId, harFile], {
+        cwd: root,
+        encoding: 'utf8',
+        timeout: 30000
+      });
+      spawnSync(process.execPath, ['scripts/extract-har-agent.js', siteId, harFile], {
+        cwd: root,
+        encoding: 'utf8',
+        timeout: 30000
+      });
+    }
+    spawnSync(process.execPath, ['scripts/import-capture-agent.js', siteId], {
+      cwd: root,
+      encoding: 'utf8',
+      timeout: 30000
+    });
+    spawnSync(process.execPath, ['scripts/smoke-e2e-679win.js', siteId], {
+      cwd: root,
+      encoding: 'utf8',
+      timeout: 120000
+    });
+    spawnSync(process.execPath, ['scripts/wgame-live-probe.js', siteId], {
+      cwd: root,
+      encoding: 'utf8',
+      timeout: 180000
+    });
+    spawnSync(process.execPath, ['scripts/probe-production-hooks.js', siteId], {
+      cwd: root,
+      encoding: 'utf8',
+      timeout: 60000
+    });
+    spawnSync(process.execPath, ['scripts/export-api-contract.js', siteId], {
+      cwd: root,
+      encoding: 'utf8',
+      timeout: 30000
+    });
+    spawnSync(process.execPath, ['scripts/wire-status.js', siteId], {
+      cwd: root,
+      encoding: 'utf8',
+      timeout: 15000
     });
   }
 
@@ -105,11 +165,45 @@ function main() {
     distActionable = require(path.join(logsDir, `dist-api-gaps-${siteId}.json`)).actionable || [];
   } catch (_) { /* ignore */ }
 
+  let e2eOk = false;
+  let e2eSteps = null;
+  try {
+    const e2e = JSON.parse(fs.readFileSync(path.join(logsDir, `smoke-e2e-${siteId}.json`), 'utf8'));
+    e2eOk = !!e2e.ok;
+    e2eSteps = e2e.steps || null;
+  } catch (_) { /* ignore */ }
+
+  let wgameLive = null;
+  try {
+    wgameLive = JSON.parse(fs.readFileSync(path.join(logsDir, `wgame-live-probe-${siteId}.json`), 'utf8'));
+  } catch (_) { /* ignore */ }
+
+  let productionProbe = null;
+  try {
+    productionProbe = JSON.parse(fs.readFileSync(path.join(logsDir, `production-probe-${siteId}.json`), 'utf8'));
+  } catch (_) { /* ignore */ }
+
+  const verifyPass = String(verify.stdout || '').match(/passed=(\d+) failed=0/);
+  const verifyPassed = verifyPass ? Number(verifyPass[1]) : null;
+
+  let wireStatus = null;
+  try {
+    wireStatus = JSON.parse(fs.readFileSync(path.join(logsDir, `wire-status-${siteId}.json`), 'utf8'));
+  } catch (_) { /* ignore */ }
+
   const progress = loadProgress();
   const tick = {
     at: new Date().toISOString(),
+    phase: 'dev-complete-await-production',
     mapSize: Object.keys(MAP2).length,
     verifyOk,
+    verifyPassed,
+    e2eOk,
+    e2eSteps,
+    wgameLive,
+    productionProbe,
+    wireStatus,
+    apiContract: path.join('output', siteId, 'api-contract.json'),
     verifyTail: String(verify.stdout || '').trim().split(/\r?\n/).slice(-3),
     harApiCount: harPaths.length,
     interestingUnmappedSample: interesting.slice(0, 25),
@@ -120,7 +214,7 @@ function main() {
     deferred: {
       ossJson: interesting.filter((p) => /\.json$/i.test(p)).length
     },
-    note: 'pay+agent config-driven (providerOptions.pay/agent); real channels/agent APIs still needed from user'
+    note: 'dev chain green; production blocked until PAY_HTTP_URL/AGENT_HTTP_BASE or WGAME_TEST_ACCOUNT'
   };
   progress.ticks = progress.ticks || [];
   progress.ticks.push(tick);
@@ -129,6 +223,7 @@ function main() {
 
   console.log(JSON.stringify({
     ok: verifyOk,
+    e2eOk,
     mapSize: tick.mapSize,
     interestingUnmappedCount: interesting.length,
     actionableUnmapped: actionable,

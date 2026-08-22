@@ -15,6 +15,8 @@ const { tryHandleAdapter } = require('./adapter');
 const { noteUnmapped, isApiPath } = require('./adapter/unmapped-log');
 const { loadAdapterConfig, isHallApiPath, isOssAssetPath } = require('./adapter/hosts');
 const { getProvider } = require('./adapter/providers');
+const { isMockCashierPath, handleMockCashierRequest } = require('./mock-cashier');
+const { isMockAgentPath, handleMockAgentRequest } = require('./mock-agent-api');
 
 const MIME_TYPES = {
     '.html': 'text/html; charset=utf-8',
@@ -135,6 +137,18 @@ function createStaticServer(siteDir, options = {}) {
 
   return http.createServer((req, res) => {
     const handle = async () => {
+      try {
+        const u = new URL(req.url || '/', `http://${host}`);
+        if (isMockCashierPath(u.pathname)) {
+          await handleMockCashierRequest(req, res);
+          return;
+        }
+        if (isMockAgentPath(u.pathname)) {
+          await handleMockAgentRequest(req, res, u.pathname);
+          return;
+        }
+      } catch (_) { /* ignore */ }
+
       if (await tryHandleAdapter(req, res, {
         adapterHosts: bootCfg,
         adapterConfig: adapterCfg,

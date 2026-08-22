@@ -532,22 +532,3751 @@
         "real-account smoke pay+agent"
       ],
       "note": "goal still needs live real-account confirmation"
+    },
+    {
+      "at": "2026-08-22T04:19:36.593Z",
+      "phase": "preview-recycle-check",
+      "verifyOk": true,
+      "preview": "http://127.0.0.1:3476",
+      "note": "preview stop/start recycled site but parent yarn still old require cache; full yarn restart required for wgame pay/agent protocols + IP fallback",
+      "observed": {
+        "register": 170,
+        "payChannels": 1,
+        "agentIndex": 1,
+        "registerPopup": 1
+      }
+    },
+    {
+      "at": "2026-08-22T04:49:57.070Z",
+      "phase": "wake-auth-pay-agent-smoke",
+      "registerOk": true,
+      "preview": "http://127.0.0.1:3476",
+      "note": "IP-fallback register+pops+pay placeholder+agent zero-state ok; wgame live pay/agent needs real account after full yarn restart"
+    },
+    {
+      "at": "2026-08-22T05:06:33.394Z",
+      "phase": "heartbeat",
+      "verifyOk": true,
+      "preview": "http://127.0.0.1:3476",
+      "blocked": [
+        "full yarn restart for wgame pay/agent live",
+        "real-account smoke"
+      ],
+      "ok": [
+        "auth register+popups",
+        "pay placeholder create",
+        "agent zero-state"
+      ]
+    },
+    {
+      "at": "2026-08-22T13:53:52.034Z",
+      "mapSize": 537,
+      "verifyOk": true,
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=98 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [
+        {
+          "key": "POST /api/member/registerPopupDlgInfo",
+          "count": 1,
+          "firstAt": 1787406658451,
+          "lastAt": 1787406658451
+        }
+      ],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "pay+agent config-driven (providerOptions.pay/agent); real channels/agent APIs still needed from user"
+    },
+    {
+      "at": "2026-08-22T13:56:30.520Z",
+      "phase": "yarn-restart",
+      "verifyOk": true,
+      "preview": "http://localhost:3000",
+      "note": "旧 yarn 进程已终止并重启成功；verify 98/98；真实 wgame 充值/代理仍需非限 IP 账号或 HTTP 配置",
+      "ok": [
+        "auth+popups",
+        "pay placeholder",
+        "agent pages",
+        "mock nickname fix"
+      ]
+    },
+    {
+      "at": "2026-08-22T13:59:29.440Z",
+      "mapSize": 538,
+      "verifyOk": true,
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=98 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [
+        {
+          "key": "POST /api/member/registerPopupDlgInfo",
+          "count": 1,
+          "firstAt": 1787406658451,
+          "lastAt": 1787406658451
+        }
+      ],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "pay+agent config-driven (providerOptions.pay/agent); real channels/agent APIs still needed from user"
+    },
+    {
+      "at": "2026-08-22T13:59:44.845Z",
+      "phase": "register-login-agent",
+      "verifyOk": true,
+      "preview": "http://127.0.0.1:3476",
+      "done": [
+        "mock register IP170 fallback",
+        "register→login local session",
+        "agent invite link from session",
+        "verify 98/98+export"
+      ],
+      "blocked": [
+        "wgame live pay QR (need real account/IP)",
+        "user HTTP cashier URL"
+      ]
+    },
+    {
+      "at": "2026-08-22T14:03:14.952Z",
+      "mapSize": 538,
+      "verifyOk": true,
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=99 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [
+        {
+          "key": "POST /api/member/registerPopupDlgInfo",
+          "count": 1,
+          "firstAt": 1787406658451,
+          "lastAt": 1787406658451
+        }
+      ],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "pay+agent config-driven (providerOptions.pay/agent); real channels/agent APIs still needed from user"
+    },
+    {
+      "at": "2026-08-22T14:07:47.738Z",
+      "mapSize": 538,
+      "verifyOk": true,
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=99 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [
+        {
+          "key": "POST /api/member/registerPopupDlgInfo",
+          "count": 1,
+          "firstAt": 1787406658451,
+          "lastAt": 1787406658451
+        }
+      ],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "pay+agent config-driven (providerOptions.pay/agent); real channels/agent APIs still needed from user"
+    },
+    {
+      "at": "2026-08-22T14:08:04.731Z",
+      "phase": "pay-http-cashier",
+      "verifyOk": true,
+      "passed": 99,
+      "done": [
+        "wgame→builtin mock cashier fallback",
+        "mock PIX qr on offlineOrderV3",
+        "register→login local",
+        "agent invite link"
+      ],
+      "config": "pay.createOrder.useBuiltinMock=true; production: set createOrder.httpUrl",
+      "blocked": [
+        "wgame live channels need real account"
+      ]
+    },
+    {
+      "at": "2026-08-22T14:09:34.580Z",
+      "phase": "yarn-restart-e2e",
+      "preview": "http://127.0.0.1:3476",
+      "verifyOk": true,
+      "smoke": {
+        "reg": 1,
+        "login": 1,
+        "pop": 1,
+        "order": 1,
+        "mockQr": true,
+        "agent": 1
+      }
+    },
+    {
+      "at": "2026-08-22T14:10:16.539Z",
+      "mapSize": 538,
+      "verifyOk": true,
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=99 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [
+        {
+          "key": "POST /api/member/registerPopupDlgInfo",
+          "count": 1,
+          "firstAt": 1787406658451,
+          "lastAt": 1787406658451
+        }
+      ],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "pay+agent config-driven (providerOptions.pay/agent); real channels/agent APIs still needed from user"
+    },
+    {
+      "at": "2026-08-22T14:12:50.429Z",
+      "mapSize": 538,
+      "verifyOk": true,
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=106 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [
+        {
+          "key": "POST /api/member/registerPopupDlgInfo",
+          "count": 1,
+          "firstAt": 1787406658451,
+          "lastAt": 1787406658451
+        }
+      ],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "pay+agent config-driven (providerOptions.pay/agent); real channels/agent APIs still needed from user"
+    },
+    {
+      "at": "2026-08-22T14:13:05.572Z",
+      "phase": "verify-106+mock-agent-api",
+      "verifyOk": true,
+      "passed": 106,
+      "done": [
+        "register→login+popups in verify",
+        "mock-agent HTTP /api/dev/mock-agent/*",
+        "mock-cashier HTTP",
+        "pay builtin fallback"
+      ],
+      "blocked": [
+        "wgame live pay/agent needs real account"
+      ]
+    },
+    {
+      "at": "2026-08-22T14:14:36.731Z",
+      "mapSize": 538,
+      "verifyOk": true,
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=107 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [
+        {
+          "key": "POST /api/member/registerPopupDlgInfo",
+          "count": 1,
+          "firstAt": 1787406658451,
+          "lastAt": 1787406658451
+        }
+      ],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "pay+agent config-driven (providerOptions.pay/agent); real channels/agent APIs still needed from user"
+    },
+    {
+      "at": "2026-08-22T14:15:18.638Z",
+      "phase": "agent-builtin-mock",
+      "verifyOk": true,
+      "passed": 107,
+      "done": [
+        "agent.useBuiltinMock+routes",
+        "agent promotion invite enrich",
+        "verify 107/107+export"
+      ]
+    },
+    {
+      "at": "2026-08-22T14:16:43.084Z",
+      "phase": "yarn-restart-final-e2e",
+      "preview": "http://127.0.0.1:3476",
+      "smoke": {
+        "reg": 1,
+        "login": 1,
+        "order": 1,
+        "mockQr": true,
+        "agent": 1,
+        "invite": true
+      },
+      "verifyOk": true,
+      "passed": 107
+    },
+    {
+      "at": "2026-08-22T14:17:28.111Z",
+      "mapSize": 538,
+      "verifyOk": true,
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=107 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [
+        {
+          "key": "POST /api/member/registerPopupDlgInfo",
+          "count": 1,
+          "firstAt": 1787406658451,
+          "lastAt": 1787406658451
+        }
+      ],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "pay+agent config-driven (providerOptions.pay/agent); real channels/agent APIs still needed from user"
+    },
+    {
+      "at": "2026-08-22T14:17:48.239Z",
+      "phase": "goal-audit",
+      "verifyOk": true,
+      "passed": 107,
+      "mapSize": 538,
+      "audit": {
+        "authPopups": "ok",
+        "payDev": "builtin-mock+httpUrl-ready",
+        "agentDev": "builtin-mock+routes+invite",
+        "export": "ok",
+        "blocked": [
+          "wgame live pay/agent IP170",
+          "user httpUrl/httpBase for production"
+        ]
+      }
+    },
+    {
+      "at": "2026-08-22T14:19:34.306Z",
+      "mapSize": 538,
+      "verifyOk": true,
+      "e2eOk": true,
+      "e2eSteps": {
+        "register": {
+          "code": 1,
+          "ok": true
+        },
+        "login": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopup": {
+          "code": 1,
+          "ok": true
+        },
+        "newcomerPop": {
+          "code": 1,
+          "ok": true
+        },
+        "payList": {
+          "code": 1,
+          "ok": true
+        },
+        "payOrder": {
+          "code": 1,
+          "orderNo": "WG1787408364736548",
+          "mockQr": true,
+          "ok": "00020126580014br.gov.bcb.pix0136MOCK-WG1787408364736548-AMT505204000053039865802BR5925Mock Cashier6009SAO PAULO62070503***6304ABCD"
+        },
+        "agentPromotion": {
+          "code": 1,
+          "hasInviteUrl": true,
+          "ok": true
+        },
+        "agentIndex": {
+          "code": 1,
+          "ok": true
+        }
+      },
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=107 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [
+        {
+          "key": "POST /api/member/registerPopupDlgInfo",
+          "count": 1,
+          "firstAt": 1787406658451,
+          "lastAt": 1787406658451
+        }
+      ],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "pay+agent config-driven (providerOptions.pay/agent); real channels/agent APIs still needed from user"
+    },
+    {
+      "at": "2026-08-22T14:20:40.832Z",
+      "mapSize": 538,
+      "verifyOk": true,
+      "e2eOk": true,
+      "e2eSteps": {
+        "register": {
+          "code": 1,
+          "ok": true
+        },
+        "login": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopup": {
+          "code": 1,
+          "ok": true
+        },
+        "newcomerPop": {
+          "code": 1,
+          "ok": true
+        },
+        "payList": {
+          "code": 1,
+          "ok": true
+        },
+        "payChannels": {
+          "code": 1,
+          "count": 1,
+          "ok": true
+        },
+        "payOrder": {
+          "code": 1,
+          "orderNo": "WG1787408431024929",
+          "mockQr": true,
+          "ok": true
+        },
+        "payOrderInfo": {
+          "code": 1,
+          "ok": true
+        },
+        "agentPromotion": {
+          "code": 1,
+          "hasInviteUrl": true,
+          "ok": true
+        },
+        "agentIndex": {
+          "code": 1,
+          "ok": true
+        }
+      },
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=107 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [
+        {
+          "key": "POST /api/member/registerPopupDlgInfo",
+          "count": 1,
+          "firstAt": 1787406658451,
+          "lastAt": 1787406658451
+        }
+      ],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "pay+agent config-driven (providerOptions.pay/agent); real channels/agent APIs still needed from user"
+    },
+    {
+      "at": "2026-08-22T14:21:48.527Z",
+      "mapSize": 538,
+      "verifyOk": true,
+      "e2eOk": true,
+      "e2eSteps": {
+        "register": {
+          "code": 1,
+          "ok": true
+        },
+        "login": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopup": {
+          "code": 1,
+          "ok": true
+        },
+        "newcomerPop": {
+          "code": 1,
+          "ok": true
+        },
+        "payList": {
+          "code": 1,
+          "ok": true
+        },
+        "payChannels": {
+          "code": 1,
+          "count": 1,
+          "ok": true
+        },
+        "payOrder": {
+          "code": 1,
+          "orderNo": "WG1787408498945353",
+          "mockQr": true,
+          "ok": true
+        },
+        "payOrderInfo": {
+          "code": 1,
+          "ok": true
+        },
+        "agentPromotion": {
+          "code": 1,
+          "hasInviteUrl": true,
+          "ok": true
+        },
+        "agentIndex": {
+          "code": 1,
+          "ok": true
+        },
+        "agentMode": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTotal": {
+          "code": 1,
+          "ok": true
+        },
+        "agentCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "httpCashier": {
+          "code": 1,
+          "mockQr": true,
+          "ok": true
+        },
+        "httpAgent": {
+          "code": 1,
+          "ok": true
+        }
+      },
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=107 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [
+        {
+          "key": "POST /api/member/registerPopupDlgInfo",
+          "count": 1,
+          "firstAt": 1787406658451,
+          "lastAt": 1787406658451
+        }
+      ],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "pay+agent config-driven (providerOptions.pay/agent); real channels/agent APIs still needed from user"
+    },
+    {
+      "at": "2026-08-22T14:23:58.840Z",
+      "mapSize": 538,
+      "verifyOk": true,
+      "e2eOk": true,
+      "e2eSteps": {
+        "register": {
+          "code": 1,
+          "ok": true
+        },
+        "login": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopup": {
+          "code": 1,
+          "ok": true
+        },
+        "newcomerPop": {
+          "code": 1,
+          "ok": true
+        },
+        "payList": {
+          "code": 1,
+          "ok": true
+        },
+        "payChannels": {
+          "code": 1,
+          "count": 1,
+          "ok": true
+        },
+        "payOrder": {
+          "code": 1,
+          "orderNo": "WG1787408629270757",
+          "mockQr": true,
+          "ok": true
+        },
+        "payOrderInfo": {
+          "code": 1,
+          "ok": true
+        },
+        "agentPromotion": {
+          "code": 1,
+          "hasInviteUrl": true,
+          "ok": true
+        },
+        "agentIndex": {
+          "code": 1,
+          "ok": true
+        },
+        "agentMode": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTotal": {
+          "code": 1,
+          "ok": true
+        },
+        "agentCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "httpCashier": {
+          "code": 1,
+          "mockQr": true,
+          "ok": true
+        },
+        "httpAgent": {
+          "code": 1,
+          "ok": true
+        }
+      },
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=107 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [
+        {
+          "key": "POST /api/member/registerPopupDlgInfo",
+          "count": 1,
+          "firstAt": 1787406658451,
+          "lastAt": 1787406658451
+        }
+      ],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "pay+agent config-driven (providerOptions.pay/agent); real channels/agent APIs still needed from user"
+    },
+    {
+      "at": "2026-08-22T14:25:09.794Z",
+      "mapSize": 538,
+      "verifyOk": true,
+      "e2eOk": true,
+      "e2eSteps": {
+        "register": {
+          "code": 1,
+          "ok": true
+        },
+        "login": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopup": {
+          "code": 1,
+          "ok": true
+        },
+        "newcomerPop": {
+          "code": 1,
+          "ok": true
+        },
+        "payList": {
+          "code": 1,
+          "ok": true
+        },
+        "payChannels": {
+          "code": 1,
+          "count": 1,
+          "ok": true
+        },
+        "payOrder": {
+          "code": 1,
+          "orderNo": "WG1787408700749986",
+          "mockQr": true,
+          "ok": true
+        },
+        "payOrderInfo": {
+          "code": 1,
+          "ok": true
+        },
+        "agentPromotion": {
+          "code": 1,
+          "hasInviteUrl": true,
+          "ok": true
+        },
+        "agentIndex": {
+          "code": 1,
+          "ok": true
+        },
+        "agentMode": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTotal": {
+          "code": 1,
+          "ok": true
+        },
+        "agentCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "httpCashier": {
+          "code": 1,
+          "mockQr": true,
+          "ok": true
+        },
+        "httpAgent": {
+          "code": 1,
+          "ok": true
+        }
+      },
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=107 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [
+        {
+          "key": "POST /api/member/registerPopupDlgInfo",
+          "count": 1,
+          "firstAt": 1787406658451,
+          "lastAt": 1787406658451
+        }
+      ],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "pay+agent config-driven (providerOptions.pay/agent); real channels/agent APIs still needed from user"
+    },
+    {
+      "at": "2026-08-22T14:30:31.993Z",
+      "mapSize": 538,
+      "verifyOk": true,
+      "e2eOk": true,
+      "e2eSteps": {
+        "register": {
+          "code": 1,
+          "ok": true
+        },
+        "login": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopup": {
+          "code": 1,
+          "ok": true
+        },
+        "newcomerPop": {
+          "code": 1,
+          "ok": true
+        },
+        "payList": {
+          "code": 1,
+          "ok": true
+        },
+        "payChannels": {
+          "code": 1,
+          "count": 1,
+          "ok": true
+        },
+        "payOrder": {
+          "code": 1,
+          "orderNo": "WG178740901877373",
+          "mockQr": true,
+          "ok": true
+        },
+        "payOrderInfo": {
+          "code": 1,
+          "ok": true
+        },
+        "agentPromotion": {
+          "code": 1,
+          "hasInviteUrl": true,
+          "ok": true
+        },
+        "agentIndex": {
+          "code": 1,
+          "ok": true
+        },
+        "agentMode": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTotal": {
+          "code": 1,
+          "ok": true
+        },
+        "agentCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "httpCashier": {
+          "code": 1,
+          "mockQr": true,
+          "ok": true
+        },
+        "httpAgent": {
+          "code": 1,
+          "ok": true
+        }
+      },
+      "wgameLive": {
+        "at": "2026-08-22T14:30:20.359Z",
+        "siteId": "679win",
+        "skipped": true,
+        "steps": {},
+        "reason": "set WGAME_TEST_ACCOUNT and WGAME_TEST_PASSWORD"
+      },
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=108 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [
+        {
+          "key": "POST /api/member/registerPopupDlgInfo",
+          "count": 1,
+          "firstAt": 1787406658451,
+          "lastAt": 1787406658451
+        }
+      ],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "pay+agent config-driven (providerOptions.pay/agent); real channels/agent APIs still needed from user"
+    },
+    {
+      "at": "2026-08-22T14:33:31.633Z",
+      "mapSize": 538,
+      "verifyOk": true,
+      "e2eOk": true,
+      "e2eSteps": {
+        "register": {
+          "code": 1,
+          "ok": true
+        },
+        "login": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopup": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopupAlias": {
+          "code": 1,
+          "ok": true
+        },
+        "newcomerPop": {
+          "code": 1,
+          "ok": true
+        },
+        "payList": {
+          "code": 1,
+          "ok": true
+        },
+        "payChannels": {
+          "code": 1,
+          "count": 1,
+          "ok": true
+        },
+        "payOrder": {
+          "code": 1,
+          "orderNo": "WG1787409201961725",
+          "mockQr": true,
+          "ok": true
+        },
+        "payOrderInfo": {
+          "code": 1,
+          "ok": true
+        },
+        "agentPromotion": {
+          "code": 1,
+          "hasInviteUrl": true,
+          "ok": true
+        },
+        "agentIndex": {
+          "code": 1,
+          "ok": true
+        },
+        "agentMode": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTotal": {
+          "code": 1,
+          "ok": true
+        },
+        "agentCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "httpCashier": {
+          "code": 1,
+          "mockQr": true,
+          "ok": true
+        },
+        "httpAgent": {
+          "code": 1,
+          "ok": true
+        }
+      },
+      "wgameLive": {
+        "at": "2026-08-22T14:33:23.485Z",
+        "siteId": "679win",
+        "skipped": true,
+        "steps": {},
+        "reason": "set WGAME_TEST_ACCOUNT and WGAME_TEST_PASSWORD"
+      },
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=112 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [
+        {
+          "key": "POST /api/member/registerPopupDlgInfo",
+          "count": 1,
+          "firstAt": 1787406658451,
+          "lastAt": 1787406658451
+        }
+      ],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "pay+agent HTTP via httpUrl/httpBase or PAY_HTTP_URL/AGENT_HTTP_BASE env; wgame live needs test account"
+    },
+    {
+      "at": "2026-08-22T14:36:13.970Z",
+      "mapSize": 538,
+      "verifyOk": true,
+      "e2eOk": true,
+      "e2eSteps": {
+        "register": {
+          "code": 1,
+          "ok": true
+        },
+        "login": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopup": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopupAlias": {
+          "code": 1,
+          "ok": true
+        },
+        "newcomerPop": {
+          "code": 1,
+          "ok": true
+        },
+        "payList": {
+          "code": 1,
+          "ok": true
+        },
+        "payChannels": {
+          "code": 1,
+          "count": 1,
+          "ok": true
+        },
+        "payOrder": {
+          "code": 1,
+          "orderNo": "WG1787409363908471",
+          "mockQr": true,
+          "ok": true
+        },
+        "payOrderInfo": {
+          "code": 1,
+          "ok": true
+        },
+        "agentPromotion": {
+          "code": 1,
+          "hasInviteUrl": true,
+          "ok": true
+        },
+        "agentIndex": {
+          "code": 1,
+          "ok": true
+        },
+        "agentMode": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTotal": {
+          "code": 1,
+          "ok": true
+        },
+        "agentCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "httpCashier": {
+          "code": 1,
+          "mockQr": true,
+          "ok": true
+        },
+        "httpAgent": {
+          "code": 1,
+          "ok": true
+        }
+      },
+      "wgameLive": {
+        "at": "2026-08-22T14:36:05.519Z",
+        "siteId": "679win",
+        "skipped": true,
+        "steps": {},
+        "reason": "set WGAME_TEST_ACCOUNT and WGAME_TEST_PASSWORD"
+      },
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=112 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "pay+agent HTTP via httpUrl/httpBase or PAY_HTTP_URL/AGENT_HTTP_BASE env; wgame live needs test account"
+    },
+    {
+      "at": "2026-08-22T14:41:12.761Z",
+      "mapSize": 538,
+      "verifyOk": true,
+      "e2eOk": true,
+      "e2eSteps": {
+        "register": {
+          "code": 1,
+          "ok": true
+        },
+        "login": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopup": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopupAlias": {
+          "code": 1,
+          "ok": true
+        },
+        "newcomerPop": {
+          "code": 1,
+          "ok": true
+        },
+        "payList": {
+          "code": 1,
+          "ok": true
+        },
+        "payChannels": {
+          "code": 1,
+          "count": 1,
+          "ok": true
+        },
+        "payOrder": {
+          "code": 1,
+          "orderNo": "WG1787409662974604",
+          "mockQr": true,
+          "ok": true
+        },
+        "payOrderInfo": {
+          "code": 1,
+          "ok": true
+        },
+        "agentPromotion": {
+          "code": 1,
+          "hasInviteUrl": true,
+          "ok": true
+        },
+        "agentIndex": {
+          "code": 1,
+          "ok": true
+        },
+        "agentMode": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTotal": {
+          "code": 1,
+          "ok": true
+        },
+        "agentCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "httpCashier": {
+          "code": 1,
+          "mockQr": true,
+          "ok": true
+        },
+        "httpAgent": {
+          "code": 1,
+          "ok": true
+        }
+      },
+      "wgameLive": {
+        "at": "2026-08-22T14:41:04.440Z",
+        "siteId": "679win",
+        "skipped": true,
+        "steps": {},
+        "reason": "set WGAME_TEST_ACCOUNT and WGAME_TEST_PASSWORD"
+      },
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=114 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "pay+agent HTTP via httpUrl/httpBase or PAY_HTTP_URL/AGENT_HTTP_BASE env; wgame live needs test account"
+    },
+    {
+      "at": "2026-08-22T14:43:24.778Z",
+      "mapSize": 538,
+      "verifyOk": true,
+      "e2eOk": true,
+      "e2eSteps": {
+        "register": {
+          "code": 1,
+          "ok": true
+        },
+        "login": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopup": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopupAlias": {
+          "code": 1,
+          "ok": true
+        },
+        "newcomerPop": {
+          "code": 1,
+          "ok": true
+        },
+        "payList": {
+          "code": 1,
+          "ok": true
+        },
+        "payChannels": {
+          "code": 1,
+          "count": 1,
+          "ok": true
+        },
+        "payOrder": {
+          "code": 1,
+          "orderNo": "WG1787409795169410",
+          "mockQr": true,
+          "ok": true
+        },
+        "payOrderInfo": {
+          "code": 1,
+          "ok": true
+        },
+        "agentPromotion": {
+          "code": 1,
+          "hasInviteUrl": true,
+          "ok": true
+        },
+        "agentIndex": {
+          "code": 1,
+          "ok": true
+        },
+        "agentMode": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTotal": {
+          "code": 1,
+          "ok": true
+        },
+        "agentCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "httpCashier": {
+          "code": 1,
+          "mockQr": true,
+          "ok": true
+        },
+        "httpAgent": {
+          "code": 1,
+          "ok": true
+        }
+      },
+      "wgameLive": {
+        "at": "2026-08-22T14:43:16.656Z",
+        "siteId": "679win",
+        "skipped": true,
+        "steps": {},
+        "reason": "set WGAME_TEST_ACCOUNT and WGAME_TEST_PASSWORD"
+      },
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=114 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "pay+agent HTTP via httpUrl/httpBase or PAY_HTTP_URL/AGENT_HTTP_BASE env; wgame live needs test account"
+    },
+    {
+      "at": "2026-08-22T14:46:28.167Z",
+      "mapSize": 538,
+      "verifyOk": true,
+      "e2eOk": true,
+      "e2eSteps": {
+        "register": {
+          "code": 1,
+          "ok": true
+        },
+        "login": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopup": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopupAlias": {
+          "code": 1,
+          "ok": true
+        },
+        "newcomerPop": {
+          "code": 1,
+          "ok": true
+        },
+        "payList": {
+          "code": 1,
+          "ok": true
+        },
+        "payChannels": {
+          "code": 1,
+          "count": 6,
+          "harExpected": true,
+          "ok": true
+        },
+        "payOrder": {
+          "code": 1,
+          "orderNo": "WG1787409978075381",
+          "mockQr": true,
+          "ok": true
+        },
+        "payOrderInfo": {
+          "code": 1,
+          "ok": true
+        },
+        "agentPromotion": {
+          "code": 1,
+          "hasInviteUrl": true,
+          "ok": true
+        },
+        "agentIndex": {
+          "code": 1,
+          "ok": true
+        },
+        "agentMode": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTotal": {
+          "code": 1,
+          "ok": true
+        },
+        "agentCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "httpCashier": {
+          "code": 1,
+          "mockQr": true,
+          "ok": true
+        },
+        "httpAgent": {
+          "code": 1,
+          "ok": true
+        }
+      },
+      "wgameLive": {
+        "at": "2026-08-22T14:46:19.780Z",
+        "siteId": "679win",
+        "skipped": true,
+        "steps": {},
+        "reason": "set WGAME_TEST_ACCOUNT and WGAME_TEST_PASSWORD"
+      },
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=114 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "pay+agent HTTP via httpUrl/httpBase or PAY_HTTP_URL/AGENT_HTTP_BASE env; wgame live needs test account"
+    },
+    {
+      "at": "2026-08-22T14:52:29.950Z",
+      "mapSize": 538,
+      "verifyOk": true,
+      "e2eOk": true,
+      "e2eSteps": {
+        "register": {
+          "code": 1,
+          "ok": true
+        },
+        "login": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopup": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopupAlias": {
+          "code": 1,
+          "ok": true
+        },
+        "newcomerPop": {
+          "code": 1,
+          "ok": true
+        },
+        "payList": {
+          "code": 1,
+          "ok": true
+        },
+        "payChannels": {
+          "code": 1,
+          "count": 6,
+          "harExpected": true,
+          "ok": true
+        },
+        "payOrder": {
+          "code": 1,
+          "orderNo": "WG1787410340071244",
+          "mockQr": true,
+          "ok": true
+        },
+        "payOrderInfo": {
+          "code": 1,
+          "ok": true
+        },
+        "agentPromotion": {
+          "code": 1,
+          "hasInviteUrl": true,
+          "ok": true
+        },
+        "agentIndex": {
+          "code": 1,
+          "ok": true
+        },
+        "agentMode": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTotal": {
+          "code": 1,
+          "ok": true
+        },
+        "agentCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "httpCashier": {
+          "code": 1,
+          "mockQr": true,
+          "ok": true
+        },
+        "httpAgent": {
+          "code": 1,
+          "ok": true
+        }
+      },
+      "wgameLive": {
+        "at": "2026-08-22T14:52:21.577Z",
+        "siteId": "679win",
+        "skipped": true,
+        "steps": {},
+        "reason": "set WGAME_TEST_ACCOUNT and WGAME_TEST_PASSWORD"
+      },
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=115 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "pay+agent HTTP via httpUrl/httpBase or PAY_HTTP_URL/AGENT_HTTP_BASE env; wgame live needs test account"
+    },
+    {
+      "at": "2026-08-22T15:01:43.781Z",
+      "mapSize": 538,
+      "verifyOk": true,
+      "e2eOk": true,
+      "e2eSteps": {
+        "register": {
+          "code": 1,
+          "ok": true
+        },
+        "login": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopup": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopupAlias": {
+          "code": 1,
+          "ok": true
+        },
+        "newcomerPop": {
+          "code": 1,
+          "ok": true
+        },
+        "payList": {
+          "code": 1,
+          "ok": true
+        },
+        "payChannels": {
+          "code": 1,
+          "count": 6,
+          "harExpected": true,
+          "ok": true
+        },
+        "payOrder": {
+          "code": 1,
+          "orderNo": "WG1787410894255567",
+          "mockQr": true,
+          "ok": true
+        },
+        "payOrderInfo": {
+          "code": 1,
+          "ok": true
+        },
+        "agentPromotion": {
+          "code": 1,
+          "hasInviteUrl": true,
+          "ok": true
+        },
+        "agentIndex": {
+          "code": 1,
+          "ok": true
+        },
+        "agentMode": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTotal": {
+          "code": 1,
+          "ok": true
+        },
+        "agentCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "httpCashier": {
+          "code": 1,
+          "mockQr": true,
+          "ok": true
+        },
+        "httpAgent": {
+          "code": 1,
+          "ok": true
+        }
+      },
+      "wgameLive": {
+        "at": "2026-08-22T15:01:35.736Z",
+        "siteId": "679win",
+        "skipped": true,
+        "steps": {},
+        "reason": "set WGAME_TEST_ACCOUNT and WGAME_TEST_PASSWORD"
+      },
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=118 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "pay+agent HTTP via httpUrl/httpBase or PAY_HTTP_URL/AGENT_HTTP_BASE env; wgame live needs test account"
+    },
+    {
+      "at": "2026-08-22T15:12:15.590Z",
+      "mapSize": 538,
+      "verifyOk": true,
+      "e2eOk": true,
+      "e2eSteps": {
+        "register": {
+          "code": 1,
+          "ok": true
+        },
+        "login": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopup": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopupAlias": {
+          "code": 1,
+          "ok": true
+        },
+        "newcomerPop": {
+          "code": 1,
+          "ok": true
+        },
+        "payList": {
+          "code": 1,
+          "ok": true
+        },
+        "payChannels": {
+          "code": 1,
+          "count": 6,
+          "harExpected": true,
+          "ok": true
+        },
+        "payOrder": {
+          "code": 1,
+          "orderNo": "WG1787411524554578",
+          "mockQr": true,
+          "ok": true
+        },
+        "payOrderInfo": {
+          "code": 1,
+          "ok": true
+        },
+        "agentPromotion": {
+          "code": 1,
+          "hasInviteUrl": true,
+          "ok": true
+        },
+        "agentIndex": {
+          "code": 1,
+          "ok": true
+        },
+        "agentIndexDirect": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTeamData": {
+          "code": 1,
+          "ok": true
+        },
+        "agentMode": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTotal": {
+          "code": 1,
+          "ok": true
+        },
+        "agentCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "httpCashier": {
+          "code": 1,
+          "mockQr": true,
+          "ok": true
+        },
+        "httpAgent": {
+          "code": 1,
+          "ok": true
+        }
+      },
+      "wgameLive": {
+        "at": "2026-08-22T15:12:06.131Z",
+        "siteId": "679win",
+        "skipped": true,
+        "steps": {},
+        "reason": "set WGAME_TEST_ACCOUNT and WGAME_TEST_PASSWORD"
+      },
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=126 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "pay+agent HTTP via httpUrl/httpBase or PAY_HTTP_URL/AGENT_HTTP_BASE env; wgame live needs test account"
+    },
+    {
+      "at": "2026-08-22T15:19:03.473Z",
+      "mapSize": 538,
+      "verifyOk": true,
+      "e2eOk": true,
+      "e2eSteps": {
+        "register": {
+          "code": 1,
+          "ok": true
+        },
+        "login": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopup": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopupAlias": {
+          "code": 1,
+          "ok": true
+        },
+        "newcomerPop": {
+          "code": 1,
+          "ok": true
+        },
+        "payList": {
+          "code": 1,
+          "ok": true
+        },
+        "payChannels": {
+          "code": 1,
+          "count": 6,
+          "harExpected": true,
+          "ok": true
+        },
+        "payOrder": {
+          "code": 1,
+          "orderNo": "WG1787411933356484",
+          "mockQr": true,
+          "ok": true
+        },
+        "payOrderInfo": {
+          "code": 1,
+          "ok": true
+        },
+        "agentPromotion": {
+          "code": 1,
+          "hasInviteUrl": true,
+          "ok": true
+        },
+        "agentIndex": {
+          "code": 1,
+          "ok": true
+        },
+        "agentIndexDirect": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTeamData": {
+          "code": 1,
+          "ok": true
+        },
+        "agentMode": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTotal": {
+          "code": 1,
+          "ok": true
+        },
+        "agentCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "httpCashier": {
+          "code": 1,
+          "mockQr": true,
+          "ok": true
+        },
+        "httpAgent": {
+          "code": 1,
+          "ok": true
+        }
+      },
+      "wgameLive": {
+        "at": "2026-08-22T15:18:54.823Z",
+        "siteId": "679win",
+        "skipped": true,
+        "steps": {},
+        "reason": "set WGAME_TEST_ACCOUNT and WGAME_TEST_PASSWORD"
+      },
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=126 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "pay+agent HTTP via httpUrl/httpBase or PAY_HTTP_URL/AGENT_HTTP_BASE env; wgame live needs test account"
+    },
+    {
+      "at": "2026-08-22T15:20:36.711Z",
+      "phase": "dev-complete-await-production",
+      "mapSize": 538,
+      "verifyOk": true,
+      "verifyPassed": 126,
+      "e2eOk": true,
+      "e2eSteps": {
+        "register": {
+          "code": 1,
+          "ok": true
+        },
+        "login": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopup": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopupAlias": {
+          "code": 1,
+          "ok": true
+        },
+        "newcomerPop": {
+          "code": 1,
+          "ok": true
+        },
+        "payList": {
+          "code": 1,
+          "ok": true
+        },
+        "payChannels": {
+          "code": 1,
+          "count": 6,
+          "harExpected": true,
+          "ok": true
+        },
+        "payOrder": {
+          "code": 1,
+          "orderNo": "WG1787412026380151",
+          "mockQr": true,
+          "ok": true
+        },
+        "payOrderInfo": {
+          "code": 1,
+          "ok": true
+        },
+        "agentPromotion": {
+          "code": 1,
+          "hasInviteUrl": true,
+          "ok": true
+        },
+        "agentIndex": {
+          "code": 1,
+          "ok": true
+        },
+        "agentIndexDirect": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTeamData": {
+          "code": 1,
+          "ok": true
+        },
+        "agentMode": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTotal": {
+          "code": 1,
+          "ok": true
+        },
+        "agentCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "httpCashier": {
+          "code": 1,
+          "mockQr": true,
+          "ok": true
+        },
+        "httpAgent": {
+          "code": 1,
+          "ok": true
+        }
+      },
+      "wgameLive": {
+        "at": "2026-08-22T15:20:28.029Z",
+        "siteId": "679win",
+        "skipped": true,
+        "steps": {},
+        "reason": "set WGAME_TEST_ACCOUNT and WGAME_TEST_PASSWORD"
+      },
+      "productionProbe": {
+        "at": "2026-08-22T15:20:28.078Z",
+        "siteId": "679win",
+        "skipped": true,
+        "pay": null,
+        "agent": null,
+        "reason": "set PAY_HTTP_URL / AGENT_HTTP_BASE or non-localhost adapter-hosts"
+      },
+      "apiContract": "output\\679win\\api-contract.json",
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=126 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "dev chain green; production blocked until PAY_HTTP_URL/AGENT_HTTP_BASE or WGAME_TEST_ACCOUNT"
+    },
+    {
+      "at": "2026-08-22T15:24:46.124Z",
+      "phase": "dev-complete-await-production",
+      "mapSize": 538,
+      "verifyOk": true,
+      "verifyPassed": 126,
+      "e2eOk": true,
+      "e2eSteps": {
+        "register": {
+          "code": 1,
+          "ok": true
+        },
+        "login": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopup": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopupAlias": {
+          "code": 1,
+          "ok": true
+        },
+        "newcomerPop": {
+          "code": 1,
+          "ok": true
+        },
+        "payList": {
+          "code": 1,
+          "ok": true
+        },
+        "payChannels": {
+          "code": 1,
+          "count": 6,
+          "harExpected": true,
+          "ok": true
+        },
+        "payOrder": {
+          "code": 1,
+          "orderNo": "WG178741227625844",
+          "mockQr": true,
+          "ok": true
+        },
+        "payOrderInfo": {
+          "code": 1,
+          "ok": true
+        },
+        "agentPromotion": {
+          "code": 1,
+          "hasInviteUrl": true,
+          "ok": true
+        },
+        "agentIndex": {
+          "code": 1,
+          "ok": true
+        },
+        "agentIndexDirect": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTeamData": {
+          "code": 1,
+          "ok": true
+        },
+        "agentMode": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTotal": {
+          "code": 1,
+          "ok": true
+        },
+        "agentCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "httpCashier": {
+          "code": 1,
+          "mockQr": true,
+          "ok": true
+        },
+        "httpAgent": {
+          "code": 1,
+          "ok": true
+        }
+      },
+      "wgameLive": {
+        "at": "2026-08-22T15:24:37.867Z",
+        "siteId": "679win",
+        "skipped": true,
+        "steps": {},
+        "reason": "set WGAME_TEST_ACCOUNT and WGAME_TEST_PASSWORD"
+      },
+      "productionProbe": {
+        "at": "2026-08-22T15:24:37.906Z",
+        "siteId": "679win",
+        "skipped": true,
+        "pay": null,
+        "agent": null,
+        "reason": "set PAY_HTTP_URL / AGENT_HTTP_BASE or non-localhost adapter-hosts"
+      },
+      "apiContract": "output\\679win\\api-contract.json",
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=126 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "dev chain green; production blocked until PAY_HTTP_URL/AGENT_HTTP_BASE or WGAME_TEST_ACCOUNT"
+    },
+    {
+      "at": "2026-08-22T15:36:53.394Z",
+      "phase": "dev-complete-await-production",
+      "mapSize": 538,
+      "verifyOk": true,
+      "verifyPassed": 126,
+      "e2eOk": true,
+      "e2eSteps": {
+        "register": {
+          "code": 1,
+          "ok": true
+        },
+        "login": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopup": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopupAlias": {
+          "code": 1,
+          "ok": true
+        },
+        "newcomerPop": {
+          "code": 1,
+          "ok": true
+        },
+        "payList": {
+          "code": 1,
+          "ok": true
+        },
+        "payChannels": {
+          "code": 1,
+          "count": 6,
+          "harExpected": true,
+          "ok": true
+        },
+        "payOrder": {
+          "code": 1,
+          "orderNo": "WG1787413004134995",
+          "mockQr": true,
+          "ok": true
+        },
+        "payOrderInfo": {
+          "code": 1,
+          "ok": true
+        },
+        "agentPromotion": {
+          "code": 1,
+          "hasInviteUrl": true,
+          "ok": true
+        },
+        "agentIndex": {
+          "code": 1,
+          "ok": true
+        },
+        "agentIndexDirect": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTeamData": {
+          "code": 1,
+          "ok": true
+        },
+        "agentMode": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTotal": {
+          "code": 1,
+          "ok": true
+        },
+        "agentCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "httpCashier": {
+          "code": 1,
+          "mockQr": true,
+          "ok": true
+        },
+        "httpAgent": {
+          "code": 1,
+          "ok": true
+        }
+      },
+      "wgameLive": {
+        "at": "2026-08-22T15:36:45.658Z",
+        "siteId": "679win",
+        "skipped": true,
+        "steps": {},
+        "reason": "set WGAME_TEST_ACCOUNT and WGAME_TEST_PASSWORD"
+      },
+      "productionProbe": {
+        "at": "2026-08-22T15:36:45.695Z",
+        "siteId": "679win",
+        "skipped": true,
+        "pay": null,
+        "agent": null,
+        "reason": "set PAY_HTTP_URL / AGENT_HTTP_BASE or non-localhost adapter-hosts"
+      },
+      "apiContract": "output\\679win\\api-contract.json",
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=126 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "dev chain green; production blocked until PAY_HTTP_URL/AGENT_HTTP_BASE or WGAME_TEST_ACCOUNT"
+    },
+    {
+      "at": "2026-08-22T15:42:46.735Z",
+      "phase": "dev-complete-await-production",
+      "mapSize": 538,
+      "verifyOk": true,
+      "verifyPassed": 128,
+      "e2eOk": true,
+      "e2eSteps": {
+        "register": {
+          "code": 1,
+          "ok": true
+        },
+        "login": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopup": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopupAlias": {
+          "code": 1,
+          "ok": true
+        },
+        "newcomerPop": {
+          "code": 1,
+          "ok": true
+        },
+        "payList": {
+          "code": 1,
+          "ok": true
+        },
+        "payChannels": {
+          "code": 1,
+          "count": 6,
+          "harExpected": true,
+          "ok": true
+        },
+        "payOrder": {
+          "code": 1,
+          "orderNo": "WG1787413357624214",
+          "mockQr": true,
+          "ok": true
+        },
+        "payOrderInfo": {
+          "code": 1,
+          "ok": true
+        },
+        "agentPromotion": {
+          "code": 1,
+          "hasInviteUrl": true,
+          "ok": true
+        },
+        "agentIndex": {
+          "code": 1,
+          "ok": true
+        },
+        "agentIndexDirect": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTeamData": {
+          "code": 1,
+          "ok": true
+        },
+        "agentMode": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTotal": {
+          "code": 1,
+          "ok": true
+        },
+        "agentCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "httpCashier": {
+          "code": 1,
+          "mockQr": true,
+          "ok": true
+        },
+        "httpAgent": {
+          "code": 1,
+          "ok": true
+        }
+      },
+      "wgameLive": {
+        "at": "2026-08-22T15:42:39.131Z",
+        "siteId": "679win",
+        "skipped": true,
+        "steps": {},
+        "reason": "set WGAME_TEST_ACCOUNT and WGAME_TEST_PASSWORD"
+      },
+      "productionProbe": {
+        "at": "2026-08-22T15:42:39.167Z",
+        "siteId": "679win",
+        "skipped": true,
+        "pay": null,
+        "agent": null,
+        "reason": "set PAY_HTTP_URL / AGENT_HTTP_BASE or non-localhost adapter-hosts"
+      },
+      "apiContract": "output\\679win\\api-contract.json",
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=128 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "dev chain green; production blocked until PAY_HTTP_URL/AGENT_HTTP_BASE or WGAME_TEST_ACCOUNT"
+    },
+    {
+      "at": "2026-08-22T15:45:08.066Z",
+      "phase": "dev-complete-await-production",
+      "mapSize": 538,
+      "verifyOk": true,
+      "verifyPassed": 128,
+      "e2eOk": true,
+      "e2eSteps": {
+        "register": {
+          "code": 1,
+          "ok": true
+        },
+        "login": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopup": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopupAlias": {
+          "code": 1,
+          "ok": true
+        },
+        "newcomerPop": {
+          "code": 1,
+          "ok": true
+        },
+        "payList": {
+          "code": 1,
+          "ok": true
+        },
+        "payChannels": {
+          "code": 1,
+          "count": 6,
+          "harExpected": true,
+          "ok": true
+        },
+        "payOrder": {
+          "code": 1,
+          "orderNo": "WG178741349766030",
+          "mockQr": true,
+          "ok": true
+        },
+        "payOrderInfo": {
+          "code": 1,
+          "ok": true
+        },
+        "agentPromotion": {
+          "code": 1,
+          "hasInviteUrl": true,
+          "ok": true
+        },
+        "agentIndex": {
+          "code": 1,
+          "ok": true
+        },
+        "agentIndexDirect": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTeamData": {
+          "code": 1,
+          "ok": true
+        },
+        "agentClubCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "agentMode": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTotal": {
+          "code": 1,
+          "ok": true
+        },
+        "agentCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "httpCashier": {
+          "code": 1,
+          "mockQr": true,
+          "ok": true
+        },
+        "httpAgent": {
+          "code": 1,
+          "ok": true
+        },
+        "httpAgentTeam": {
+          "code": 1,
+          "ok": true
+        }
+      },
+      "wgameLive": {
+        "at": "2026-08-22T15:45:00.405Z",
+        "siteId": "679win",
+        "skipped": true,
+        "steps": {},
+        "reason": "set WGAME_TEST_ACCOUNT and WGAME_TEST_PASSWORD"
+      },
+      "productionProbe": {
+        "at": "2026-08-22T15:45:00.443Z",
+        "siteId": "679win",
+        "skipped": true,
+        "pay": null,
+        "agent": null,
+        "reason": "set PAY_HTTP_URL / AGENT_HTTP_BASE or non-localhost adapter-hosts"
+      },
+      "apiContract": "output\\679win\\api-contract.json",
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=128 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "dev chain green; production blocked until PAY_HTTP_URL/AGENT_HTTP_BASE or WGAME_TEST_ACCOUNT"
+    },
+    {
+      "at": "2026-08-22T15:48:07.300Z",
+      "phase": "dev-complete-await-production",
+      "mapSize": 538,
+      "verifyOk": true,
+      "verifyPassed": 128,
+      "e2eOk": true,
+      "e2eSteps": {
+        "register": {
+          "code": 1,
+          "ok": true
+        },
+        "login": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopup": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopupAlias": {
+          "code": 1,
+          "ok": true
+        },
+        "newcomerPop": {
+          "code": 1,
+          "ok": true
+        },
+        "payList": {
+          "code": 1,
+          "ok": true
+        },
+        "payChannels": {
+          "code": 1,
+          "count": 6,
+          "harExpected": true,
+          "ok": true
+        },
+        "payOrder": {
+          "code": 1,
+          "orderNo": "WG1787413677584712",
+          "mockQr": true,
+          "ok": true
+        },
+        "payOrderInfo": {
+          "code": 1,
+          "ok": true
+        },
+        "agentPromotion": {
+          "code": 1,
+          "hasInviteUrl": true,
+          "ok": true
+        },
+        "agentIndex": {
+          "code": 1,
+          "ok": true
+        },
+        "agentIndexDirect": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTeamData": {
+          "code": 1,
+          "ok": true
+        },
+        "agentClubCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "agentMode": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTotal": {
+          "code": 1,
+          "ok": true
+        },
+        "agentCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "httpCashier": {
+          "code": 1,
+          "mockQr": true,
+          "ok": true
+        },
+        "httpAgent": {
+          "code": 1,
+          "ok": true
+        },
+        "httpAgentTeam": {
+          "code": 1,
+          "ok": true
+        }
+      },
+      "wgameLive": {
+        "at": "2026-08-22T15:47:59.220Z",
+        "siteId": "679win",
+        "skipped": true,
+        "steps": {},
+        "reason": "set WGAME_TEST_ACCOUNT and WGAME_TEST_PASSWORD"
+      },
+      "productionProbe": {
+        "at": "2026-08-22T15:47:59.256Z",
+        "siteId": "679win",
+        "skipped": true,
+        "pay": null,
+        "agent": null,
+        "reason": "set PAY_HTTP_URL / AGENT_HTTP_BASE or non-localhost adapter-hosts"
+      },
+      "apiContract": "output\\679win\\api-contract.json",
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=128 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "dev chain green; production blocked until PAY_HTTP_URL/AGENT_HTTP_BASE or WGAME_TEST_ACCOUNT"
+    },
+    {
+      "at": "2026-08-22T15:49:43.700Z",
+      "phase": "dev-complete-await-production",
+      "mapSize": 538,
+      "verifyOk": true,
+      "verifyPassed": 128,
+      "e2eOk": true,
+      "e2eSteps": {
+        "register": {
+          "code": 1,
+          "ok": true
+        },
+        "login": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopup": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopupAlias": {
+          "code": 1,
+          "ok": true
+        },
+        "newcomerPop": {
+          "code": 1,
+          "ok": true
+        },
+        "payList": {
+          "code": 1,
+          "ok": true
+        },
+        "payChannels": {
+          "code": 1,
+          "count": 6,
+          "harExpected": true,
+          "ok": true
+        },
+        "payOrder": {
+          "code": 1,
+          "orderNo": "WG178741377449350",
+          "mockQr": true,
+          "ok": true
+        },
+        "payOrderInfo": {
+          "code": 1,
+          "ok": true
+        },
+        "agentPromotion": {
+          "code": 1,
+          "hasInviteUrl": true,
+          "ok": true
+        },
+        "agentIndex": {
+          "code": 1,
+          "ok": true
+        },
+        "agentIndexDirect": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTeamData": {
+          "code": 1,
+          "ok": true
+        },
+        "agentClubCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "agentMode": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTotal": {
+          "code": 1,
+          "ok": true
+        },
+        "agentCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "httpCashier": {
+          "code": 1,
+          "mockQr": true,
+          "ok": true
+        },
+        "httpAgent": {
+          "code": 1,
+          "ok": true
+        },
+        "httpAgentTeam": {
+          "code": 1,
+          "ok": true
+        }
+      },
+      "wgameLive": {
+        "at": "2026-08-22T15:49:36.083Z",
+        "siteId": "679win",
+        "skipped": true,
+        "steps": {},
+        "reason": "set WGAME_TEST_ACCOUNT and WGAME_TEST_PASSWORD"
+      },
+      "productionProbe": {
+        "at": "2026-08-22T15:49:36.117Z",
+        "siteId": "679win",
+        "skipped": true,
+        "pay": null,
+        "agent": null,
+        "reason": "set PAY_HTTP_URL / AGENT_HTTP_BASE or non-localhost adapter-hosts"
+      },
+      "wireStatus": {
+        "siteId": "679win",
+        "at": "2026-08-22T15:49:36.194Z",
+        "authPopups": "dev-ok (IP170 mock + emptyList popups)",
+        "pay": {
+          "devMock": true,
+          "productionUrl": null,
+          "env": null,
+          "harChannels": 6
+        },
+        "agent": {
+          "devMock": true,
+          "productionBase": null,
+          "env": null,
+          "harAgentKeys": [
+            "getIpBindInfo"
+          ],
+          "captureFiles": 0
+        },
+        "wgameTestAccount": false,
+        "contract": "output\\679win\\api-contract.json",
+        "blocked": [
+          "production pay: set PAY_HTTP_URL",
+          "production agent: set AGENT_HTTP_BASE or capture agent page",
+          "wgame live: set WGAME_TEST_ACCOUNT + WGAME_TEST_PASSWORD"
+        ],
+        "next": [
+          "$env:PAY_HTTP_URL=\"https://你的收银台/api/create\"; yarn apply-production-env 679win",
+          "$env:AGENT_HTTP_BASE=\"https://你的代理API\"; yarn apply-production-env 679win",
+          "或: yarn start → 登录 → 代理页抓包 → yarn import-capture-agent 679win",
+          "$env:WGAME_TEST_ACCOUNT=\"账号\"; $env:WGAME_TEST_PASSWORD=\"密码\"; yarn wgame-live-probe 679win",
+          "yarn smoke-e2e 679win",
+          "yarn night-continue 679win"
+        ]
+      },
+      "apiContract": "output\\679win\\api-contract.json",
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=128 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "dev chain green; production blocked until PAY_HTTP_URL/AGENT_HTTP_BASE or WGAME_TEST_ACCOUNT"
+    },
+    {
+      "at": "2026-08-22T15:57:16.499Z",
+      "phase": "dev-complete-await-production",
+      "mapSize": 538,
+      "verifyOk": true,
+      "verifyPassed": 128,
+      "e2eOk": true,
+      "e2eSteps": {
+        "register": {
+          "code": 1,
+          "ok": true
+        },
+        "login": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopup": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopupAlias": {
+          "code": 1,
+          "ok": true
+        },
+        "newcomerPop": {
+          "code": 1,
+          "ok": true
+        },
+        "payList": {
+          "code": 1,
+          "ok": true
+        },
+        "payChannels": {
+          "code": 1,
+          "count": 6,
+          "harExpected": true,
+          "ok": true
+        },
+        "payOrder": {
+          "code": 1,
+          "orderNo": "WG1787414224878518",
+          "mockQr": true,
+          "ok": true
+        },
+        "payOrderInfo": {
+          "code": 1,
+          "ok": true
+        },
+        "agentPromotion": {
+          "code": 1,
+          "hasInviteUrl": true,
+          "ok": true
+        },
+        "agentIndex": {
+          "code": 1,
+          "ok": true
+        },
+        "agentIndexDirect": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTeamData": {
+          "code": 1,
+          "ok": true
+        },
+        "agentClubCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "agentMode": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTotal": {
+          "code": 1,
+          "ok": true
+        },
+        "agentCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "httpCashier": {
+          "code": 1,
+          "mockQr": true,
+          "ok": true
+        },
+        "httpAgent": {
+          "code": 1,
+          "ok": true
+        },
+        "httpAgentTeam": {
+          "code": 1,
+          "ok": true
+        }
+      },
+      "wgameLive": {
+        "at": "2026-08-22T15:57:06.427Z",
+        "siteId": "679win",
+        "skipped": true,
+        "steps": {},
+        "reason": "set WGAME_TEST_ACCOUNT and WGAME_TEST_PASSWORD",
+        "wssReachability": {
+          "ok": true,
+          "wssUrl": "wss://server.679win2.com",
+          "registerCode": 170,
+          "note": "ip-limit; wss ok"
+        }
+      },
+      "productionProbe": {
+        "at": "2026-08-22T15:57:07.880Z",
+        "siteId": "679win",
+        "skipped": true,
+        "pay": null,
+        "agent": null,
+        "reason": "set PAY_HTTP_URL / AGENT_HTTP_BASE or non-localhost adapter-hosts"
+      },
+      "wireStatus": {
+        "siteId": "679win",
+        "at": "2026-08-22T15:57:07.956Z",
+        "authPopups": "dev-ok (IP170 mock + emptyList popups)",
+        "pay": {
+          "devMock": true,
+          "productionUrl": null,
+          "env": null,
+          "harChannels": 6
+        },
+        "agent": {
+          "devMock": true,
+          "productionBase": null,
+          "env": null,
+          "harAgentKeys": [
+            "getIpBindInfo"
+          ],
+          "captureFiles": 0
+        },
+        "wgameTestAccount": false,
+        "wgameWssUrl": "wss://server.679win2.com",
+        "wssReachability": {
+          "ok": true,
+          "wssUrl": "wss://server.679win2.com",
+          "registerCode": 170,
+          "note": "ip-limit; wss ok"
+        },
+        "contract": "output\\679win\\api-contract.json",
+        "blocked": [
+          "production pay: set PAY_HTTP_URL",
+          "production agent: set AGENT_HTTP_BASE or capture agent page",
+          "wgame live: set WGAME_TEST_ACCOUNT + WGAME_TEST_PASSWORD"
+        ],
+        "next": [
+          "$env:PAY_HTTP_URL=\"https://你的收银台/api/create\"; yarn apply-production-env 679win",
+          "$env:AGENT_HTTP_BASE=\"https://你的代理API\"; yarn apply-production-env 679win",
+          "或: yarn start → 登录 → 代理页抓包 → yarn import-capture-agent 679win",
+          "$env:WGAME_TEST_ACCOUNT=\"账号\"; $env:WGAME_TEST_PASSWORD=\"密码\"; yarn wgame-live-probe 679win",
+          "yarn smoke-e2e 679win",
+          "yarn night-continue 679win"
+        ]
+      },
+      "apiContract": "output\\679win\\api-contract.json",
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=128 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "dev chain green; production blocked until PAY_HTTP_URL/AGENT_HTTP_BASE or WGAME_TEST_ACCOUNT"
+    },
+    {
+      "at": "2026-08-22T16:00:15.706Z",
+      "phase": "dev-complete-await-production",
+      "mapSize": 538,
+      "verifyOk": true,
+      "verifyPassed": 129,
+      "e2eOk": true,
+      "e2eSteps": {
+        "register": {
+          "code": 1,
+          "ok": true
+        },
+        "login": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopup": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopupAlias": {
+          "code": 1,
+          "ok": true
+        },
+        "newcomerPop": {
+          "code": 1,
+          "ok": true
+        },
+        "payList": {
+          "code": 1,
+          "ok": true
+        },
+        "payChannels": {
+          "code": 1,
+          "count": 6,
+          "harExpected": true,
+          "ok": true
+        },
+        "payOrder": {
+          "code": 1,
+          "orderNo": "WG1787414404520724",
+          "mockQr": true,
+          "ok": true
+        },
+        "payOrderInfo": {
+          "code": 1,
+          "ok": true
+        },
+        "agentPromotion": {
+          "code": 1,
+          "hasInviteUrl": true,
+          "ok": true
+        },
+        "agentIndex": {
+          "code": 1,
+          "ok": true
+        },
+        "agentIndexDirect": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTeamData": {
+          "code": 1,
+          "ok": true
+        },
+        "agentClubCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "agentMode": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTotal": {
+          "code": 1,
+          "ok": true
+        },
+        "agentCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "httpCashier": {
+          "code": 1,
+          "mockQr": true,
+          "ok": true
+        },
+        "httpAgent": {
+          "code": 1,
+          "ok": true
+        },
+        "httpAgentTeam": {
+          "code": 1,
+          "ok": true
+        }
+      },
+      "wgameLive": {
+        "at": "2026-08-22T16:00:06.185Z",
+        "siteId": "679win",
+        "skipped": true,
+        "steps": {},
+        "reason": "set WGAME_TEST_ACCOUNT and WGAME_TEST_PASSWORD",
+        "wssReachability": {
+          "ok": true,
+          "wssUrl": "wss://server.679win2.com",
+          "registerCode": 170,
+          "note": "ip-limit; wss ok"
+        }
+      },
+      "productionProbe": {
+        "at": "2026-08-22T16:00:08.015Z",
+        "siteId": "679win",
+        "skipped": true,
+        "pay": null,
+        "agent": null,
+        "reason": "set PAY_HTTP_URL / AGENT_HTTP_BASE or non-localhost adapter-hosts"
+      },
+      "wireStatus": {
+        "siteId": "679win",
+        "at": "2026-08-22T16:00:08.093Z",
+        "authPopups": "dev-ok (IP170 mock + emptyList popups)",
+        "pay": {
+          "devMock": true,
+          "productionUrl": null,
+          "env": null,
+          "harChannels": 6
+        },
+        "agent": {
+          "devMock": true,
+          "productionBase": null,
+          "env": null,
+          "harAgentKeys": [
+            "getIpBindInfo"
+          ],
+          "captureFiles": 0
+        },
+        "wgameTestAccount": false,
+        "wgameWssUrl": "wss://server.679win2.com",
+        "wssReachability": {
+          "ok": true,
+          "wssUrl": "wss://server.679win2.com",
+          "registerCode": 170,
+          "note": "ip-limit; wss ok"
+        },
+        "contract": "output\\679win\\api-contract.json",
+        "blocked": [
+          "production pay: set PAY_HTTP_URL",
+          "production agent: set AGENT_HTTP_BASE or capture agent page",
+          "wgame live: set WGAME_TEST_ACCOUNT + WGAME_TEST_PASSWORD"
+        ],
+        "next": [
+          "$env:PAY_HTTP_URL=\"https://你的收银台/api/create\"; yarn apply-production-env 679win",
+          "$env:AGENT_HTTP_BASE=\"https://你的代理API\"; yarn apply-production-env 679win",
+          "或: yarn start → 登录 → 代理页抓包 → yarn import-capture-agent 679win",
+          "$env:WGAME_TEST_ACCOUNT=\"账号\"; $env:WGAME_TEST_PASSWORD=\"密码\"; yarn wgame-live-probe 679win",
+          "yarn smoke-e2e 679win",
+          "yarn night-continue 679win"
+        ]
+      },
+      "apiContract": "output\\679win\\api-contract.json",
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=129 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "dev chain green; production blocked until PAY_HTTP_URL/AGENT_HTTP_BASE or WGAME_TEST_ACCOUNT"
+    },
+    {
+      "at": "2026-08-22T16:04:39.003Z",
+      "phase": "dev-complete-await-production",
+      "mapSize": 538,
+      "verifyOk": true,
+      "verifyPassed": 129,
+      "e2eOk": true,
+      "e2eSteps": {
+        "register": {
+          "code": 1,
+          "ok": true
+        },
+        "login": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopup": {
+          "code": 1,
+          "ok": true
+        },
+        "registerPopupAlias": {
+          "code": 1,
+          "ok": true
+        },
+        "newcomerPop": {
+          "code": 1,
+          "ok": true
+        },
+        "payList": {
+          "code": 1,
+          "ok": true
+        },
+        "payChannels": {
+          "code": 1,
+          "count": 6,
+          "harExpected": true,
+          "ok": true
+        },
+        "payOrder": {
+          "code": 1,
+          "orderNo": "WG1787414667688832",
+          "mockQr": true,
+          "ok": true
+        },
+        "payOrderInfo": {
+          "code": 1,
+          "ok": true
+        },
+        "agentPromotion": {
+          "code": 1,
+          "hasInviteUrl": true,
+          "ok": true
+        },
+        "agentIndex": {
+          "code": 1,
+          "ok": true
+        },
+        "agentIndexDirect": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTeamData": {
+          "code": 1,
+          "ok": true
+        },
+        "agentClubCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "agentMode": {
+          "code": 1,
+          "ok": true
+        },
+        "agentTotal": {
+          "code": 1,
+          "ok": true
+        },
+        "agentCommission": {
+          "code": 1,
+          "ok": true
+        },
+        "httpCashier": {
+          "code": 1,
+          "mockQr": true,
+          "ok": true
+        },
+        "httpAgent": {
+          "code": 1,
+          "ok": true
+        },
+        "httpAgentTeam": {
+          "code": 1,
+          "ok": true
+        }
+      },
+      "wgameLive": {
+        "at": "2026-08-22T16:04:29.225Z",
+        "siteId": "679win",
+        "skipped": true,
+        "steps": {},
+        "reason": "set WGAME_TEST_ACCOUNT and WGAME_TEST_PASSWORD",
+        "wssReachability": {
+          "ok": true,
+          "wssUrl": "wss://server.679win2.com",
+          "registerCode": 170,
+          "note": "ip-limit; wss ok"
+        }
+      },
+      "productionProbe": {
+        "at": "2026-08-22T16:04:31.216Z",
+        "siteId": "679win",
+        "skipped": true,
+        "pay": null,
+        "agent": null,
+        "reason": "set PAY_HTTP_URL / AGENT_HTTP_BASE or non-localhost adapter-hosts"
+      },
+      "wireStatus": {
+        "siteId": "679win",
+        "at": "2026-08-22T16:04:31.288Z",
+        "authPopups": "dev-ok (IP170 mock + emptyList popups)",
+        "pay": {
+          "devMock": true,
+          "productionUrl": null,
+          "env": null,
+          "harChannels": 6
+        },
+        "agent": {
+          "devMock": true,
+          "productionBase": null,
+          "env": null,
+          "harAgentKeys": [
+            "getIpBindInfo"
+          ],
+          "captureFiles": 0
+        },
+        "wgameTestAccount": false,
+        "wgameWssUrl": "wss://server.679win2.com",
+        "wssReachability": {
+          "ok": true,
+          "wssUrl": "wss://server.679win2.com",
+          "registerCode": 170,
+          "note": "ip-limit; wss ok"
+        },
+        "contract": "output\\679win\\api-contract.json",
+        "blocked": [
+          "production pay: set PAY_HTTP_URL",
+          "production agent: set AGENT_HTTP_BASE or capture agent page",
+          "wgame live: set WGAME_TEST_ACCOUNT + WGAME_TEST_PASSWORD"
+        ],
+        "next": [
+          "$env:PAY_HTTP_URL=\"https://你的收银台/api/create\"; yarn apply-production-env 679win",
+          "$env:AGENT_HTTP_BASE=\"https://你的代理API\"; yarn apply-production-env 679win",
+          "或: yarn start → 登录 → 代理页抓包 → yarn import-capture-agent 679win",
+          "$env:WGAME_TEST_ACCOUNT=\"账号\"; $env:WGAME_TEST_PASSWORD=\"密码\"; yarn wgame-live-probe 679win",
+          "yarn smoke-e2e 679win",
+          "yarn night-continue 679win"
+        ]
+      },
+      "apiContract": "output\\679win\\api-contract.json",
+      "verifyTail": [
+        "  OK  logout ok",
+        "",
+        "==== Result: passed=129 failed=0 ===="
+      ],
+      "harApiCount": 52,
+      "interestingUnmappedSample": [
+        "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+        "/api/active/category/currency/BRL/language/pt.json",
+        "/api/active/getByTemplate/currency/BRL.json",
+        "/api/active/isShowV2/default.json",
+        "/api/active/tasks/newcomer_benefit_reward/default.json",
+        "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+        "/api/finance/pay/payTypeSetting/language/pt.json",
+        "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+        "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
+      ],
+      "interestingUnmappedCount": 9,
+      "actionableUnmapped": [],
+      "runtimeTop": [],
+      "distActionableLeft": [],
+      "deferred": {
+        "ossJson": 9
+      },
+      "note": "dev chain green; production blocked until PAY_HTTP_URL/AGENT_HTTP_BASE or WGAME_TEST_ACCOUNT"
     }
   ],
   "latest": {
-    "at": "2026-08-22T03:56:15.526Z",
-    "phase": "wgame-proxy-invite+pay",
+    "at": "2026-08-22T16:04:39.003Z",
+    "phase": "dev-complete-await-production",
+    "mapSize": 538,
     "verifyOk": true,
-    "passed": 98,
-    "done": [
-      "wgame pay channels/charge protocol",
-      "wgame ProxyValidInviteInfo→agent index/total/promo",
-      "verify 98/98"
+    "verifyPassed": 129,
+    "e2eOk": true,
+    "e2eSteps": {
+      "register": {
+        "code": 1,
+        "ok": true
+      },
+      "login": {
+        "code": 1,
+        "ok": true
+      },
+      "registerPopup": {
+        "code": 1,
+        "ok": true
+      },
+      "registerPopupAlias": {
+        "code": 1,
+        "ok": true
+      },
+      "newcomerPop": {
+        "code": 1,
+        "ok": true
+      },
+      "payList": {
+        "code": 1,
+        "ok": true
+      },
+      "payChannels": {
+        "code": 1,
+        "count": 6,
+        "harExpected": true,
+        "ok": true
+      },
+      "payOrder": {
+        "code": 1,
+        "orderNo": "WG1787414667688832",
+        "mockQr": true,
+        "ok": true
+      },
+      "payOrderInfo": {
+        "code": 1,
+        "ok": true
+      },
+      "agentPromotion": {
+        "code": 1,
+        "hasInviteUrl": true,
+        "ok": true
+      },
+      "agentIndex": {
+        "code": 1,
+        "ok": true
+      },
+      "agentIndexDirect": {
+        "code": 1,
+        "ok": true
+      },
+      "agentTeamData": {
+        "code": 1,
+        "ok": true
+      },
+      "agentClubCommission": {
+        "code": 1,
+        "ok": true
+      },
+      "agentMode": {
+        "code": 1,
+        "ok": true
+      },
+      "agentTotal": {
+        "code": 1,
+        "ok": true
+      },
+      "agentCommission": {
+        "code": 1,
+        "ok": true
+      },
+      "httpCashier": {
+        "code": 1,
+        "mockQr": true,
+        "ok": true
+      },
+      "httpAgent": {
+        "code": 1,
+        "ok": true
+      },
+      "httpAgentTeam": {
+        "code": 1,
+        "ok": true
+      }
+    },
+    "wgameLive": {
+      "at": "2026-08-22T16:04:29.225Z",
+      "siteId": "679win",
+      "skipped": true,
+      "steps": {},
+      "reason": "set WGAME_TEST_ACCOUNT and WGAME_TEST_PASSWORD",
+      "wssReachability": {
+        "ok": true,
+        "wssUrl": "wss://server.679win2.com",
+        "registerCode": 170,
+        "note": "ip-limit; wss ok"
+      }
+    },
+    "productionProbe": {
+      "at": "2026-08-22T16:04:31.216Z",
+      "siteId": "679win",
+      "skipped": true,
+      "pay": null,
+      "agent": null,
+      "reason": "set PAY_HTTP_URL / AGENT_HTTP_BASE or non-localhost adapter-hosts"
+    },
+    "wireStatus": {
+      "siteId": "679win",
+      "at": "2026-08-22T16:04:31.288Z",
+      "authPopups": "dev-ok (IP170 mock + emptyList popups)",
+      "pay": {
+        "devMock": true,
+        "productionUrl": null,
+        "env": null,
+        "harChannels": 6
+      },
+      "agent": {
+        "devMock": true,
+        "productionBase": null,
+        "env": null,
+        "harAgentKeys": [
+          "getIpBindInfo"
+        ],
+        "captureFiles": 0
+      },
+      "wgameTestAccount": false,
+      "wgameWssUrl": "wss://server.679win2.com",
+      "wssReachability": {
+        "ok": true,
+        "wssUrl": "wss://server.679win2.com",
+        "registerCode": 170,
+        "note": "ip-limit; wss ok"
+      },
+      "contract": "output\\679win\\api-contract.json",
+      "blocked": [
+        "production pay: set PAY_HTTP_URL",
+        "production agent: set AGENT_HTTP_BASE or capture agent page",
+        "wgame live: set WGAME_TEST_ACCOUNT + WGAME_TEST_PASSWORD"
+      ],
+      "next": [
+        "$env:PAY_HTTP_URL=\"https://你的收银台/api/create\"; yarn apply-production-env 679win",
+        "$env:AGENT_HTTP_BASE=\"https://你的代理API\"; yarn apply-production-env 679win",
+        "或: yarn start → 登录 → 代理页抓包 → yarn import-capture-agent 679win",
+        "$env:WGAME_TEST_ACCOUNT=\"账号\"; $env:WGAME_TEST_PASSWORD=\"密码\"; yarn wgame-live-probe 679win",
+        "yarn smoke-e2e 679win",
+        "yarn night-continue 679win"
+      ]
+    },
+    "apiContract": "output\\679win\\api-contract.json",
+    "verifyTail": [
+      "  OK  logout ok",
+      "",
+      "==== Result: passed=129 failed=0 ===="
     ],
-    "next": [
-      "restart yarn start to load new provider",
-      "real-account smoke pay+agent"
+    "harApiCount": 52,
+    "interestingUnmappedSample": [
+      "/api/active/active_popRecharge/currency/BRL/language/pt.json",
+      "/api/active/category/currency/BRL/language/pt.json",
+      "/api/active/getByTemplate/currency/BRL.json",
+      "/api/active/isShowV2/default.json",
+      "/api/active/tasks/newcomer_benefit_reward/default.json",
+      "/api/finance/maxChargeRate/currency/BRL/osType/4.json",
+      "/api/finance/pay/payTypeSetting/language/pt.json",
+      "/api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json",
+      "/api/gohal/staffAllV3/currency/BRL/language/pt.json"
     ],
-    "note": "goal still needs live real-account confirmation"
+    "interestingUnmappedCount": 9,
+    "actionableUnmapped": [],
+    "runtimeTop": [],
+    "distActionableLeft": [],
+    "deferred": {
+      "ossJson": 9
+    },
+    "note": "dev chain green; production blocked until PAY_HTTP_URL/AGENT_HTTP_BASE or WGAME_TEST_ACCOUNT"
   }
 }

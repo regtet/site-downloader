@@ -1,0 +1,282 @@
+{
+  "exportedAt": "2026-08-22T16:04:31.252Z",
+  "siteId": "679win",
+  "pay": {
+    "env": "PAY_HTTP_URL",
+    "method": "POST",
+    "requestExample": {
+      "amount": 100,
+      "money": 100,
+      "orderNo": "WG1234567890",
+      "channelId": 210563,
+      "token": "session_from_login",
+      "userId": "10001",
+      "account": "member_account"
+    },
+    "responseExample": {
+      "code": 1,
+      "msg": "ok",
+      "data": {
+        "success": true,
+        "orderNo": "SAMPLE_ORDER",
+        "outTradeNo": "SAMPLE_ORDER",
+        "order_no": "SAMPLE_ORDER",
+        "qrCode": "00020126580014br.gov.bcb.pix0136MOCK-SAMPLE_ORDER-AMT1005204000053039865802BR5925Mock Cashier6009SAO PAULO62070503***6304ABCD",
+        "url": "",
+        "urlOpenWay": 4,
+        "money": "100"
+      }
+    },
+    "requiredFields": [
+      "data.orderNo",
+      "data.qrCode or data.url"
+    ]
+  },
+  "agent": {
+    "env": "AGENT_HTTP_BASE",
+    "method": "POST",
+    "routes": {
+      "indexInfo": "/indexInfo",
+      "myTotalData": "/myTotalData",
+      "myCommission": "/myCommission",
+      "agentPromotion": "/agentPromotion",
+      "agentMode": "/agentMode",
+      "promoteConfig": "/promoteConfig",
+      "getIpBindInfo": "/getIpBindInfo",
+      "teamDataV2": "/teamDataV2",
+      "myCommissionDetail": "/myCommissionDetail",
+      "myPerformance": "/myPerformance",
+      "clubCommission": "/clubCommission",
+      "clubCommissionDetail": "/clubCommissionDetail",
+      "directReport": "/directReport",
+      "bindingReport": "/bindingReport"
+    },
+    "requestExample": {
+      "token": "session_from_login",
+      "userId": "10001",
+      "account": "member_account"
+    },
+    "samples": {
+      "/indexInfo": {
+        "code": 1,
+        "msg": "ok",
+        "data": {
+          "todayDirect": 0,
+          "todayTeam": 0,
+          "todayCommission": "0",
+          "totalDirect": 0,
+          "totalTeam": 0,
+          "totalCommission": "0",
+          "directCount": 0,
+          "teamCount": 0,
+          "totalPerformance": "0",
+          "agentLevel": 0,
+          "parentUsername": "",
+          "parentUserIdx": 0,
+          "auditRate": "0",
+          "_mockToken": "session_toke"
+        }
+      },
+      "/myTotalData": {
+        "code": 1,
+        "msg": "ok",
+        "data": {
+          "totalCommission": "0",
+          "totalCommissionNum": 0,
+          "totalPerformance": "0",
+          "totalDirect": 0,
+          "totalTeam": 0,
+          "directCount": 0,
+          "teamCount": 0,
+          "availableCommission": "0",
+          "todayCommission": "0",
+          "yesterdayCommission": "0",
+          "_mockToken": "session_toke"
+        }
+      },
+      "/myCommission": {
+        "code": 1,
+        "msg": "ok",
+        "data": {
+          "list": [],
+          "total": 0,
+          "records": [],
+          "sum": "0",
+          "totalCommission": "0",
+          "totalCommissionNum": 0,
+          "clubCommission": "0",
+          "clubCommissionNum": 0,
+          "_mockToken": "session_toke"
+        }
+      },
+      "/agentPromotion": {
+        "code": 1,
+        "msg": "ok",
+        "data": {
+          "linkList": [
+            {
+              "select": true,
+              "url": "",
+              "name": "default"
+            }
+          ],
+          "_mockToken": "session_toke"
+        }
+      },
+      "/agentMode": {
+        "code": 1,
+        "msg": "ok",
+        "data": {
+          "agent_id": 0,
+          "agentModeName": "Infinite",
+          "settleDuration": 0,
+          "settleDurationDays": 1,
+          "settleDurationCustom": "",
+          "nextSettleTime": 0,
+          "isProAgent": false,
+          "_mockToken": "session_toke"
+        }
+      },
+      "/promoteConfig": {
+        "code": 1,
+        "msg": "ok",
+        "data": {
+          "agent_levels": [],
+          "sign_key": "",
+          "_mockToken": "session_toke"
+        }
+      },
+      "/getIpBindInfo": {
+        "code": 1,
+        "msg": "ok",
+        "data": {
+          "bind": false,
+          "list": [],
+          "_mockToken": "session_toke"
+        }
+      },
+      "/teamDataV2": {
+        "code": 1,
+        "msg": "ok",
+        "data": {
+          "list": [],
+          "total": 0,
+          "records": [],
+          "rows": [],
+          "_mockToken": "session_toke"
+        }
+      },
+      "/myCommissionDetail": {
+        "code": 1,
+        "msg": "ok",
+        "data": {
+          "list": [],
+          "total": 0,
+          "records": [],
+          "rows": [],
+          "_mockToken": "session_toke"
+        }
+      },
+      "/myPerformance": {
+        "code": 1,
+        "msg": "ok",
+        "data": {
+          "list": [],
+          "total": 0,
+          "records": [],
+          "rows": [],
+          "_mockToken": "session_toke"
+        }
+      },
+      "/clubCommission": {
+        "code": 1,
+        "msg": "ok",
+        "data": {
+          "list": [],
+          "total": 0,
+          "records": [],
+          "rows": [],
+          "_mockToken": "session_toke"
+        }
+      },
+      "/clubCommissionDetail": {
+        "code": 1,
+        "msg": "ok",
+        "data": {
+          "list": [],
+          "total": 0,
+          "records": [],
+          "rows": [],
+          "_mockToken": "session_toke"
+        }
+      },
+      "/directReport": {
+        "code": 1,
+        "msg": "ok",
+        "data": {
+          "list": [],
+          "total": 0,
+          "records": [],
+          "_mockToken": "session_toke"
+        }
+      },
+      "/bindingReport": {
+        "code": 1,
+        "msg": "ok",
+        "data": {
+          "list": [],
+          "total": 0,
+          "_mockToken": "session_toke"
+        }
+      }
+    },
+    "defaultShape": {
+      "indexInfo": {
+        "todayDirect": 0,
+        "todayTeam": 0,
+        "todayCommission": "0",
+        "totalDirect": 0,
+        "totalTeam": 0,
+        "totalCommission": "0",
+        "directCount": 0,
+        "teamCount": 0,
+        "totalPerformance": "0",
+        "agentLevel": 0,
+        "parentUsername": "",
+        "parentUserIdx": 0,
+        "auditRate": "0"
+      },
+      "myTotalData": {
+        "totalCommission": "0",
+        "totalCommissionNum": 0,
+        "totalPerformance": "0",
+        "totalDirect": 0,
+        "totalTeam": 0,
+        "directCount": 0,
+        "teamCount": 0,
+        "availableCommission": "0",
+        "todayCommission": "0",
+        "yesterdayCommission": "0"
+      },
+      "myCommission": {
+        "list": [],
+        "total": 0,
+        "records": [],
+        "sum": "0",
+        "totalCommission": "0",
+        "totalCommissionNum": 0,
+        "clubCommission": "0",
+        "clubCommissionNum": 0
+      },
+      "agentPromotion": {
+        "linkList": [
+          {
+            "select": true,
+            "url": "",
+            "name": "default"
+          }
+        ]
+      }
+    }
+  }
+}

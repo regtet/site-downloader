@@ -151,6 +151,9 @@ function testMap() {
   assert(series.matchRoute('/api/active/receiveOne').adapter === 'featurePending', 'receiveOne pending not empty-ok');
   assert(series.matchRoute('/api/agent/promote/getIpBindInfo').adapter === 'agentBlob', 'agent bind config-driven');
   assert(series.matchRoute('/api/agent/promote/report/indexInfo').adapter === 'agentBlob', 'agent indexInfo');
+  assert(series.matchRoute('/api/agent/promote/report/indexDirect').adapter === 'agentBlob', 'agent indexDirect');
+  assert(series.matchRoute('/api/agent/promote/reportPc/agentInfo').adapter === 'agentBlob', 'agent reportPc info');
+  assert(series.matchRoute('/api/agent/promote/report/teamDataV2').adapter === 'emptyRecords', 'agent teamDataV2');
   assert(series.matchRoute('/api/finance/pay/orderInfo').adapter === 'payOrderInfo', 'pay orderInfo');
   assert(Object.keys(MIGRATION_MAP).length >= 80, 'map size');
 
@@ -159,6 +162,54 @@ function testMap() {
     return /cancelOrder|setdefault|rejectManual|cancelFavorites|cancelFollow|cancelLike|\/delete$|\/delall$|customDel|\/bind|\/receive|\/redeem|\/upload|\/settle$|transferConfirm|offlineOrder/i.test(p);
   });
   assert(writeOk.length === 0, 'no lobbyOk on mutating paths');
+}
+
+function testPayAgentEnv() {
+  console.log('\n[2b] pay/agent 生产环境变量覆盖');
+  const { loadPayConfig } = require('../src/adapter/providers/wgame/pay-config');
+  const { loadAgentConfig } = require('../src/adapter/providers/wgame/agent-config');
+  const { applyProductionHooks, isLocalDevUrl } = require('../src/production-hooks');
+  const prevPay = process.env.PAY_HTTP_URL;
+  const prevAgent = process.env.AGENT_HTTP_BASE;
+  try {
+    assert(!isLocalDevUrl('https://pay.example.com/create'), 'prod url not local');
+    assert(isLocalDevUrl('http://127.0.0.1:3000/api/dev/mock-cashier/create'), 'mock url is local');
+    const patched = applyProductionHooks({
+      providerOptions: {
+        pay: { createOrder: { httpUrl: '', mode: 'staticQr' } },
+        agent: { httpBase: '' }
+      }
+    });
+    process.env.PAY_HTTP_URL = 'https://pay.example.com/create';
+    const pay = loadPayConfig(siteDir, {});
+    assert(pay.createOrder.httpUrl === 'https://pay.example.com/create', 'PAY_HTTP_URL override');
+    assert(pay.createOrder.mode === 'http', 'PAY_HTTP_URL sets http mode');
+    process.env.AGENT_HTTP_BASE = 'https://agent.example.com';
+    const agent = loadAgentConfig(siteDir, {});
+    assert(agent.httpBase === 'https://agent.example.com', 'AGENT_HTTP_BASE override');
+    assert(agent.useBuiltinMock === false, 'AGENT_HTTP_BASE disables builtin');
+    delete process.env.PAY_HTTP_URL;
+    delete process.env.AGENT_HTTP_BASE;
+    const harPath = path.join(siteDir, 'har-pay-snapshot.json');
+    const harLogPath = path.join(root, 'logs', `har-pay-snapshot-${siteId}.json`);
+    if (fs.existsSync(harPath) || fs.existsSync(harLogPath)) {
+      const payHar = loadPayConfig(siteDir, {});
+      const ch = payHar.channelsByPayKind && payHar.channelsByPayKind['100'];
+      assert(ch && Array.isArray(ch.list) && ch.list.length >= 1, 'HAR pay channels loaded');
+      assert(String(ch.list[0].merch_desc || ch.list[0].channlName || ''), 'HAR channel name');
+    }
+    const agentHarPath = path.join(siteDir, 'har-agent-snapshot.json');
+    const agentHarLog = path.join(root, 'logs', `har-agent-snapshot-${siteId}.json`);
+    if (fs.existsSync(agentHarPath) || fs.existsSync(agentHarLog)) {
+      const agentHar = loadAgentConfig(siteDir, {});
+      assert(agentHar.getIpBindInfo != null, 'HAR agent getIpBindInfo loaded');
+    }
+  } finally {
+    if (prevPay == null) delete process.env.PAY_HTTP_URL;
+    else process.env.PAY_HTTP_URL = prevPay;
+    if (prevAgent == null) delete process.env.AGENT_HTTP_BASE;
+    else process.env.AGENT_HTTP_BASE = prevAgent;
+  }
 }
 
 function httpRequest(port, method, urlPath, { body, headers } = {}) {
@@ -200,6 +251,16 @@ async function testLive() {
   if (!fs.existsSync(siteDir)) {
     assert(false, 'site dir missing');
     return;
+  }
+
+  // 默认用开发 mock 收银台/代理（export 可保留生产 URL；设 VERIFY_PRODUCTION_HOOKS=1 测真接口）
+  if (process.env.VERIFY_PRODUCTION_HOOKS !== '1') {
+    if (!process.env.PAY_HTTP_URL) {
+      process.env.PAY_HTTP_URL = 'http://127.0.0.1:3000/api/dev/mock-cashier/create';
+    }
+    if (!process.env.AGENT_HTTP_BASE) {
+      process.env.AGENT_HTTP_BASE = 'http://127.0.0.1:3000/api/dev/mock-agent';
+    }
   }
 
   const server = new StaticServer({ spaFallback: true, host: '127.0.0.1' });
@@ -280,6 +341,73 @@ async function testLive() {
 
     if (!account || !password) {
       console.log('\n[3b] 跳过实网登录（设置 WGAME_TEST_ACCOUNT / WGAME_TEST_PASSWORD）');
+      try {
+        const probePath = path.join(__dirname, '..', 'logs', `wgame-live-probe-${siteId}.json`);
+        const probe = JSON.parse(fs.readFileSync(probePath, 'utf8'));
+        const wss = probe && probe.wssReachability;
+        assert(wss && wss.ok === true, 'wgame WSS reachable (' + (wss && wss.wssUrl) + ')');
+        console.log('  OK  wgame WSS reachable', wss.wssUrl, 'code=' + wss.registerCode);
+      } catch (err) {
+        assert(false, 'wgame WSS probe: ' + ((err && err.message) || err) + ' (run yarn wgame-live-probe ' + siteId + ')');
+      }
+
+      console.log('\n[3a] register→login（IP170 fallback）+ 弹窗');
+      const vpAcc = 'vp0_' + Date.now();
+      const vpPwd = 'Test1234!';
+      const regFlow = await httpRequest(port, 'POST', '/api/member/register', {
+        body: {
+          account: vpAcc,
+          password: vpPwd,
+          confirmPassword: vpPwd,
+          device_id: 'fp_vp0'
+        }
+      });
+      assert(regFlow.json && regFlow.json.code === 1, 'register flow code=1');
+      assert(
+        regFlow.json.data && regFlow.json.data.userInfos && regFlow.json.data.userInfos.session_key,
+        'register flow userInfos.session_key'
+      );
+      const loginFlow = await httpRequest(port, 'POST', '/api/member/login', {
+        body: { account: vpAcc, password: vpPwd, userpass: vpPwd }
+      });
+      assert(loginFlow.json && loginFlow.json.code === 1, 'login after register');
+      assert(loginFlow.json.data && loginFlow.json.data.session_key, 'login session_key');
+      const flowToken = loginFlow.json.data.session_key;
+      const regPop = await httpRequest(port, 'POST', '/api/member/user/registerPopupDlgInfo', {
+        body: {},
+        headers: { token: flowToken }
+      });
+      assert(
+        regPop.json && regPop.json.code === 1 && Array.isArray(regPop.json.data),
+        'registerPopupDlgInfo empty array'
+      );
+      const regPopAlias = await httpRequest(port, 'POST', '/api/member/registerPopupDlgInfo', {
+        body: {},
+        headers: { token: flowToken }
+      });
+      assert(
+        regPopAlias.json && regPopAlias.json.code === 1 && Array.isArray(regPopAlias.json.data),
+        'registerPopupDlgInfo alias empty array'
+      );
+      const newcomerPop = await httpRequest(port, 'POST', '/api/active/tasks/newcomer_benefit_pop', {
+        body: {},
+        headers: { token: flowToken }
+      });
+      assert(
+        newcomerPop.json && newcomerPop.json.code === 1 && Array.isArray(newcomerPop.json.data),
+        'newcomer_benefit_pop empty array'
+      );
+      console.log('  OK  register→login + popups');
+
+      const mockAgent = await httpRequest(port, 'POST', '/api/dev/mock-agent/indexInfo', { body: {} });
+      assert(mockAgent.json && mockAgent.json.code === 1 && mockAgent.json.data, 'mock agent indexInfo');
+      const mockTeam = await httpRequest(port, 'POST', '/api/dev/mock-agent/teamDataV2', { body: { token: 'v' } });
+      assert(
+        mockTeam.json && mockTeam.json.code === 1 && Array.isArray(mockTeam.json.data.list),
+        'mock agent teamDataV2'
+      );
+      console.log('  OK  mock agent HTTP indexInfo+teamDataV2');
+
       // 用 provider 注入会话，验证 user.info + gold 链路
       console.log('\n[3b] 注入会话验证 user.info + wallet.gold');
       const provider = getProvider('wgame');
@@ -405,6 +533,12 @@ async function testLive() {
         && order.json.data.qrCode,
         'payCreate order+qr'
       );
+      assert(
+        String(order.json.data.qrCode).includes('MOCK-')
+        || String(order.json.data.qrCode).includes('PLACEHOLDER')
+        || String(order.json.data.qrCode).startsWith('000201'),
+        'payCreate qr payload'
+      );
 
       const orderInfo = await httpRequest(port, 'POST', '/api/finance/pay/orderInfo', {
         body: { orderNo: order.json.data.orderNo },
@@ -423,11 +557,13 @@ async function testLive() {
         headers: { token: fake.session }
       });
       assert(
-        agentMode.json
-        && agentMode.json.code === 1
-        && agentMode.json.data
+        agentMode.json && agentMode.json.code === 1 && agentMode.json.data
         && agentMode.json.data.agent_id != null,
         'agentMode blob'
+      );
+      assert(
+        agentMode.json.data.settleDurationDays != null,
+        'agentMode settleDurationDays'
       );
 
       const agentIndex = await httpRequest(port, 'POST', '/api/agent/promote/report/indexInfo', {
@@ -435,6 +571,43 @@ async function testLive() {
         headers: { token: fake.session }
       });
       assert(agentIndex.json && agentIndex.json.code === 1 && agentIndex.json.data, 'agent indexInfo');
+      assert(
+        agentIndex.json.data.directCount != null || agentIndex.json.data.todayDirect != null,
+        'agent indexInfo builtin mock shape'
+      );
+
+      const agentDirect = await httpRequest(port, 'POST', '/api/agent/promote/report/indexDirect', {
+        body: {},
+        headers: { token: fake.session }
+      });
+      assert(agentDirect.json && agentDirect.json.code === 1 && agentDirect.json.data, 'agent indexDirect');
+
+      const agentPc = await httpRequest(port, 'GET', '/api/agent/promote/reportPc/agentInfo', {
+        headers: { token: fake.session }
+      });
+      assert(agentPc.json && agentPc.json.code === 1 && agentPc.json.data, 'agent reportPc info');
+
+      const agentTeam = await httpRequest(port, 'POST', '/api/agent/promote/report/teamDataV2', {
+        body: {},
+        headers: { token: fake.session }
+      });
+      assert(agentTeam.json && agentTeam.json.code === 1 && Array.isArray(agentTeam.json.data.list), 'agent teamDataV2');
+
+      const agentClub = await httpRequest(port, 'POST', '/api/agent/promote/report/clubCommission', {
+        body: {},
+        headers: { token: fake.session }
+      });
+      assert(
+        agentClub.json && agentClub.json.code === 1 && Array.isArray(agentClub.json.data.list),
+        'agent clubCommission extra http'
+      );
+
+      const agentComm = await httpRequest(port, 'POST', '/api/agent/promote/report/myCommissionV2', {
+        body: {},
+        headers: { token: fake.session }
+      });
+      assert(agentComm.json && agentComm.json.code === 1 && agentComm.json.data, 'agent myCommissionV2');
+      assert(agentComm.json.data.totalCommission != null, 'agent commission totalCommission');
 
       const wd = await httpRequest(port, 'POST', '/api/finance/certify/withdrawRecord', {
         body: {},
@@ -516,6 +689,7 @@ async function main() {
   console.log('P0 verify siteDir =', siteDir);
   testAdapters();
   testMap();
+  testPayAgentEnv();
   await testLive();
   console.log('\n==== Result: passed=%d failed=%d ====', passed, failed);
   process.exit(failed ? 1 : 0);

@@ -214,6 +214,18 @@ function findSession(body, headers) {
   return latest;
 }
 
+/** 转发自有 HTTP 收银台/代理 API 时附带会话字段 */
+function buildHttpPayload(body, headers) {
+  const payload = Object.assign({}, body || {});
+  const sessionRow = findSession(body, headers);
+  const user = sessionRow && sessionRow.user;
+  if (!user) return payload;
+  if (!payload.token && user.session) payload.token = user.session;
+  if (payload.userId == null && user.userId != null) payload.userId = user.userId;
+  if (!payload.account && user.account) payload.account = user.account;
+  return payload;
+}
+
 /** 请求 Token 是否为我们适配层登录产生的会话（不能直接打真实上游） */
 function isOurSession(headersOrToken) {
   let token = '';
@@ -253,10 +265,11 @@ function mockUser(account, password) {
     account,
     password: password || '',
     session: randomToken('sk_'),
-    userId: randomToken('uk_'),
+    // 官方 username 为数字会员 ID；mock 不用账号名当 nickname
+    userId: String(20000000 + Math.floor(Math.random() * 9000000)),
     game_gold: 0,
     currency: 'BRL',
-    nickname: account,
+    nickname: '',
     phone: '',
     email: '',
     vip_level: 0,
@@ -340,6 +353,13 @@ async function execute(op, ctx) {
       const user = mockUser(account, password);
       rememberSession(user);
       return ok(user, 'ok');
+    }
+    const account = pickAccount(body);
+    const password = pickPassword(body);
+    const local = account && users.get(account);
+    if (local && local.user && String(local.password || '') === String(password || '')) {
+      rememberSession(local.user);
+      return ok(local.user, 'ok (local session)');
     }
     return callGateway('login', body, cfg);
   }
@@ -460,22 +480,24 @@ async function execute(op, ctx) {
       }, 'ok');
     }
     if (op === OP.PAY_CHANNELS) {
+      const kind = body && (body.payKind != null ? body.payKind : body.type);
+      const key = String(kind != null ? kind : 100);
+      const configPack = pay.channelsByPayKind[key]
+        || pay.channelsByPayKind['100']
+        || { list: [], min: '0', max: '0' };
       if (source === 'wgame') {
         try {
           const pack = await wgamePayChannels();
-          if (pack && pack.list && pack.list.length) {
+          const wCount = pack && pack.list ? pack.list.length : 0;
+          const cCount = configPack.list ? configPack.list.length : 0;
+          if (pack && wCount > 0 && wCount >= cCount) {
             return ok(pack, 'ok');
           }
         } catch (err) {
           console.warn('[provider:wgame] payChannels failed:', (err && err.message) || err);
         }
       }
-      const kind = body && (body.payKind != null ? body.payKind : body.type);
-      const key = String(kind != null ? kind : 100);
-      const pack = pay.channelsByPayKind[key]
-        || pay.channelsByPayKind['100']
-        || { list: [], min: '0', max: '0' };
-      return ok(Object.assign({ list: [] }, pack), 'ok');
+      return ok(Object.assign({ list: [] }, configPack), 'ok');
     }
     if (op === OP.PAY_INFOS) {
       return ok(Array.isArray(pay.payInfos) ? pay.payInfos : [], 'ok');
@@ -503,7 +525,7 @@ async function execute(op, ctx) {
             : (body.payplatformid != null ? body.payplatformid : body.paymentMethodId))
       );
       const orderNo = 'WG' + Date.now() + Math.floor(Math.random() * 1000);
-      let qrCode = co.qrCodeUrl || buildQrDataUrl(co.qrPayload) || '';
+      let qrCode = co.qrCodeUrl || '';
       let url = co.payUrl || '';
       let urlOpenWay = co.urlOpenWay != null ? Number(co.urlOpenWay) : 4;
       let remoteOrderNo = '';
@@ -529,22 +551,46 @@ async function execute(op, ctx) {
           }
         } catch (err) {
           console.warn('[provider:wgame] payCharge failed:', (err && err.message) || err);
-          if (source === 'wgame' && String(co.mode || '') !== 'http' && !co.qrPayload) {
+          if (
+            source === 'wgame'
+            && !pay.allowPlaceholderFallback
+            && String(co.mode || '') !== 'http'
+          ) {
             return fail(10061, 'wgame pay create failed: ' + ((err && err.message) || err));
           }
         }
       }
 
-      if (!usedWgame && (source === 'http' || String(co.mode || '') === 'http') && co.httpUrl) {
+      if (
+        source === 'wgame'
+        && !usedWgame
+        && !pay.allowPlaceholderFallback
+        && String(co.mode || '') !== 'http'
+        && !co.httpUrl
+        && !co.useBuiltinMock
+      ) {
+        return fail(10061, 'wgame pay create: no charge from hall (need real account or allowPlaceholderFallback)');
+      }
+
+      const tryHttpCashier = !usedWgame && (co.httpUrl || co.useBuiltinMock);
+      if (tryHttpCashier) {
         try {
-          const remote = await httpJson(
-            co.httpUrl,
-            co.httpMethod || 'POST',
-            Object.assign({}, body || {}, { amount, money: amount, orderNo })
-          );
-          const rd = remote && typeof remote === 'object'
-            ? (remote.data && typeof remote.data === 'object' ? remote.data : remote)
-            : null;
+          let rd = null;
+          if (co.useBuiltinMock) {
+            const { createMockCashierOrder } = require('../../../mock-cashier');
+            const mock = createMockCashierOrder(Object.assign({}, body || {}, { amount, money: amount, orderNo }));
+            rd = mock && mock.data;
+          }
+          if (!rd && co.httpUrl) {
+            const remote = await httpJson(
+              co.httpUrl,
+              co.httpMethod || 'POST',
+              Object.assign(buildHttpPayload(body, headers), { amount, money: amount, orderNo })
+            );
+            rd = remote && typeof remote === 'object'
+              ? (remote.data && typeof remote.data === 'object' ? remote.data : remote)
+              : null;
+          }
           if (rd && typeof rd === 'object') {
             if (rd.qrCode || rd.qrcode || rd.qrcode_url) {
               qrCode = String(rd.qrCode || rd.qrcode || rd.qrcode_url);
@@ -556,10 +602,27 @@ async function execute(op, ctx) {
             if (rd.orderNo || rd.order_no || rd.outTradeNo) {
               remoteOrderNo = String(rd.orderNo || rd.order_no || rd.outTradeNo);
             }
+            usedWgame = false;
           }
         } catch (err) {
           return fail(10061, 'pay http create failed: ' + ((err && err.message) || err));
         }
+      }
+
+      if (
+        source === 'wgame'
+        && !usedWgame
+        && !qrCode
+        && !url
+        && !pay.allowPlaceholderFallback
+        && !co.useBuiltinMock
+        && !co.httpUrl
+      ) {
+        return fail(10061, 'wgame pay create: no qr/url from hall or cashier');
+      }
+
+      if (!qrCode && !url && pay.allowPlaceholderFallback && co.qrPayload) {
+        qrCode = buildQrDataUrl(co.qrPayload) || '';
       }
 
       const finalOrderNo = remoteOrderNo || orderNo;
@@ -596,7 +659,7 @@ async function execute(op, ctx) {
     || op === OP.AGENT_DIRECT
     || op === OP.AGENT_CONFIG
   ) {
-    const { loadAgentConfig, mapProxyInviteToAgent } = require('./agent-config');
+    const { loadAgentConfig, mapProxyInviteToAgent, enrichAgentFromSession } = require('./agent-config');
     let agent = loadAgentConfig(ctx && ctx.siteDir, cfg);
     if (!agent.enabled) {
       return fail(10060, 'agent disabled in providerOptions.agent');
@@ -616,16 +679,57 @@ async function execute(op, ctx) {
     };
     const key = keyByOp[op];
     const route = agent.routes && agent.routes[key];
-    if (agent.httpBase && route) {
-      try {
-        const url = String(agent.httpBase).replace(/\/$/, '') + String(route);
-        const remote = await httpJson(url, agent.httpMethod || 'POST', body || {});
-        const rd = remote && typeof remote === 'object'
-          ? (remote.data != null ? remote.data : remote)
-          : null;
-        if (rd != null) return ok(rd, 'ok');
-      } catch (err) {
-        return fail(10062, 'agent http failed: ' + ((err && err.message) || err));
+    if (route && (agent.useBuiltinMock || agent.httpBase)) {
+      if (agent.useBuiltinMock && !agent.httpBase) {
+        const { createMockAgentResponse } = require('../../../mock-agent-api');
+        const mock = createMockAgentResponse(route, body || {});
+        let data = mock && mock.data;
+        if (data != null) {
+          const sessionRow = findSession(body, headers);
+          const sessionUser = sessionRow && sessionRow.user;
+          if (
+            sessionUser
+            && (op === OP.AGENT_PROMOTION || op === OP.AGENT_INDEX || op === OP.AGENT_TOTAL)
+          ) {
+            const enriched = enrichAgentFromSession(agent, sessionUser, ctx && ctx.siteDir);
+            if (op === OP.AGENT_PROMOTION) data = enriched.agentPromotion;
+            else if (op === OP.AGENT_INDEX) data = enriched.indexInfo;
+            else if (op === OP.AGENT_TOTAL) data = enriched.myTotalData;
+          }
+          return ok(data, 'ok');
+        }
+      } else if (agent.httpBase) {
+        try {
+          const url = String(agent.httpBase).replace(/\/$/, '') + String(route);
+          const remote = await httpJson(url, agent.httpMethod || 'POST', buildHttpPayload(body, headers));
+          let rd = remote && typeof remote === 'object'
+            ? (remote.data != null ? remote.data : remote)
+            : null;
+          if (rd != null) {
+            const sessionRow = findSession(body, headers);
+            const sessionUser = sessionRow && sessionRow.user;
+            if (
+              sessionUser
+              && (op === OP.AGENT_PROMOTION || op === OP.AGENT_INDEX || op === OP.AGENT_TOTAL)
+            ) {
+              const enriched = enrichAgentFromSession(
+                Object.assign({}, agent, {
+                  agentPromotion: op === OP.AGENT_PROMOTION ? rd : agent.agentPromotion,
+                  indexInfo: op === OP.AGENT_INDEX ? rd : agent.indexInfo,
+                  myTotalData: op === OP.AGENT_TOTAL ? rd : agent.myTotalData
+                }),
+                sessionUser,
+                ctx && ctx.siteDir
+              );
+              if (op === OP.AGENT_PROMOTION) rd = enriched.agentPromotion;
+              else if (op === OP.AGENT_INDEX) rd = enriched.indexInfo;
+              else if (op === OP.AGENT_TOTAL) rd = enriched.myTotalData;
+            }
+            return ok(rd, 'ok');
+          }
+        } catch (err) {
+          return fail(10062, 'agent http failed: ' + ((err && err.message) || err));
+        }
       }
     }
 
@@ -656,6 +760,15 @@ async function execute(op, ctx) {
           console.warn('[provider:wgame] proxyInvite failed:', (err && err.message) || err);
         }
       }
+    }
+
+    const sessionRow = findSession(body, headers);
+    const sessionUser = sessionRow && sessionRow.user;
+    if (
+      sessionUser
+      && (op === OP.AGENT_PROMOTION || op === OP.AGENT_INDEX || op === OP.AGENT_TOTAL)
+    ) {
+      agent = enrichAgentFromSession(agent, sessionUser, ctx && ctx.siteDir);
     }
 
     if (op === OP.AGENT_MODE) return ok(agent.agentMode, 'ok');
@@ -689,6 +802,34 @@ async function execute(op, ctx) {
   }
 
   if (op === OP.EMPTY_RECORDS) {
+    const routePath = ctx && ctx.routePath;
+    if (routePath && /\/agent\/promote\//i.test(routePath)) {
+      const {
+        loadAgentConfig,
+        resolveAgentExtraRoute,
+        emptyAgentListData
+      } = require('./agent-config');
+      const agent = loadAgentConfig(ctx && ctx.siteDir, cfg);
+      const extra = resolveAgentExtraRoute(routePath, agent);
+      if (extra && (agent.httpBase || agent.useBuiltinMock)) {
+        if (agent.httpBase) {
+          try {
+            const url = String(agent.httpBase).replace(/\/$/, '') + extra.route;
+            const remote = await httpJson(url, agent.httpMethod || 'POST', buildHttpPayload(body, headers));
+            const rd = remote && typeof remote === 'object'
+              ? (remote.data != null ? remote.data : remote)
+              : emptyAgentListData(extra.key);
+            return ok(rd, 'ok');
+          } catch (err) {
+            console.warn('[provider:wgame] agent extra http failed:', (err && err.message) || err);
+          }
+        } else if (agent.useBuiltinMock) {
+          const { createMockAgentResponse } = require('../../../mock-agent-api');
+          const mock = createMockAgentResponse(extra.route, body || {});
+          if (mock && mock.data != null) return ok(mock.data, 'ok');
+        }
+      }
+    }
     return ok({ list: [], total: 0, records: [], rows: [] }, 'ok');
   }
 

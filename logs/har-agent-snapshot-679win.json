@@ -1,0 +1,46 @@
+{
+  "extractedAt": "2026-08-22T16:04:22.684Z",
+  "sourceHar": "C:\\Users\\Administrator\\Downloads\\679win.com.har",
+  "sourceCaptures": [],
+  "endpointCount": 2,
+  "endpoints": {
+    "POST /api/agent/promote/binding/reportViewV2": {
+      "status": 200,
+      "request": {
+        "accessUrl": "https://679win.com",
+        "visitor_device": "ef593bc9-ba28-4c3d-9917-befea94e7a19",
+        "time": 1787327559
+      },
+      "response": {
+        "code": 1,
+        "msg": "返回成功",
+        "time": 1787327560,
+        "data": {
+          "code": 0,
+          "reason": "",
+          "promoterUserIdx": 0
+        }
+      }
+    },
+    "POST /api/agent/promote/getIpBindInfo": {
+      "status": 200,
+      "request": {
+        "agentName": "",
+        "channelId": 0,
+        "currency": "",
+        "time": 1787327560
+      },
+      "response": {
+        "code": 1,
+        "msg": "返回成功",
+        "time": 1787327560,
+        "data": {}
+      }
+    }
+  },
+  "agent": {
+    "getIpBindInfo": {}
+  },
+  "importedFromCapture": 0,
+  "note": "no agent capture yet; login+browse agent page then stop capture"
+}

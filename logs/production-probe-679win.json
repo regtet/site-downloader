@@ -1,0 +1,8 @@
+{
+  "at": "2026-08-22T16:04:31.216Z",
+  "siteId": "679win",
+  "skipped": true,
+  "pay": null,
+  "agent": null,
+  "reason": "set PAY_HTTP_URL / AGENT_HTTP_BASE or non-localhost adapter-hosts"
+}

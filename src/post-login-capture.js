@@ -66,6 +66,7 @@ class ManualCaptureSession {
     this.id = id;
     this.side = options.side || 'unknown';
     this.pageUrl = options.pageUrl;
+    this.siteId = options.siteId || '';
     this.status = 'starting';
     this.startedAt = new Date().toISOString();
     this.finishedAt = null;
@@ -83,10 +84,12 @@ class ManualCaptureSession {
     const hasPostLogin = [...paths].some((p) =>
       /\/api\/(gamecenter\/gold|member\/user\/avatars|member\/user\/vip|finance\/pay|finance\/certify)/i.test(p)
     );
+    const hasAgentApi = [...paths].some((p) => /\/api\/agent\/promote\//i.test(p));
     return {
       id: this.id,
       side: this.side,
       pageUrl: this.pageUrl,
+      siteId: this.siteId || '',
       status: this.status,
       startedAt: this.startedAt,
       finishedAt: this.finishedAt,
@@ -95,12 +98,15 @@ class ManualCaptureSession {
       uniqueApis: paths.size,
       hasLoginApi,
       hasPostLogin,
+      hasAgentApi,
       hint: this.status === 'recording'
         ? (hasLoginApi
           ? (hasPostLogin
-            ? '已看到登录后接口，可点「完成抓包」'
-            : '已登录迹象：请再点个人中心 / 充值 / VIP')
-          : '请在弹出的浏览器里手动登录，再打开个人中心、充值等页面')
+            ? (hasAgentApi
+              ? '已看到登录后接口，可点「完成抓包」'
+              : '请再打开代理/推广页各 Tab，然后完成抓包')
+            : '已登录迹象：请再点个人中心 / 充值 / 代理页')
+          : '请在弹出的浏览器里手动登录，再打开个人中心、充值、代理页')
         : null
     };
   }
@@ -206,9 +212,9 @@ class ManualCaptureSession {
   }
 }
 
-async function startManualCapture({ side, pageUrl }) {
+async function startManualCapture({ side, pageUrl, siteId }) {
   const id = `cap-${side}-${Date.now()}`;
-  const session = new ManualCaptureSession(id, { side, pageUrl });
+  const session = new ManualCaptureSession(id, { side, pageUrl, siteId });
   sessions.set(id, session);
   try {
     await session.start();

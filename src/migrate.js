@@ -62,6 +62,14 @@ function exportMigrated(siteId) {
     throw err;
   }
 
+  let preservedHosts = null;
+  const prevHostsPath = path.join(out, 'adapter-hosts.json');
+  if (fs.existsSync(prevHostsPath)) {
+    try {
+      preservedHosts = JSON.parse(fs.readFileSync(prevHostsPath, 'utf8'));
+    } catch (_) { /* ignore */ }
+  }
+
   emptyDir(out);
   copyRecursive(src, out, { skip: SKIP_META });
 
@@ -79,13 +87,49 @@ function exportMigrated(siteId) {
     provider: 'wgame',
     providerOptions: {
       mode: 'wgame',
+      fallbackMockOnIpLimit: true,
       pay: {
         enabled: true,
-        note: 'Replace channels/createOrder with your real pay API; default is PIX placeholder. mode=http + httpUrl for remote create.'
+        source: 'wgame',
+        allowPlaceholderFallback: false,
+        createOrder: {
+          mode: 'http',
+          useBuiltinMock: false,
+          httpUrl: 'http://127.0.0.1:3000/api/dev/mock-cashier/create',
+          httpMethod: 'POST'
+        },
+        note: 'wgame charge first; fallback HTTP cashier at createOrder.httpUrl.'
       },
       agent: {
         enabled: true,
-        note: 'Replace indexInfo/myTotalData/commission with your agent API payloads; default is zero-state'
+        source: 'wgame',
+        useBuiltinMock: false,
+        httpBase: 'http://127.0.0.1:3000/api/dev/mock-agent',
+        httpMethod: 'POST',
+        routes: {
+          agentMode: '/agentMode',
+          promoteConfig: '/promoteConfig',
+          agentPromotion: '/agentPromotion',
+          indexInfo: '/indexInfo',
+          myTotalData: '/myTotalData',
+          myPeriodData: '/myPeriodData',
+          myCommission: '/myCommission',
+          commissionMarquee: '/commissionMarquee',
+          getIpBindInfo: '/getIpBindInfo',
+          directReport: '/directReport',
+          teamDataV2: '/teamDataV2',
+          myCommissionDetail: '/myCommissionDetail',
+          myPerformance: '/myPerformance',
+          myPerformanceDetail: '/myPerformanceDetail',
+          clubCommission: '/clubCommission',
+          clubCommissionDetail: '/clubCommissionDetail',
+          clubPerformance: '/clubPerformance',
+          clubPerformanceUser: '/clubPerformanceUser',
+          directFin: '/directFin',
+          memberInfo: '/memberInfo',
+          bindingReport: '/bindingReport'
+        },
+        note: 'HTTP agent at httpBase+routes; replace with your production agent API.'
       }
     },
     upstreamOrigin: inferred.upstreamOrigin || '',
@@ -93,6 +137,8 @@ function exportMigrated(siteId) {
     siteCode: siteCode || '',
     mapSize: Object.keys(MIGRATION_MAP).length
   };
+  const { mergePreservedProductionHooks } = require('./production-hooks');
+  mergePreservedProductionHooks(adapterHosts, preservedHosts);
   fs.writeFileSync(path.join(out, 'adapter-hosts.json'), JSON.stringify(adapterHosts, null, 2), 'utf8');
 
   const manifest = {
