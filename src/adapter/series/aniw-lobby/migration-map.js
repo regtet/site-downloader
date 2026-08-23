@@ -22,7 +22,8 @@ const CORE_MAP = {
 
   // —— logout ——
   '/api/member/logout': { op: OP.AUTH_LOGOUT, adapter: 'logout' },
-  '/api/gameCenter/gameApi/logout': { op: OP.AUTH_LOGOUT, adapter: 'logout' },
+  // 退出游戏平台，不是会员登出；不能清 wgame 大厅会话（否则紧接着 gameApi/login 会 10061）
+  '/api/gameCenter/gameApi/logout': { op: OP.LOBBY_OK, adapter: 'lobbyOk', note: 'game platform logout noop' },
 
   // —— 会话复用 ——
   '/api/member/getFastLogin': {
@@ -122,7 +123,7 @@ const CORE_MAP = {
   '/api/gameCenter/gameApi/recent-list/v3': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords' },
   '/api/gameCenter/gameApi/recentPlatformList': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords' },
   '/api/gameCenter/gameApi/lastGameInfo': { op: OP.LOBBY_OK, adapter: 'lobbyOk' },
-  '/api/gameCenter/gameApi/logoutGame': { op: OP.AUTH_LOGOUT, adapter: 'logout' },
+  '/api/gameCenter/gameApi/logoutGame': { op: OP.LOBBY_OK, adapter: 'lobbyOk', note: 'game platform logout noop' },
   '/api/gameCenter/addFavorite': { op: OP.LOBBY_OK, adapter: 'lobbyOk', note: 'favorite not persisted' },
 
   // —— 消息 ——

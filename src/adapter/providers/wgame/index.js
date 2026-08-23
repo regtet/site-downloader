@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { wgameAuth } = require('./client');
+const { wgameAuth, defaultDeviceId } = require('./client');
 const { loadWgameConfig } = require('./config');
 const { OP } = require('../../ops');
 const https = require('https');
@@ -63,6 +63,43 @@ function httpJson(urlStr, method, body) {
     req.end();
   });
 }
+function validHallUserId(userId) {
+  const n = Number(userId);
+  return Number.isFinite(n) && n > 0;
+}
+
+function canReuseLocalSession(user) {
+  return !!(user && user.session && validHallUserId(user.userId)
+    && user.hall_server_id != null && user.hall_branch_id != null);
+}
+
+function extractSessionKey(body, headers) {
+  const h = headers || {};
+  return String(
+    h['x-session-key']
+    || h['session-key']
+    || h['session_key']
+    || h.token
+    || h.Token
+    || h.userkey
+    || h.Userkey
+    || h.authorization
+    || h.Authorization
+    || (body && (body.session_key || body.sessionKey || body.jwt_token || body.token || body.userkey))
+    || ''
+  ).replace(/^Bearer\s+/i, '').trim();
+}
+
+function mergePassportIntoUser(user, res) {
+  if (!user || !res) return user;
+  if (res.sSession) user.session = String(res.sSession);
+  if (res.dwUserID != null) user.userId = String(res.dwUserID);
+  if (res.nHallServerId != null) user.hall_server_id = res.nHallServerId;
+  if (res.nHallBranchId != null) user.hall_branch_id = res.nHallBranchId;
+  if (res.deviceId) user.device_id = String(res.deviceId);
+  return user;
+}
+
 function loadPersistedSessions() {
   try {
     if (!fs.existsSync(SESSION_STORE)) return;
@@ -159,7 +196,7 @@ function toCanonicalUser(account, password, res) {
     email: res.email || '',
     vip_level: res.nVipLevel || 0,
     face_id: res.faceID != null ? String(res.faceID) : '',
-    device_id: res.deviceId || '',
+    device_id: res.deviceId || res.device_id || '',
     hall_server_id: res.nHallServerId,
     hall_branch_id: res.nHallBranchId,
     server_time: res.dwServerTime,
@@ -184,34 +221,50 @@ function rememberSession(user) {
   return row;
 }
 
-function findSession(body, headers) {
-  const h = headers || {};
-  const key = String(
-    h['x-session-key']
-    || h['session-key']
-    || h['session_key']
-    || h.token
-    || h.Token
-    || (body && (body.session_key || body.sessionKey || body.jwt_token || body.userkey))
-    || ''
-  );
+function findSession(body, headers, opts) {
+  const key = extractSessionKey(body, headers);
+
+  const tryRow = (row) => {
+    if (!row || !row.user) return null;
+    if (opts && opts.requireHallResume && !canReuseLocalSession(row.user)) return null;
+    return row;
+  };
+
   if (key) {
     const bySk = sessions.get('sk:' + key);
-    if (bySk) return bySk;
+    if (bySk) {
+      const hit = tryRow(bySk);
+      if (hit) return hit;
+    }
     const byUid = sessions.get('uid:' + key);
-    if (byUid) return byUid;
+    if (byUid) {
+      const hit = tryRow(byUid);
+      if (hit) return hit;
+    }
     for (const row of sessions.values()) {
       const u = row && row.user;
       if (!u) continue;
-      if (u.session === key || u.userId === key) return row;
+      if (u.session === key || String(u.userId) === key || u.userkey === key) {
+        const hit = tryRow(row);
+        if (hit) return hit;
+      }
     }
+    if (opts && opts.requireHallResume) return null;
   }
+
+  if (opts && opts.requireHallResume) return null;
+
   let latest = null;
+  let latestResumable = null;
   for (const [k, row] of sessions.entries()) {
     if (String(k).startsWith('uid:') || String(k).startsWith('sk:')) continue;
+    if (!row || !row.user) continue;
+    if (canReuseLocalSession(row.user)) {
+      if (!latestResumable || (row.at || 0) > (latestResumable.at || 0)) latestResumable = row;
+    }
     if (!latest || (row.at || 0) > (latest.at || 0)) latest = row;
   }
-  return latest;
+  return latestResumable || latest;
 }
 
 /** 转发自有 HTTP 收银台/代理 API 时附带会话字段 */
@@ -317,6 +370,9 @@ async function callGateway(action, data, cfg) {
     return fail(1004, 'account/password required');
   }
   try {
+    const existing = users.get(account);
+    const stableDevice = (existing && existing.user && existing.user.device_id)
+      || defaultDeviceId(account);
     const res = await wgameAuth({
       action,
       wssUrl: cfg.wssUrl,
@@ -325,10 +381,12 @@ async function callGateway(action, data, cfg) {
       nGmType: cfg.nGmType,
       account,
       password,
+      deviceId: stableDevice,
       inviteCode: pickInvite(data),
       mobile: data.phone || data.mobile || ''
     });
     const user = toCanonicalUser(account, password, res);
+    mergePassportIntoUser(user, res);
     rememberSession(user);
     return ok(user, 'ok');
   } catch (err) {
@@ -385,7 +443,8 @@ async function execute(op, ctx) {
     const account = pickAccount(body);
     const password = pickPassword(body);
     const local = account && users.get(account);
-    if (local && local.user && String(local.password || '') === String(password || '')) {
+    if (local && local.user && String(local.password || '') === String(password || '')
+      && canReuseLocalSession(local.user)) {
       rememberSession(local.user);
       return ok(local.user, 'ok (local session)');
     }
@@ -856,19 +915,30 @@ async function execute(op, ctx) {
   }
 
   if (op === OP.GAME_LAUNCH) {
-    const { loadGameConfig, buildGameLaunchData } = require('./game-config');
+    const { loadGameConfig, resolveGameLaunch } = require('./game-config');
     const game = loadGameConfig(ctx && ctx.siteDir, cfg);
     if (!game.enabled) {
       return fail(10060, 'game launch disabled in providerOptions.game');
     }
-    const sessionRow = findSession(body, headers);
+    const sessionRow = findSession(body, headers, { requireHallResume: true });
     const sessionUser = sessionRow && sessionRow.user;
-    if (!sessionUser) return fail(401, 'not logged in');
-    const data = buildGameLaunchData(body || {}, sessionUser, game, ctx && ctx.siteDir);
-    if (!data || !data.game_url) {
-      return fail(10061, 'no game mapping for platformId=' + (body.platfromid || body.platformId));
+    if (!sessionUser) {
+      return fail(10061, 'session expired for game launch, please logout and login again');
     }
-    return ok(data, 'ok');
+    try {
+      const data = await resolveGameLaunch(body || {}, sessionUser, game, ctx && ctx.siteDir);
+      if (!data || !data.game_url) {
+        return fail(10061, 'no game mapping for platformId=' + (body.platfromid || body.platformId));
+      }
+      return ok(data, 'ok');
+    } catch (err) {
+      let msg = (err && err.message) || 'game launch failed';
+      if (/login error 46/i.test(msg)) {
+        msg = 'account already online, please logout and login again before launching game';
+      }
+      console.warn('[provider:wgame] game launch failed:', msg);
+      return fail(10061, msg);
+    }
   }
 
   if (op === OP.AUTH_LOGOUT) {

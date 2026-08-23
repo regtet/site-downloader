@@ -44,11 +44,12 @@ function sendJson(res, status, obj, extraHeaders) {
 }
 
 function resolveSiteConfig(options) {
+  const siteDir = options.siteDir || '';
+  // 每次从磁盘读 adapter-hosts，避免预览启动后改配置不生效
+  if (siteDir) return loadAdapterConfig(siteDir, fs, path);
   if (options.adapterConfig && options.adapterConfig.seriesMod) {
     return options.adapterConfig;
   }
-  const siteDir = options.siteDir || '';
-  if (siteDir) return loadAdapterConfig(siteDir, fs, path);
   return {
     series: 'aniw-lobby',
     provider: 'wgame',

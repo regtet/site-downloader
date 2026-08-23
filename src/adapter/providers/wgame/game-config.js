@@ -14,9 +14,14 @@ const DEFAULT_GAME = {
   clientPath: 'gogamesac/clientv3/index.html',
   /** 注入 window.lobby_game_url，指向 wgame H5 客户端根 URL（可留空，从 wssUrl 推导） */
   lobbyGameUrl: '',
-  /** 未命中 mappings 时是否全部落到 defaultTarget */
+  /** createuser=走 wgame_web /index/createuser；clientv3=旧 gogamesac 壳 */
+  launchMode: 'createuser',
+  /** dist platformId → wgame nApiID */
+  platformMap: {},
+  /** 未命中 mappings 时是否全部落到 defaultTarget（clientv3 模式） */
   fallbackToDefault: true,
-  /** 视为自营平台（走 apiGetGameUrl + clientv3 重写） */
+  /** createuser 失败时是否回退 gogamesac 壳 */
+  fallbackToClient: false,
   selfPlatformIds: ['0999'],
   defaultTarget: {
     kindId: 1,
@@ -86,10 +91,16 @@ function loadGameConfig(siteDir, providerOptions) {
   cfg.defaultTarget = Object.assign({}, DEFAULT_GAME.defaultTarget, raw.defaultTarget || {});
   if (Array.isArray(raw.selfPlatformIds)) cfg.selfPlatformIds = raw.selfPlatformIds.slice();
   if (Array.isArray(raw.mappings)) cfg.mappings = raw.mappings.slice();
+  if (raw.platformMap && typeof raw.platformMap === 'object') {
+    cfg.platformMap = Object.assign({}, raw.platformMap);
+  }
+  if (raw.launchMode) cfg.launchMode = String(raw.launchMode);
+  if (raw.fallbackToDefault != null) cfg.fallbackToDefault = !!raw.fallbackToDefault;
+  if (raw.fallbackToClient != null) cfg.fallbackToClient = !!raw.fallbackToClient;
+  if (process.env.GAME_LAUNCH_MODE) cfg.launchMode = String(process.env.GAME_LAUNCH_MODE);
   if (raw.enabled === false) cfg.enabled = false;
   if (raw.clientPath) cfg.clientPath = String(raw.clientPath);
   if (raw.lobbyGameUrl) cfg.lobbyGameUrl = String(raw.lobbyGameUrl);
-  if (raw.fallbackToDefault != null) cfg.fallbackToDefault = !!raw.fallbackToDefault;
   if (process.env.GAME_LOBBY_URL) cfg.lobbyGameUrl = String(process.env.GAME_LOBBY_URL);
   if (process.env.GAME_CLIENT_PATH) cfg.clientPath = String(process.env.GAME_CLIENT_PATH);
   const resolvedLobby = resolveLobbyGameUrl(cfg, siteDir);
@@ -138,7 +149,7 @@ function resolveGameMapping(cfg, platformId, gameId, body) {
   };
 }
 
-function buildGameLaunchData(body, sessionUser, cfg, siteDir) {
+function buildClientGameLaunchData(body, sessionUser, cfg, siteDir) {
   const platformId = String(
     body.platfromid != null ? body.platfromid
       : (body.platformId != null ? body.platformId : '')
@@ -165,6 +176,56 @@ function buildGameLaunchData(body, sessionUser, cfg, siteDir) {
   };
 }
 
+/** 与 wgame_web OtherGameHall 一致：createuser 拿真实游戏 URL */
+async function resolveGameLaunch(body, sessionUser, cfg, siteDir) {
+  const platformId = String(
+    body.platfromid != null ? body.platfromid
+      : (body.platformId != null ? body.platformId : '')
+  );
+  const mode = String(cfg.launchMode || 'createuser').toLowerCase();
+
+  if (mode === 'createuser') {
+    const { resolveCreateUserTarget } = require('./game-catalog');
+    const { createUserGameLaunch } = require('./game-createuser');
+    const { loadWgameConfig } = require('./config');
+    const wgameCfg = loadWgameConfig(siteDir);
+    const target = resolveCreateUserTarget(body, cfg, siteDir);
+    if (!target.nOriginalID || !target.gameid) {
+      const pid = platformId || '?';
+      const gid = body.gameid != null ? body.gameid : (body.gameId != null ? body.gameId : 0);
+      const err = new Error(
+        'game mapping missing for platformId=' + pid + ' gameid=' + gid
+        + (gid === 0 ? ' (click a specific game, not platform header)' : '')
+      );
+      throw err;
+    }
+    if (target.nApiID !== 0 && target.game_key) {
+      const launch = await createUserGameLaunch(sessionUser, target, { wgameConfig: wgameCfg });
+      if (launch.ok && launch.game_url) {
+        return {
+          game_url: launch.game_url,
+          gameName: target.gameName,
+          direction: 1,
+          gameid: target.gameid,
+          platfromid: platformId,
+          platformId,
+          kindId: target.nOriginalID,
+          roomId: 0,
+          launchMode: 'createuser',
+          wgameTarget: target
+        };
+      }
+      if (!cfg.fallbackToClient) {
+        const err = new Error(launch.msg || 'createuser failed');
+        err.launch = launch;
+        throw err;
+      }
+    }
+  }
+
+  return buildClientGameLaunchData(body, sessionUser, cfg, siteDir);
+}
+
 function isSelfPlatform(cfg, platformId) {
   const pid = String(platformId || '');
   const ids = Array.isArray(cfg.selfPlatformIds) ? cfg.selfPlatformIds : [];
@@ -178,7 +239,9 @@ module.exports = {
   buildClientGameUrl,
   loadGameConfig,
   resolveGameMapping,
-  buildGameLaunchData,
+  buildClientGameLaunchData,
+  resolveGameLaunch,
+  buildGameLaunchData: buildClientGameLaunchData,
   isSelfPlatform,
   parseGameInfoFromBody
 };

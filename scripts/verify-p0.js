@@ -195,6 +195,28 @@ function testMap() {
   if (zeroPkg.wgameWeb && zeroPkg.wgameWeb.debug) {
     assert(zeroPkg.packageId === 0, 'packageId 0 from wgame_web');
   }
+  const { isGameLauncherRequest } = require('../src/game-launcher');
+  assert(isGameLauncherRequest(new URL('http://x/pages/game/index.html?keyType=url&storageKey=a')), 'game launcher path');
+  assert(isGameLauncherRequest(new URL('http://x/?keyType=url&storageKey=web_lobby_url_redirect_1')), 'game launcher query');
+  const { resolveCreateUserTarget, resolveOriginalIdFromOssGameId, resolveByGameName } = require('../src/adapter/providers/wgame/game-catalog');
+  assert(resolveOriginalIdFromOssGameId(126, 12) === 22000126, 'PG oss gameId → wgame raw nOriginalID');
+  const cu = resolveCreateUserTarget(
+    { platfromid: '200', gameid: 126 },
+    { platformMap: { '200': { nApiID: 12, pg_new_way_login: 1 } } }
+  );
+  assert(cu.nOriginalID === 22000126 && cu.gameid === 126 && cu.game_key === 'pgofficial', 'PG platform gameid mapping');
+  const cuName = resolveCreateUserTarget(
+    { platfromid: '200', gameid: 0, callContext: JSON.stringify({ gameInfo: { gameName: 'Mahjong Ways' } }) },
+    { platformMap: { '200': { nApiID: 12, pg_new_way_login: 1 } } }
+  );
+  assert(cuName.nOriginalID === 22000065, 'game name mapping from callContext');
+  assert(resolveByGameName('Fortune Rabbit', 12) === 23543462, 'Fortune Rabbit pgofficial id');
+  const cuRabbit = resolveCreateUserTarget(
+    { platfromid: '200', gameid: 2001007 },
+    { platformMap: { '200': { nApiID: 12, pg_new_way_login: 1 } } },
+    path.join(__dirname, '..', 'output', '679win')
+  );
+  assert(cuRabbit.nOriginalID === 23543462 && cuRabbit.gameid === 1543462, 'OSS catalog id → name → wgame createuser');
   const webRoot = resolveWgameWebRoot();
   if (webRoot) {
     const { loadWgameConfig } = require('../src/adapter/providers/wgame/config');

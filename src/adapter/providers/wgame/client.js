@@ -7,7 +7,7 @@ const { applySystemProxy, getHttpsProxyAgent, resolveProxyUrl } = require('../..
 applySystemProxy({ log: false });
 
 function defaultDeviceId(account) {
-  return proto.md5Hex('sd-' + String(account || 'device') + '-' + Date.now()).slice(0, 32);
+  return proto.md5Hex('sd-' + String(account || 'device')).slice(0, 32);
 }
 
 /**
@@ -26,8 +26,11 @@ function wgameAuth(options) {
   const deviceId = options.deviceId || defaultDeviceId(account);
   const passwordMd5 = proto.md5Hex(password);
   const skipHall = !!options.skipHall;
-  const hallAction = options.hallAction || ''; // '' | payChannels | payCharge | proxyInvite
+  const hallAction = options.hallAction || ''; // '' | payChannels | payCharge | proxyInvite | httpProxy
   const chargeOpts = options.charge || {};
+  const httpProxyPack = options.httpProxyPack || null;
+  const resumeSession = options.resumeSession || null;
+  let resumeTried = false;
 
   return new Promise((resolve, reject) => {
     let settled = false;
@@ -137,6 +140,50 @@ function wgameAuth(options) {
       ));
     };
 
+    const sendHallLogin = (hallCreds) => {
+      const body = proto.encodeHallLoginBody({
+        loginID: hallCreds.loginID,
+        session: hallCreds.session,
+        deviceId: hallCreds.deviceId || deviceId,
+        nServerId: hallCreds.nServerId,
+        nBranchId: hallCreds.nBranchId
+      });
+      ws.send(proto.encodePacket(
+        proto.EST.HALL,
+        proto.HALL.MDM_LOGON,
+        proto.HALL.SUB_REQ,
+        body
+      ));
+    };
+
+    const beginHallResume = (rs) => {
+      passport = {
+        dwUserID: rs.loginID,
+        sSession: rs.session,
+        nHallServerId: rs.nServerId,
+        nHallBranchId: rs.nBranchId
+      };
+      sendHallLogin(rs);
+    };
+
+    const canResume = !!(resumeSession && resumeSession.session
+      && Number.isFinite(Number(resumeSession.loginID)) && Number(resumeSession.loginID) > 0);
+
+    const afterTokenVerified = () => {
+      if (canResume) {
+        resumeTried = true;
+        beginHallResume(resumeSession);
+        return;
+      }
+      if (hallAction === 'httpProxy') {
+        done(Object.assign(new Error('session expired for game launch, please logout and login again'), {
+          code: 10061
+        }));
+        return;
+      }
+      sendAuthPacket();
+    };
+
     const enterHall = (ok) => {
       passport = ok;
       if (skipHall) {
@@ -151,21 +198,13 @@ function wgameAuth(options) {
         });
         return;
       }
-      // 对齐 HallKernel.sendHallLoginPacket：首登直接 EST_HALL 登录
-      //（网关 isLogonCMD 放行 1101，无需先 SockConnect）
-      const body = proto.encodeHallLoginBody({
+      sendHallLogin({
         loginID: ok.dwUserID,
         session: ok.sSession,
         deviceId,
         nServerId: ok.nHallServerId,
         nBranchId: ok.nHallBranchId
       });
-      ws.send(proto.encodePacket(
-        proto.EST.HALL,
-        proto.HALL.MDM_LOGON,
-        proto.HALL.SUB_REQ,
-        body
-      ));
     };
 
     const finishWithHall = (hall) => {
@@ -223,6 +262,11 @@ function wgameAuth(options) {
           ws.send(proto.encodeProxyInviteInfoReq());
           return;
         }
+        if (hallAction === 'httpProxy' && httpProxyPack) {
+          waitingPay = 'httpProxy';
+          ws.send(proto.encodeHttpCommonReq(httpProxyPack));
+          return;
+        }
       } catch (e) {
         done(e);
         return;
@@ -245,7 +289,7 @@ function wgameAuth(options) {
           const token = proto.readToken(buf);
           ws.send(proto.encodeMd5Verify(token));
           verified = true;
-          sendAuthPacket();
+          afterTokenVerified();
           return;
         }
 
@@ -255,7 +299,6 @@ function wgameAuth(options) {
 
         if (!verified) return;
 
-        // 网关 SockConnect 回包：可忽略，大厅登录包已发出
         if (head.cbServerType === proto.EST.GATE
           && head.wMainCmdID === proto.GATE.MDM_SOCK) {
           return;
@@ -293,7 +336,6 @@ function wgameAuth(options) {
           }
         }
 
-        // 大厅登录结果
         if (head.cbServerType === proto.EST.HALL || head.wMainCmdID === proto.HALL.MDM_LOGON) {
           if (head.wMainCmdID === proto.HALL.MDM_LOGON && head.wSubCmdID === proto.HALL.SUB_OK) {
             finishWithHall(proto.parseHallLogonRes(buf));
@@ -302,12 +344,22 @@ function wgameAuth(options) {
           if (head.wMainCmdID === proto.HALL.MDM_LOGON && head.wSubCmdID === proto.HALL.SUB_ERROR) {
             const err = proto.parseHallLoginError(buf);
             console.warn('[wgame] hall login failed', err.errorCode, err.errorDescribe);
+            if (resumeTried && hallAction !== 'httpProxy' && account && password) {
+              resumeTried = false;
+              sendAuthPacket();
+              return;
+            }
+            if (resumeTried && hallAction === 'httpProxy') {
+              done(Object.assign(new Error('hall session expired (' + err.errorCode + '), please re-login'), {
+                code: err.errorCode || 10062
+              }));
+              return;
+            }
             finishWithHall(null);
             return;
           }
         }
 
-        // 支付渠道
         if (waitingPay === 'payChannels'
           && head.wMainCmdID === proto.PAY.MDM_PAY
           && head.wSubCmdID === proto.PAY.SUB_QUERY_CHANNEL) {
@@ -324,7 +376,6 @@ function wgameAuth(options) {
           return;
         }
 
-        // 下单
         if (waitingPay === 'payCharge'
           && head.wMainCmdID === proto.PAY.MDM_HTTP
           && head.wSubCmdID === proto.PAY.SUB_CHARGE) {
@@ -341,7 +392,6 @@ function wgameAuth(options) {
           return;
         }
 
-        // 代理邀请信息
         if (waitingPay === 'proxyInvite'
           && head.wMainCmdID === proto.ROLE.MDM_ROLE
           && head.wSubCmdID === proto.ROLE.SUB_PROXY_INVITE_INFO) {
@@ -354,6 +404,22 @@ function wgameAuth(options) {
             ...passport,
             hall: hallState,
             proxyInvite
+          });
+          return;
+        }
+
+        if (waitingPay === 'httpProxy'
+          && head.wMainCmdID === proto.HTTP.MDM_HTTP_REQ
+          && head.wSubCmdID === proto.HTTP.SUB_HTTP_COMMON_RET) {
+          const httpProxy = proto.parseHttpCommonRet(buf);
+          done(null, {
+            ok: true,
+            action: 'httpProxy',
+            account,
+            deviceId,
+            ...passport,
+            hall: hallState,
+            httpProxy
           });
           return;
         }

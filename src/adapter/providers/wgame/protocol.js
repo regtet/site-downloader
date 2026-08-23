@@ -53,6 +53,12 @@ const ROLE = {
   SUB_PROXY_INVITE_INFO: 11320
 };
 
+const HTTP = {
+  MDM_HTTP_REQ: 104,
+  SUB_HTTP_COMMON_REQ: 5,
+  SUB_HTTP_COMMON_RET: 6
+};
+
 const GATE = {
   MDM_SOCK: 1,
   SUB_CONNECT: 101,
@@ -421,12 +427,6 @@ function parseChargeRet(buf) {
   return { nRet, szChargeUrl, szOrderInfo, orderInfo };
 }
 
-/** SUB_GP_GET_PROXY_VALID_INVITE_INFO：无 body */
-function encodeProxyInviteInfoReq() {
-  return encodePacket(EST.HALL, ROLE.MDM_ROLE, ROLE.SUB_PROXY_INVITE_INFO, null);
-}
-
-/** TCmd_ProxyValidInviteAwardCfg */
 function parseProxyInviteInfo(buf) {
   let o = 9;
   const nValidInviteCount = buf.readInt32LE(o); o += 4;
@@ -463,6 +463,43 @@ function parseProxyInviteInfo(buf) {
   };
 }
 
+/** SUB_GP_GET_PROXY_VALID_INVITE_INFO：无 body */
+function encodeProxyInviteInfoReq() {
+  return encodePacket(EST.HALL, ROLE.MDM_ROLE, ROLE.SUB_PROXY_INVITE_INFO, null);
+}
+
+/**
+ * 对齐 wgame_web HallKernel.httpProxy → CMD_GP_Http_Common_Req
+ * pack: { url, uri, data, type, uuid }
+ */
+function encodeHttpCommonReq(pack) {
+  const content = typeof pack === 'string' ? pack : JSON.stringify(pack || {});
+  const utf8 = Buffer.from(content, 'utf8');
+  const nSize = content.length;
+  const body = Buffer.alloc(2 + nSize);
+  body.writeUInt16LE(nSize, 0);
+  utf8.copy(body, 2, 0, Math.min(utf8.length, nSize));
+  return encodePacket(EST.HALL, HTTP.MDM_HTTP_REQ, HTTP.SUB_HTTP_COMMON_REQ, body);
+}
+
+/** CMD_GP_Http_Common_Ret → { uri, uuid, result_data } */
+function parseHttpCommonRet(buf) {
+  let o = 9;
+  if (o + 2 > buf.length) return { raw: '', outer: null, result: null };
+  const len = buf.readInt16LE(o); o += 2;
+  if (len <= 0 || o + len > buf.length) return { raw: '', outer: null, result: null };
+  const slice = buf.slice(o, o + len);
+  let raw = slice.toString('utf8');
+  if (!raw.trim().startsWith('{')) raw = slice.toString('latin1');
+  try {
+    const outer = JSON.parse(raw);
+    const result = outer && (outer.result_data != null ? outer.result_data : outer);
+    return { raw, outer, result };
+  } catch (_) {
+    return { raw, outer: null, result: null };
+  }
+}
+
 module.exports = {
   EST,
   KN,
@@ -470,6 +507,7 @@ module.exports = {
   HALL,
   PAY,
   ROLE,
+  HTTP,
   GATE,
   COIN_RATE,
   DEF_KEY,
@@ -486,6 +524,8 @@ module.exports = {
   encodeQueryPayChannel,
   encodeCharge,
   encodeProxyInviteInfoReq,
+  encodeHttpCommonReq,
+  parseHttpCommonRet,
   parseLogonOK,
   parseLoginError,
   parseRegisterError,

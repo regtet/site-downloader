@@ -47,21 +47,24 @@ function post(port, path, body, token) {
   console.log('login', lj.code, 'user', lj.data && lj.data.username);
 
   const launch = await post(port, '/api/gameCenter/gameApi/login', {
-    gameid: gameId,
+    gameid: Number(process.argv[4] || 126),
     platfromid: platformId,
-    user_type: 1
+    user_type: 1,
+    callContext: JSON.stringify({ gameInfo: { gameName: 'Fortune Tiger' } })
   }, token);
   let j;
   try { j = JSON.parse(launch.body); } catch (_) { j = null; }
   const d = j && j.data;
   console.log('gameApi/login:', {
     code: j && j.code,
+    msg: j && j.msg,
     adapter: launch.adapter,
-    game_url: d && d.game_url,
+    game_url: d && d.game_url && String(d.game_url).slice(0, 160),
     gameName: d && d.gameName,
     direction: d && d.direction,
     gameid: d && d.gameid,
-    platfromid: d && d.platfromid
+    platfromid: d && d.platfromid,
+    launchMode: d && d.launchMode
   });
   if (!j || j.code !== 1) process.exit(1);
 })().catch((e) => {

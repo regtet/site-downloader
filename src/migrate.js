@@ -72,6 +72,10 @@ function exportMigrated(siteId) {
 
   emptyDir(out);
   copyRecursive(src, out, { skip: SKIP_META });
+  try {
+    const { ensureGameLauncherOnDisk } = require('./game-launcher');
+    ensureGameLauncherOnDisk(out, fs, path);
+  } catch (_) { /* ignore */ }
 
   const logRoot = path.join(ROOT, 'logs');
   for (const name of [
@@ -144,20 +148,27 @@ function exportMigrated(siteId) {
       },
       game: {
         enabled: true,
+        launchMode: 'createuser',
         clientPath: 'gogamesac/clientv3/index.html',
         lobbyGameUrl: '',
         fallbackToDefault: true,
+        fallbackToClient: false,
         selfPlatformIds: ['0999'],
+        platformMap: {
+          '200': { nApiID: 12, pg_new_way_login: 1 },
+          '201': { nApiID: 12, pg_new_way_login: 1 },
+          '13': { nApiID: 2 },
+          '310': { nApiID: 5 },
+          '0999': { nApiID: 12, pg_new_way_login: 1 }
+        },
         defaultTarget: {
           kindId: 1,
           roomId: 0,
           gameName: 'WGame',
           direction: 1
         },
-        mappings: [
-          { platformId: '0999', gameId: '*', kindId: 1, roomId: 0 }
-        ],
-        note: 'OSS lists are UI-only; gameApi/login maps to wgame client. Set lobbyGameUrl or GAME_LOBBY_URL.'
+        mappings: [],
+        note: 'OSS lists are UI-only; gameApi/login calls wgame /index/createuser like wgame_web OtherGameHall.'
       }
     },
     upstreamOrigin: inferred.upstreamOrigin || '',

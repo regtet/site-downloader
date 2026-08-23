@@ -18,6 +18,7 @@ const { hasAdapterPack, inferOriginsFromNetwork, inferSiteCodeFromSite } = requi
 const { getProvider } = require('./adapter/providers');
 const { isMockCashierPath, handleMockCashierRequest } = require('./mock-cashier');
 const { isMockAgentPath, handleMockAgentRequest } = require('./mock-agent-api');
+const { isGameLauncherRequest, serveGameLauncher } = require('./game-launcher');
 
 const MIME_TYPES = {
     '.html': 'text/html; charset=utf-8',
@@ -190,9 +191,13 @@ function createStaticServer(siteDir, options = {}) {
       }
 
       const reqUrl = new URL(req.url || '/', `http://${host}:${options.port || 0}`);
-      const filePath = resolveFilePath(root, req.url || '/');
       const method = String(req.method || 'GET').toUpperCase();
       const isMutating = method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS';
+      if (!isMutating && isGameLauncherRequest(reqUrl)) {
+        serveGameLauncher(res);
+        return;
+      }
+      const filePath = resolveFilePath(root, req.url || '/');
 
       if (!filePath) {
         // OSS/图片误落到本地短 path → 回 oniw OSS，不要回主站（且禁止 POST 打 OSS）

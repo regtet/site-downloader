@@ -98,7 +98,11 @@ function parseWgameWebConfigText(text) {
   const mockWssUrl = String(extractScalar(text, 'mockWssUrl') || '');
   const packageId = extractScalar(text, 'packageId');
   const baseUrl = String(extractScalar(text, 'baseUrl') || '');
+  const mockUrl = String(extractScalar(text, 'mockUrl') || '');
+  const otherGameApiKey = String(extractScalar(text, 'otherGameApiKey') || '');
+  const apiKey = String(extractScalar(text, 'apiKey') || '');
   const proxyShareUrlList = extractStringArray(text, 'proxyShareUrlList');
+  const httpBase = debug && mockUrl ? mockUrl : (baseUrl || mockUrl);
   const wssUrl = debug && mockWssUrl ? mockWssUrl : (baseWssUrl || mockWssUrl || '');
   const lobbyGameUrl = deriveLobbyGameUrlFromProxyList(proxyShareUrlList);
   return {
@@ -108,6 +112,10 @@ function parseWgameWebConfigText(text) {
     wssUrl,
     packageId: packageId != null ? Number(packageId) : undefined,
     baseUrl,
+    mockUrl,
+    httpBase,
+    otherGameApiKey,
+    apiKey,
     proxyShareUrlList,
     lobbyGameUrl
   };
