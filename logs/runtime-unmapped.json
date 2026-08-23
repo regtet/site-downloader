@@ -1,12 +1,60 @@
 {
-  "at": "2026-08-23T08:09:49.083Z",
-  "totalKeys": 1,
+  "at": "2026-08-23T16:33:55.826Z",
+  "totalKeys": 9,
   "top": [
     {
+      "key": "POST /api/agent/promote/commissionMarquee",
+      "count": 34,
+      "firstAt": 1787473136808,
+      "lastAt": 1787502835826
+    },
+    {
+      "key": "POST /api/active/tasks/newcomer_benefit_pop",
+      "count": 32,
+      "firstAt": 1787472590658,
+      "lastAt": 1787485589783
+    },
+    {
+      "key": "GET /api/active/category",
+      "count": 9,
+      "firstAt": 1787472591084,
+      "lastAt": 1787485478725
+    },
+    {
       "key": "GET /api/finance/maxChargeRate",
-      "count": 1,
+      "count": 8,
       "firstAt": 1787472589083,
-      "lastAt": 1787472589083
+      "lastAt": 1787485374064
+    },
+    {
+      "key": "POST /api/platform/config",
+      "count": 6,
+      "firstAt": 1787485008445,
+      "lastAt": 1787485040143
+    },
+    {
+      "key": "POST /api/platform/site",
+      "count": 6,
+      "firstAt": 1787485008447,
+      "lastAt": 1787485040145
+    },
+    {
+      "key": "POST /api/login",
+      "count": 5,
+      "firstAt": 1787486191211,
+      "lastAt": 1787486203969
+    },
+    {
+      "key": "GET /api/platform/lang",
+      "count": 4,
+      "firstAt": 1787485008112,
+      "lastAt": 1787485024013
+    },
+    {
+      "key": "GET /api/chat/conversations",
+      "count": 2,
+      "firstAt": 1787486148206,
+      "lastAt": 1787486148239
     }
   ]
 }

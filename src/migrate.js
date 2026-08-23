@@ -73,6 +73,17 @@ function exportMigrated(siteId) {
   emptyDir(out);
   copyRecursive(src, out, { skip: SKIP_META });
 
+  const logRoot = path.join(ROOT, 'logs');
+  for (const name of [
+    `har-oss-snapshot-${id}.json`,
+    `har-pay-snapshot-${id}.json`
+  ]) {
+    const snapSrc = path.join(logRoot, name);
+    if (fs.existsSync(snapSrc)) {
+      fs.copyFileSync(snapSrc, path.join(out, name.replace(`-${id}`, '')));
+    }
+  }
+
   let inferred = { upstreamOrigin: '', ossOrigin: '' };
   let siteCode = '';
   try {

@@ -23,7 +23,7 @@
         </span>
         <div class="brand-text">
           <h1>Site Downloader</h1>
-          <p class="subtitle">两步：获取 dist → 替换接口</p>
+          <p class="subtitle">两步：获取 dist → 手动点「替换接口」</p>
         </div>
       </div>
       <div id="queueStatus" class="queue-status" aria-live="polite"></div>
@@ -119,44 +119,10 @@
           </div>
           <div class="result-actions">
             <button type="button" id="migrateBtn" class="btn btn-primary" disabled>替换接口</button>
-            <button type="button" id="analyzePostLoginBtn" class="btn btn-secondary" disabled>登录后依赖分析</button>
             <button type="button" id="previewBtn" class="btn btn-secondary" disabled>本地预览</button>
             <button type="button" id="stopPreviewBtn" class="btn btn-ghost hidden">关闭预览</button>
           </div>
-          <div id="analyzeBox" class="analyze-box hidden">
-            <div class="analyze-modes">
-              <label class="analyze-mode"><input type="radio" name="analyzeMode" value="manual" checked /> 手动登录抓包</label>
-              <label class="analyze-mode"><input type="radio" name="analyzeMode" value="har" /> 导入双端 HAR</label>
-              <label class="analyze-mode"><input type="radio" name="analyzeMode" value="static" /> 仅静态扫描</label>
-            </div>
-
-            <div id="analyzeManualPane" class="analyze-pane">
-              <p class="analyze-hint">会弹出浏览器。请你<strong>手动登录</strong>，再点个人中心 / 充值 / VIP，然后点「完成抓包」。两边都完成后生成对比。</p>
-              <input type="url" id="analyzeSourceUrl" placeholder="源站 URL" autocomplete="off" />
-              <div class="analyze-manual-row">
-                <button type="button" id="capSourceStartBtn" class="btn btn-ghost btn-sm">① 打开源站抓包</button>
-                <button type="button" id="capSourceStopBtn" class="btn btn-ghost btn-sm" disabled>完成源站</button>
-                <span id="capSourceStatus" class="cap-status">未开始</span>
-              </div>
-              <div class="analyze-manual-row">
-                <button type="button" id="capLocalStartBtn" class="btn btn-ghost btn-sm">② 打开本地抓包</button>
-                <button type="button" id="capLocalStopBtn" class="btn btn-ghost btn-sm" disabled>完成本地</button>
-                <span id="capLocalStatus" class="cap-status">未开始</span>
-              </div>
-            </div>
-
-            <div id="analyzeHarPane" class="analyze-pane hidden">
-              <p class="analyze-hint">Chrome DevTools → Network → 勾选 Preserve log → 登录并操作后右键 Save all as HAR。源站一份、本地预览一份。</p>
-              <label class="analyze-file">源站 HAR <input type="file" id="harSourceInput" accept=".har,.json,application/json" /></label>
-              <label class="analyze-file">本地 HAR <input type="file" id="harLocalInput" accept=".har,.json,application/json" /></label>
-            </div>
-
-            <div id="analyzeStaticPane" class="analyze-pane hidden">
-              <p class="analyze-hint">不抓包，只根据 dist JS + migration-map 列出预期依赖（不能验证字段兼容）。</p>
-            </div>
-          </div>
           <p id="migrateStatus" class="migrate-status hidden"></p>
-          <div id="analyzeReport" class="analyze-report hidden"></div>
           <p id="outputPath" class="output-path"></p>
           <div id="errorList" class="error-list scrollable hidden"></div>
         </div>

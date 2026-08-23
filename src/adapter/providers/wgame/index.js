@@ -877,6 +877,13 @@ async function execute(op, ctx) {
   }
 
   if (op === OP.LOBBY_OK) {
+    const routePath = ctx && ctx.routePath;
+    if (routePath && /^\/api\/platform\//i.test(routePath)) {
+      const { buildPlatformResponse } = require('./platform-config');
+      const { loadAdapterConfig } = require('../../config');
+      const adapterCfg = loadAdapterConfig(ctx && ctx.siteDir, fs, path);
+      return ok(buildPlatformResponse(routePath, ctx && ctx.siteDir, adapterCfg), 'ok');
+    }
     return ok({}, 'ok');
   }
 

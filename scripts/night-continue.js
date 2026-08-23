@@ -108,11 +108,13 @@ function main() {
   const verifyOk = /passed=\d+ failed=0/.test(verify.stdout || '');
 
   if (verifyOk) {
-    spawnSync(process.execPath, ['scripts/export-migrated.js', siteId], {
-      cwd: root,
-      encoding: 'utf8',
-      timeout: 60000
-    });
+    if (process.env.AUTO_EXPORT_MIGRATED === '1') {
+      spawnSync(process.execPath, ['scripts/export-migrated.js', siteId], {
+        cwd: root,
+        encoding: 'utf8',
+        timeout: 60000
+      });
+    }
     if (fs.existsSync(harFile)) {
       spawnSync(process.execPath, ['scripts/extract-har-pay.js', siteId, harFile], {
         cwd: root,

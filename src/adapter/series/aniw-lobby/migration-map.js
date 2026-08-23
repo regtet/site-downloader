@@ -101,7 +101,7 @@ const CORE_MAP = {
   '/api/active/recharge/financeGiveReward': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no give reward' },
   '/api/active/redPackIndex': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no redpack' },
   '/api/active/tasks/task': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no tasks' },
-  '/api/active/tasks/newcomer_benefit_pop': { op: OP.UPSTREAM, adapter: 'emptyList', note: 'HAR encrypted newcomer popup' },
+  '/api/active/tasks/newcomer_benefit_pop': { op: OP.EMPTY_RECORDS, adapter: 'emptyList', note: 'no newcomer popup engine' },
 
   // —— 游戏启动：OSS 列表仅展示，点击走 wgame 映射 ——
   '/api/gameCenter/gameApi/login': { op: OP.GAME_LAUNCH, adapter: 'gameLaunch', note: 'wgame game mapping' },
@@ -167,6 +167,11 @@ const CORE_MAP = {
   '/api/active/tasks/receiveOne': { op: OP.FEATURE_PENDING, adapter: 'featurePending' },
   '/api/active/coupon/check': { op: OP.FEATURE_PENDING, adapter: 'featurePending' },
 
+  // —— 平台元数据（新版启动链；从 index.html 站点配置合成）——
+  '/api/platform/lang': { op: OP.LOBBY_OK, adapter: 'platformPayload', note: 'language list from site meta' },
+  '/api/platform/config': { op: OP.LOBBY_OK, adapter: 'platformPayload', note: 'platform config from site meta' },
+  '/api/platform/site': { op: OP.LOBBY_OK, adapter: 'platformPayload', note: 'site info from site meta' },
+
   // —— gohal / 投注报表 ——
   '/api/gohal/getSysInfo': { op: OP.LOBBY_OK, adapter: 'lobbyOk' },
   '/api/gohal/staffAllV3': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'nav/menu staff config OSS' },
@@ -193,7 +198,7 @@ const CORE_MAP = {
   '/api/agent/promote/report/clubCommissionDetail': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'club commission detail empty' },
   '/api/agent/promote/report/clubPerformance': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'club performance empty' },
   '/api/agent/promote/report/clubPerformanceUserV1': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'club performance user empty' },
-  '/api/agent/promote/commissionMarquee': { op: OP.UPSTREAM, adapter: 'agentBlob', note: 'upstream agent marquee' },
+  '/api/agent/promote/commissionMarquee': { op: OP.AGENT_MARQUEE, adapter: 'agentBlob', note: 'agent marquee list' },
   '/api/agent/promote/getIpBindInfo': { op: OP.AGENT_BIND, adapter: 'agentBlob', note: 'providerOptions.agent' },
   '/api/agent/promote/binding/reportViewV2': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'bind report soft empty' },
   '/api/agent/promote/report/directReportV5': { op: OP.AGENT_DIRECT, adapter: 'agentBlob', note: 'providerOptions.agent' },

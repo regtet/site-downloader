@@ -19,25 +19,7 @@ const statBroken = $('#statBroken');
 const previewBtn = $('#previewBtn');
 const migrateBtn = $('#migrateBtn');
 const migrateStatus = $('#migrateStatus');
-const analyzePostLoginBtn = $('#analyzePostLoginBtn');
-const analyzeBox = $('#analyzeBox');
-const analyzeReport = $('#analyzeReport');
-const analyzeSourceUrl = $('#analyzeSourceUrl');
-const analyzeManualPane = $('#analyzeManualPane');
-const analyzeHarPane = $('#analyzeHarPane');
-const analyzeStaticPane = $('#analyzeStaticPane');
-const harSourceInput = $('#harSourceInput');
-const harLocalInput = $('#harLocalInput');
-const capSourceStartBtn = $('#capSourceStartBtn');
-const capSourceStopBtn = $('#capSourceStopBtn');
-const capLocalStartBtn = $('#capLocalStartBtn');
-const capLocalStopBtn = $('#capLocalStopBtn');
-const capSourceStatus = $('#capSourceStatus');
-const capLocalStatus = $('#capLocalStatus');
 const stopPreviewBtn = $('#stopPreviewBtn');
-
-/** @type {{ sourceId: string|null, localId: string|null, sourcePoll: any, localPoll: any }} */
-const captureState = { sourceId: null, localId: null, sourcePoll: null, localPoll: null };
 const cancelJobBtn = $('#cancelJobBtn');
 const outputPath = $('#outputPath');
 const errorList = $('#errorList');
@@ -306,18 +288,14 @@ function taskProgressPercent(progress) {
 
 function previewDirForTask(task) {
   if (!task) return '';
-  return task.migratedPath
-    || task.historyMeta?.migratedPath
-    || task.outputDir
-    || task.summary?.outputDir
-    || '';
+  if (task.interfaceReplaced && task.migratedPath) return task.migratedPath;
+  return task.outputDir || task.summary?.outputDir || '';
 }
 
 function previewForTask(task) {
   if (!task) return null;
   const dirs = [
-    task.migratedPath,
-    task.historyMeta?.migratedPath,
+    task.interfaceReplaced && task.migratedPath,
     task.outputDir,
     task.summary?.outputDir
   ].filter(Boolean).map((d) => String(d).replace(/\\/g, '/'));
@@ -342,7 +320,7 @@ function renderTaskList() {
     const time = formatTime(task.finishedAt || task.createdAt);
     const preview = previewForTask(task);
     const runs = task.runCount > 1 ? `<span class="run-count">${task.runCount} 次</span>` : '';
-    const migrated = !!(task.migratedPath || task.historyMeta?.migrated);
+    const migrated = !!task.interfaceReplaced;
 
     return `
       <button type="button" class="task-item${task.id === selectedTaskId ? ' active' : ''}" data-task-id="${encodeURIComponent(task.id)}">
@@ -498,8 +476,10 @@ function showResultForTask(task) {
   statBroken.closest('.stat')?.classList.toggle('is-zero', !nBroken);
 
   let pathText = summary?.outputDir ?? task.outputDir ?? '';
-  if (task.migratedPath || task.historyMeta?.migratedPath) {
-    pathText += `\n部署包: ${task.migratedPath || task.historyMeta.migratedPath}`;
+  if (task.interfaceReplaced && task.migratedPath) {
+    pathText += `\n部署包: ${task.migratedPath}`;
+  } else if (task.historyMeta?.migratedPath) {
+    pathText += `\n（磁盘上有旧部署包，需重新点「替换接口」）`;
   }
   if (summary?.manifestStats?.listed) {
     pathText += `\n皮肤清单: ${summary.manifestStats.success}/${summary.manifestStats.listed} 成功`;
@@ -526,29 +506,10 @@ function showResultForTask(task) {
   }
 
   const dir = summary?.outputDir || task.outputDir;
-  const migratedPath = task.migratedPath || task.historyMeta?.migratedPath || '';
+  const migratedPath = task.interfaceReplaced ? (task.migratedPath || '') : '';
   if (migrateBtn) {
     migrateBtn.disabled = !dir || !!task.migrating;
     migrateBtn.textContent = task.migrating ? '替换中…' : (migratedPath ? '重新替换接口' : '替换接口');
-  }
-  if (analyzePostLoginBtn) {
-    analyzePostLoginBtn.disabled = !dir || !!task.analyzing;
-    analyzePostLoginBtn.textContent = task.analyzing ? '分析中…' : '登录后依赖分析';
-  }
-  if (analyzeBox) {
-    analyzeBox.classList.toggle('hidden', !dir);
-    if (dir && analyzeSourceUrl && !analyzeSourceUrl.value && task.url) {
-      analyzeSourceUrl.value = task.url;
-    }
-  }
-  if (analyzeReport) {
-    if (task.analyzeHtml) {
-      analyzeReport.classList.remove('hidden');
-      analyzeReport.innerHTML = task.analyzeHtml;
-    } else {
-      analyzeReport.classList.add('hidden');
-      analyzeReport.innerHTML = '';
-    }
   }
   if (migrateStatus) {
     if (task.migrateError) {
@@ -558,6 +519,14 @@ function showResultForTask(task) {
     } else if (migratedPath) {
       migrateStatus.className = 'migrate-status is-ok';
       migrateStatus.textContent = `接口已替换 → ${migratedPath}`;
+      migrateStatus.classList.remove('hidden');
+    } else if (dir && task.historyMeta?.migratedPath) {
+      migrateStatus.className = 'migrate-status';
+      migrateStatus.textContent = 'dist 已就绪；请手动点「替换接口」生成部署包（不会自动执行）';
+      migrateStatus.classList.remove('hidden');
+    } else if (dir) {
+      migrateStatus.className = 'migrate-status';
+      migrateStatus.textContent = 'dist 已就绪；请点「替换接口」后再预览部署包';
       migrateStatus.classList.remove('hidden');
     } else {
       migrateStatus.className = 'migrate-status hidden';
@@ -764,6 +733,9 @@ function attachJobEvents(taskId, url, options = {}) {
       t.summary = event.data.summary;
       t.progress = { phase: 'done', message: '完成' };
       if (event.data.summary?.outputDir) t.outputDir = event.data.summary.outputDir;
+      t.interfaceReplaced = false;
+      t.migratedPath = null;
+      t.migrateError = '';
       finishLiveTask(taskId);
       needPanel = true;
       needList = true;
@@ -963,7 +935,7 @@ async function loadTaskList() {
           if (projectKey(task) === host) {
             task.outputDir = task.outputDir || item.path;
             task.historyMeta = item;
-            if (item.migratedPath) task.migratedPath = item.migratedPath;
+            if (!task.interfaceReplaced) task.migratedPath = null;
             if (!task.summary && item.report) {
               task.summary = {
                 resources: item.resources,
@@ -983,7 +955,8 @@ async function loadTaskList() {
         url: item.source || `https://${item.name}/`,
         status: 'archived',
         outputDir: item.path,
-        migratedPath: item.migratedPath || null,
+        interfaceReplaced: false,
+        migratedPath: null,
         createdAt: item.modifiedAt,
         finishedAt: item.modifiedAt,
         historyMeta: item
@@ -1051,6 +1024,7 @@ async function runMigrate() {
       return;
     }
     task.migratedPath = data.outputDir;
+    task.interfaceReplaced = true;
     task.historyMeta = {
       ...(task.historyMeta || {}),
       migrated: true,
@@ -1074,312 +1048,6 @@ if (migrateBtn) {
     runMigrate();
   });
 }
-
-function renderAnalyzeHtml(job) {
-  if (!job) return '';
-  if (job.status === 'failed') {
-    let html = `<h3>分析失败</h3><p>${escapeHtml(job.error || '')}</p>`;
-    if (job.quality) {
-      html += `<p>源站: api=${job.quality.source?.apiCount ?? '?'} login=${job.quality.source?.hasLoginApi ? 'Y' : 'N'} · 本地: api=${job.quality.local?.apiCount ?? '?'} login=${job.quality.local?.hasLoginApi ? 'Y' : 'N'}</p>`;
-    }
-    return html;
-  }
-  const lines = [];
-  lines.push(`<h3>登录后依赖分析 <small>(${escapeHtml(job.mode || '')})</small></h3>`);
-  if (job.warning) lines.push(`<p>${escapeHtml(job.warning)}</p>`);
-  if (job.outPath) lines.push(`<p>报告: <code>${escapeHtml(job.outPath)}</code></p>`);
-  if (job.quality) {
-    const qs = job.quality.source || {};
-    const ql = job.quality.local || {};
-    lines.push(`<p>质量: 源站 api=${qs.apiCount || 0} login=${qs.hasLoginApi ? 'Y' : 'N'} post=${qs.hasPostLogin ? 'Y' : 'N'} · 本地 api=${ql.apiCount || 0} login=${ql.hasLoginApi ? 'Y' : 'N'} post=${ql.hasPostLogin ? 'Y' : 'N'}</p>`);
-  }
-  if (job.summary) {
-    lines.push(`<p>接口 ${job.summary.totalCompared || 0} · 状态分布 ${escapeHtml(JSON.stringify(job.summary.byStatus || {}))}</p>`);
-  }
-
-  const gaps = job.knownGapsWithoutLiveCapture || [];
-  if (gaps.length) {
-    lines.push('<div class="ar-section"><strong>已知缺口（未改 Adapter）</strong><ul>');
-    for (const g of gaps) {
-      lines.push(`<li><strong>${escapeHtml(g.symptom)}</strong><br/><code>${escapeHtml(g.api)}</code><br/>${escapeHtml(g.status)} — ${escapeHtml(g.reason)}</li>`);
-    }
-    lines.push('</ul></div>');
-  }
-
-  const order = job.nextFixOrder || [];
-  if (order.length) {
-    lines.push('<div class="ar-section"><strong>建议修复顺序</strong><ul>');
-    for (const step of order.slice(0, 8)) {
-      const sample = (step.apis || []).slice(0, 3).map((a) => a.path).join(', ');
-      lines.push(`<li>${escapeHtml(step.label)} (${step.count})<br/><code>${escapeHtml(sample)}</code></li>`);
-    }
-    lines.push('</ul></div>');
-  }
-
-  const anomalies = job.pageAnomalies || {};
-  const pageLabels = { home: '首页', profile: '个人中心', wallet: '钱包', recharge: '充值', withdraw: '提现', activity: '活动', vip: 'VIP' };
-  lines.push('<div class="ar-section"><strong>哪个接口 → 哪个页面异常</strong>');
-  for (const page of Object.keys(pageLabels)) {
-    const list = anomalies[page] || [];
-    if (!list.length) continue;
-    lines.push(`<p><em>${pageLabels[page]}</em></p><ul>`);
-    const seen = new Set();
-    for (const row of list.slice(0, 8)) {
-      const k = `${row.api}|${row.causes}`;
-      if (seen.has(k)) continue;
-      seen.add(k);
-      lines.push(`<li>${escapeHtml(row.causes)} ← <code>${escapeHtml(row.api)}</code> (${escapeHtml(row.status)})</li>`);
-    }
-    lines.push('</ul>');
-  }
-  lines.push('</div>');
-  return lines.join('');
-}
-
-async function pollAnalyzeJob(taskId, jobId) {
-  const task = getTask(taskId);
-  if (!task) return;
-  for (let i = 0; i < 180; i++) {
-    await new Promise((r) => setTimeout(r, 1500));
-    try {
-      const res = await fetch(`/api/analyze/post-login/${encodeURIComponent(jobId)}`);
-      const job = await res.json();
-      if (!res.ok) {
-        task.analyzing = false;
-        task.analyzeHtml = `<h3>分析失败</h3><p>${escapeHtml(job.error || '任务不存在')}</p>`;
-        refreshTaskPanel();
-        return;
-      }
-      if (job.status === 'running') continue;
-      task.analyzing = false;
-      task.analyzeJob = job;
-      task.analyzeHtml = renderAnalyzeHtml(job);
-      appendTaskLog(task.id, job.status === 'completed' ? `依赖分析完成 → ${job.outPath || ''}` : `依赖分析失败: ${job.error || ''}`, job.status !== 'completed');
-      refreshTaskPanel();
-      return;
-    } catch (err) {
-      task.analyzing = false;
-      task.analyzeHtml = `<h3>分析失败</h3><p>${escapeHtml(err.message || '')}</p>`;
-      refreshTaskPanel();
-      return;
-    }
-  }
-  task.analyzing = false;
-  task.analyzeHtml = '<h3>分析超时</h3><p>请稍后在 output/&lt;site&gt;/post-login-deps.json 查看</p>';
-  refreshTaskPanel();
-}
-
-function getAnalyzeMode() {
-  const el = document.querySelector('input[name="analyzeMode"]:checked');
-  return el ? el.value : 'manual';
-}
-
-function syncAnalyzePanes() {
-  const mode = getAnalyzeMode();
-  if (analyzeManualPane) analyzeManualPane.classList.toggle('hidden', mode !== 'manual');
-  if (analyzeHarPane) analyzeHarPane.classList.toggle('hidden', mode !== 'har');
-  if (analyzeStaticPane) analyzeStaticPane.classList.toggle('hidden', mode !== 'static');
-}
-
-document.querySelectorAll('input[name="analyzeMode"]').forEach((el) => {
-  el.addEventListener('change', syncAnalyzePanes);
-});
-
-function setCapStatus(el, info) {
-  if (!el) return;
-  if (!info) {
-    el.textContent = '未开始';
-    el.className = 'cap-status';
-    return;
-  }
-  el.textContent = `${info.status} · api ${info.apiCount || 0}`
-    + (info.hasLoginApi ? ' · 已见登录' : '')
-    + (info.hasPostLogin ? ' · 已见登录后业务' : '')
-    + (info.hint ? ` · ${info.hint}` : '');
-  el.className = 'cap-status'
-    + (info.hasPostLogin ? ' is-ok' : (info.hasLoginApi ? ' is-warn' : ''));
-}
-
-function clearCapPoll(side) {
-  const key = side === 'local' ? 'localPoll' : 'sourcePoll';
-  if (captureState[key]) {
-    clearInterval(captureState[key]);
-    captureState[key] = null;
-  }
-}
-
-function pollCap(side, id) {
-  clearCapPoll(side);
-  const tick = async () => {
-    try {
-      const res = await fetch(`/api/analyze/capture/${encodeURIComponent(id)}`);
-      const info = await res.json();
-      if (!res.ok) return;
-      setCapStatus(side === 'local' ? capLocalStatus : capSourceStatus, info);
-      if (info.status === 'stopped' || info.status === 'failed') clearCapPoll(side);
-    } catch (_) { /* ignore */ }
-  };
-  tick();
-  captureState[side === 'local' ? 'localPoll' : 'sourcePoll'] = setInterval(tick, 2000);
-}
-
-async function startCap(side) {
-  const task = getTask(selectedTaskId);
-  if (!task) return;
-  const body = { side };
-  if (side === 'source') {
-    body.url = analyzeSourceUrl?.value?.trim() || task.url || '';
-    if (!body.url) {
-      appendTaskLog(task.id, '请填写源站 URL', true);
-      return;
-    }
-  } else {
-    body.path = task.migratedPath || task.historyMeta?.migratedPath || task.outputDir || task.summary?.outputDir;
-    if (!body.path) {
-      appendTaskLog(task.id, '没有可预览的本地目录（请先替换接口或使用 dist）', true);
-      return;
-    }
-  }
-  appendTaskLog(task.id, `启动${side === 'source' ? '源站' : '本地'}手动抓包…`, false);
-  try {
-    const res = await fetch('/api/analyze/capture/start', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      appendTaskLog(task.id, data.error || '启动抓包失败', true);
-      return;
-    }
-    if (side === 'source') {
-      captureState.sourceId = data.id;
-      if (capSourceStopBtn) capSourceStopBtn.disabled = false;
-      if (capSourceStartBtn) capSourceStartBtn.disabled = true;
-    } else {
-      captureState.localId = data.id;
-      if (capLocalStopBtn) capLocalStopBtn.disabled = false;
-      if (capLocalStartBtn) capLocalStartBtn.disabled = true;
-    }
-    setCapStatus(side === 'local' ? capLocalStatus : capSourceStatus, data);
-    pollCap(side, data.id);
-    appendTaskLog(task.id, `${side} 抓包中 ${data.id}，请在弹出窗口手动登录并操作`, false);
-  } catch (err) {
-    appendTaskLog(task.id, err.message || '启动抓包失败', true);
-  }
-}
-
-async function stopCap(side) {
-  const task = getTask(selectedTaskId);
-  const id = side === 'local' ? captureState.localId : captureState.sourceId;
-  if (!id) return;
-  clearCapPoll(side);
-  try {
-    const res = await fetch(`/api/analyze/capture/${encodeURIComponent(id)}/stop`, { method: 'POST' });
-    const data = await res.json();
-    if (!res.ok) {
-      appendTaskLog(task?.id || selectedTaskId, data.error || '完成抓包失败', true);
-      return;
-    }
-    setCapStatus(side === 'local' ? capLocalStatus : capSourceStatus, {
-      status: 'stopped',
-      apiCount: data.apiCount,
-      hasLoginApi: data.hasLoginApi,
-      hasPostLogin: data.hasPostLogin,
-      hint: data.hasPostLogin ? '可生成对比' : (data.hasLoginApi ? '建议再抓一次并点充值/个人中心' : '未见登录接口，报告可能被拒绝')
-    });
-    if (side === 'source' && capSourceStartBtn) capSourceStartBtn.disabled = false;
-    if (side === 'local' && capLocalStartBtn) capLocalStartBtn.disabled = false;
-    if (side === 'source' && capSourceStopBtn) capSourceStopBtn.disabled = true;
-    if (side === 'local' && capLocalStopBtn) capLocalStopBtn.disabled = true;
-    appendTaskLog(task?.id || selectedTaskId, `${side} 抓包完成 · api ${data.apiCount}`, false);
-  } catch (err) {
-    appendTaskLog(task?.id || selectedTaskId, err.message || '完成抓包失败', true);
-  }
-}
-
-function readFileAsText(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(new Error('读取文件失败'));
-    reader.readAsText(file);
-  });
-}
-
-async function runPostLoginAnalyze() {
-  const task = getTask(selectedTaskId);
-  const distDir = task?.outputDir || task?.summary?.outputDir;
-  if (!task || !distDir) return;
-  const mode = getAnalyzeMode();
-
-  task.analyzing = true;
-  task.analyzeHtml = '<p>分析进行中…</p>';
-  refreshTaskPanel();
-  appendTaskLog(task.id, `开始登录后依赖分析（${mode}）…`, false);
-
-  try {
-    const payload = {
-      mode,
-      path: distDir,
-      migratedPath: task.migratedPath || task.historyMeta?.migratedPath || null
-    };
-
-    if (mode === 'manual') {
-      if (!captureState.sourceId || !captureState.localId) {
-        throw new Error('请先完成①源站 与 ②本地 手动抓包');
-      }
-      // 若仍在录制，先自动 stop
-      for (const side of ['source', 'local']) {
-        const id = side === 'local' ? captureState.localId : captureState.sourceId;
-        const st = await fetch(`/api/analyze/capture/${encodeURIComponent(id)}`).then((r) => r.json()).catch(() => null);
-        if (st && st.status === 'recording') {
-          await stopCap(side);
-        }
-      }
-      payload.sourceCaptureId = captureState.sourceId;
-      payload.localCaptureId = captureState.localId;
-    } else if (mode === 'har') {
-      const sf = harSourceInput?.files?.[0];
-      const lf = harLocalInput?.files?.[0];
-      if (!sf || !lf) throw new Error('请选择源站 HAR 与本地 HAR');
-      payload.sourceHar = JSON.parse(await readFileAsText(sf));
-      payload.localHar = JSON.parse(await readFileAsText(lf));
-    }
-
-    const res = await fetch('/api/analyze/post-login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      task.analyzing = false;
-      task.analyzeHtml = `<h3>分析失败</h3><p>${escapeHtml(data.error || '请求失败')}</p>`;
-      appendTaskLog(task.id, data.error || '分析失败', true);
-      refreshTaskPanel();
-      return;
-    }
-    appendTaskLog(task.id, `分析任务 ${data.jobId} (${data.mode})`, false);
-    pollAnalyzeJob(task.id, data.jobId);
-  } catch (err) {
-    task.analyzing = false;
-    task.analyzeHtml = `<h3>分析失败</h3><p>${escapeHtml(err.message || '')}</p>`;
-    appendTaskLog(task.id, err.message || '分析失败', true);
-    refreshTaskPanel();
-  }
-}
-
-if (capSourceStartBtn) capSourceStartBtn.addEventListener('click', () => startCap('source'));
-if (capSourceStopBtn) capSourceStopBtn.addEventListener('click', () => stopCap('source'));
-if (capLocalStartBtn) capLocalStartBtn.addEventListener('click', () => startCap('local'));
-if (capLocalStopBtn) capLocalStopBtn.addEventListener('click', () => stopCap('local'));
-
-if (analyzePostLoginBtn) {
-  analyzePostLoginBtn.addEventListener('click', () => runPostLoginAnalyze());
-}
-
-syncAnalyzePanes();
 
 cancelJobBtn.addEventListener('click', async () => {
   const task = getTask(selectedTaskId);

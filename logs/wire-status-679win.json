@@ -1,23 +1,21 @@
 {
   "siteId": "679win",
-  "at": "2026-08-23T08:04:44.266Z",
+  "at": "2026-08-23T11:40:12.005Z",
   "authPopups": "dev-ok (IP170 mock + emptyList popups)",
   "pay": {
     "devMock": true,
     "productionUrl": null,
     "env": null,
-    "harChannels": 6
+    "harChannels": 0
   },
   "agent": {
     "devMock": true,
     "productionBase": null,
     "env": null,
-    "harAgentKeys": [
-      "getIpBindInfo"
-    ],
+    "harAgentKeys": [],
     "captureFiles": 0
   },
-  "wgameTestAccount": false,
+  "wgameTestAccount": true,
   "wgameWssUrl": "wss://server.679win2.com",
   "wssReachability": {
     "ok": true,
@@ -28,14 +26,12 @@
   "contract": "output\\679win\\api-contract.json",
   "blocked": [
     "production pay: set PAY_HTTP_URL",
-    "production agent: set AGENT_HTTP_BASE or capture agent page",
-    "wgame live: set WGAME_TEST_ACCOUNT + WGAME_TEST_PASSWORD"
+    "production agent: set AGENT_HTTP_BASE or capture agent page"
   ],
   "next": [
     "$env:PAY_HTTP_URL=\"https://你的收银台/api/create\"; yarn apply-production-env 679win",
     "$env:AGENT_HTTP_BASE=\"https://你的代理API\"; yarn apply-production-env 679win",
     "或: yarn start → 登录 → 代理页抓包 → yarn import-capture-agent 679win",
-    "$env:WGAME_TEST_ACCOUNT=\"账号\"; $env:WGAME_TEST_PASSWORD=\"密码\"; yarn wgame-live-probe 679win",
     "yarn smoke-e2e 679win",
     "yarn night-continue 679win"
   ]

@@ -500,6 +500,12 @@ function adaptLogout(providerResult) {
   return envelope(true);
 }
 
+/** 平台元数据：透传 provider 从 index.html 合成的配置 */
+function adaptPlatformPayload(providerResult) {
+  if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
+  return envelope(providerResult.data && typeof providerResult.data === 'object' ? providerResult.data : {});
+}
+
 /** 心跳/埋点：无业务载荷 */
 function adaptLobbyOk(providerResult) {
   if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
@@ -614,6 +620,7 @@ const ADAPTERS = {
   withdrawPending: adaptWithdrawPending,
   logout: adaptLogout,
   lobbyOk: adaptLobbyOk,
+  platformPayload: adaptPlatformPayload,
   emptyRecords: adaptEmptyRecords,
   emptyList: adaptEmptyList,
   redDotEmpty: adaptRedDotEmpty,

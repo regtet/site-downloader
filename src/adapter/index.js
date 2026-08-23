@@ -74,21 +74,6 @@ function resolveAdapterPath(reqUrl, hostCfg, series) {
   return { pathname, via: 'local', host: null };
 }
 
-/** 本地 wgame/mock 会话不能打真实上游；mock 弹窗回空列表，实网会话用 HAR 加密体 */
-function isMockWgameSession(req, cfg) {
-  try {
-    if (cfg && cfg.provider && cfg.provider !== 'wgame') return false;
-    const { getProvider } = require('./providers');
-    const provider = getProvider('wgame');
-    if (provider && typeof provider.isMockSession === 'function') {
-      return provider.isMockSession(req.headers || {});
-    }
-    return false;
-  } catch (_) {
-    return false;
-  }
-}
-
 function shouldPassthroughAuth(cfg, matched) {
   try {
     const { loadWgameConfig } = require('./providers/wgame/config');
@@ -142,10 +127,28 @@ async function tryHandleAdapter(req, res, options = {}) {
 
   if (shouldPassthroughAuth(cfg, matched)) return false;
   if (matched.op === OP.UPSTREAM) {
-    const { getProvider } = require('./providers');
-    const provider = getProvider('wgame');
-    const ourSession = provider && typeof provider.isOurSession === 'function'
-      && provider.isOurSession(req.headers || {});
+    const siteDir = cfg._siteDir || options.siteDir || '';
+    const { getOssSnapshotBody } = require('./providers/wgame/oss-config');
+    const { getPopupBody } = require('./providers/wgame/popup-config');
+
+    function sendRawBody(contentType, body, adapterTag) {
+      if (req.method === 'OPTIONS') {
+        sendJson(res, 204, {});
+        return true;
+      }
+      let out = String(body == null ? '' : body);
+      if (out.indexOf('{$WG_BUCKET_SITE$}') !== -1) {
+        out = out.replace(/\{\$WG_BUCKET_SITE\$\}/g, `http://${host}`);
+      }
+      res.writeHead(200, {
+        'Content-Type': contentType || 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'Access-Control-Allow-Origin': '*',
+        'X-SD-Adapter': adapterTag || 'oss-har'
+      });
+      res.end(out);
+      return true;
+    }
 
     function sendUpstreamFallback() {
       if (req.method === 'OPTIONS') {
@@ -156,61 +159,25 @@ async function tryHandleAdapter(req, res, options = {}) {
       const result = series.mapResponse(
         useEmptyList ? OP.EMPTY_RECORDS : OP.LOBBY_OK,
         { ok: true, data: useEmptyList ? [] : {} },
-        { adapter: matched.adapter }
+        { adapter: useEmptyList ? 'emptyList' : matched.adapter }
       );
       sendJson(res, 200, result, { 'X-SD-Adapter': 'upstream-fallback' });
       return true;
     }
 
-    if (matched.adapter === 'emptyList') {
-      if (isMockWgameSession(req, cfg) || ourSession) {
-        const { getPopupBody } = require('./providers/wgame/popup-config');
-        const blob = getPopupBody(cfg._siteDir || options.siteDir || '', resolved.pathname, req.method);
-        if (blob && blob.body) {
-          if (req.method === 'OPTIONS') {
-            sendJson(res, 204, {});
-            return true;
-          }
-          res.writeHead(200, {
-            'Content-Type': blob.contentType || 'text/plain; charset=utf-8',
-            'Cache-Control': 'no-store',
-            'Access-Control-Allow-Origin': '*',
-            'X-SD-Adapter': 'popup-har'
-          });
-          res.end(blob.body);
-          return true;
-        }
-        return sendUpstreamFallback();
-      }
-    } else if (ourSession) {
-      const { getOssSnapshotBody } = require('./providers/wgame/oss-config');
-      const snap = getOssSnapshotBody(
-        cfg._siteDir || options.siteDir || '',
-        resolved.pathname,
-        req.method
-      );
-      if (snap && snap.body) {
-        if (req.method === 'OPTIONS') {
-          sendJson(res, 204, {});
-          return true;
-        }
-        let body = snap.body;
-        if (body.indexOf('{$WG_BUCKET_SITE$}') !== -1) {
-          const host = req.headers.host || '127.0.0.1';
-          body = body.replace(/\{\$WG_BUCKET_SITE\$\}/g, `http://${host}`);
-        }
-        res.writeHead(200, {
-          'Content-Type': snap.contentType || 'application/json; charset=utf-8',
-          'Cache-Control': 'no-store',
-          'Access-Control-Allow-Origin': '*',
-          'X-SD-Adapter': 'oss-har'
-        });
-        res.end(body);
-        return true;
-      }
-      return sendUpstreamFallback();
+    const snap = getOssSnapshotBody(siteDir, resolved.pathname, req.method);
+    if (snap && snap.body) {
+      return sendRawBody(snap.contentType, snap.body, 'oss-har');
     }
-    return false;
+
+    if (matched.adapter === 'emptyList') {
+      const blob = getPopupBody(siteDir, resolved.pathname, req.method);
+      if (blob && blob.body) {
+        return sendRawBody(blob.contentType || 'text/plain; charset=utf-8', blob.body, 'popup-har');
+      }
+    }
+
+    return sendUpstreamFallback();
   }
 
   if (req.method === 'OPTIONS') {
