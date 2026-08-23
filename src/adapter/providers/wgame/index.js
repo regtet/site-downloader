@@ -433,7 +433,10 @@ async function execute(op, ctx) {
       loadPayConfig,
       buildQrDataUrl,
       mapWgameChannelsToPack,
-      finalizePayChannelPack
+      finalizePayChannelPack,
+      loadHarPaySnapshot,
+      resolvePayTypeMeta,
+      buildPayTypeList
     } = require('./pay-config');
     const { putOrder, getOrder, listOrders } = require('./pay-orders');
     const pay = loadPayConfig(ctx && ctx.siteDir, cfg);
@@ -458,7 +461,12 @@ async function execute(op, ctx) {
         hallAction: 'payChannels',
         deviceId: sessionUser.device_id
       });
-      return mapWgameChannelsToPack(res && res.payChannels, pay);
+      return mapWgameChannelsToPack(
+        res && res.payChannels,
+        pay,
+        loadHarPaySnapshot(ctx && ctx.siteDir),
+        ctx && ctx.siteDir
+      );
     }
 
     async function wgamePayCharge(amount, channelId) {
@@ -488,28 +496,29 @@ async function execute(op, ctx) {
       }, 'ok');
     }
     if (op === OP.PAY_TYPE) {
+      const harSnap = loadHarPaySnapshot(ctx && ctx.siteDir);
+      const payMeta = resolvePayTypeMeta(pay, harSnap, ctx && ctx.siteDir);
       if (source === 'wgame') {
         try {
           const pack = await wgamePayChannels();
           if (pack && pack.list && pack.list.length) {
-            const types = pack.list.map((ch) => ({
-              id: ch.id,
-              paymentid: ch.paymentid,
-              payplatformid: ch.payplatformid,
-              payKind: 100,
-              type: 1,
-              iconUrl: '',
-              name: ch.channlName || 'PIX',
-              noChannelTopUp: false
-            }));
-            return ok({ payKind: { list: types.length ? types : pay.types.slice() } }, 'ok');
+            return ok({ payKind: { list: buildPayTypeList(payMeta) } }, 'ok');
           }
         } catch (err) {
           console.warn('[provider:wgame] payType via channels failed:', (err && err.message) || err);
         }
       }
+      const fallback = (harSnap && Array.isArray(harSnap.types) && harSnap.types.length)
+        ? harSnap.types.slice()
+        : pay.types.slice();
+      const list = buildPayTypeList(payMeta).length
+        ? buildPayTypeList(payMeta)
+        : fallback.map((row) => Object.assign({}, row, {
+          pay_type_name: row.pay_type_name || row.name,
+          payment_name: row.payment_name || row.name
+        }));
       return ok({
-        payKind: { list: pay.types.slice() }
+        payKind: { list }
       }, 'ok');
     }
     if (op === OP.PAY_CHANNELS) {
@@ -525,12 +534,7 @@ async function execute(op, ctx) {
       if (source === 'wgame') {
         try {
           const pack = await wgamePayChannels();
-          const wCount = pack && pack.list ? pack.list.length : 0;
-          const harCount = harPack && harPack.list ? harPack.list.length : 0;
-          if (pack && wCount > 0) {
-            if (harCount > wCount) {
-              return ok(mergePayChannelPacks(pack, harPack, ctx && ctx.siteDir), 'ok');
-            }
+          if (pack && pack.list && pack.list.length) {
             return ok(finalizePayChannelPack(pack, ctx && ctx.siteDir), 'ok');
           }
         } catch (err) {

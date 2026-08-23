@@ -373,12 +373,25 @@ function adaptPayList(providerResult) {
 }
 
 /** payTypeV4：data.payKind.list */
+function enrichPayTypeRow(row) {
+  const out = Object.assign({}, row || {});
+  const name = out.pay_type_name || out.name || out.payment_name || 'PIX';
+  out.pay_type_name = name;
+  out.payment_name = out.payment_name || name;
+  out.name = out.name || name;
+  if (!out.payplatformid && out.paymentid != null) out.payplatformid = out.paymentid;
+  if (!out.paymentid && out.payplatformid != null) out.paymentid = out.payplatformid;
+  if (!out.id && out.paymentid != null) out.id = out.paymentid;
+  return out;
+}
+
 function adaptPayType(providerResult) {
   if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
   const d = providerResult.data || {};
-  const list = (d.payKind && Array.isArray(d.payKind.list))
+  const raw = (d.payKind && Array.isArray(d.payKind.list))
     ? d.payKind.list
     : (Array.isArray(d.list) ? d.list : []);
+  const list = raw.map(enrichPayTypeRow);
   return envelope({ payKind: { list } });
 }
 

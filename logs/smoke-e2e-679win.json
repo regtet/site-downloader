@@ -1,5 +1,5 @@
 {
-  "at": "2026-08-23T07:19:05.075Z",
+  "at": "2026-08-23T08:04:32.840Z",
   "siteId": "679win",
   "preview": "http://127.0.0.1:3476",
   "via": "yarn",
@@ -30,13 +30,13 @@
     },
     "payChannels": {
       "code": 1,
-      "count": 6,
+      "count": 1,
       "harExpected": true,
-      "ok": true
+      "ok": false
     },
     "payOrder": {
       "code": 1,
-      "orderNo": "WG1787469548016977",
+      "orderNo": "WG178747227560465",
       "mockQr": true,
       "ok": true
     },
@@ -91,5 +91,5 @@
       "ok": true
     }
   },
-  "ok": true
+  "ok": false
 }

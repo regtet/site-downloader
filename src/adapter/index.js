@@ -142,64 +142,73 @@ async function tryHandleAdapter(req, res, options = {}) {
 
   if (shouldPassthroughAuth(cfg, matched)) return false;
   if (matched.op === OP.UPSTREAM) {
+    const { getProvider } = require('./providers');
+    const provider = getProvider('wgame');
+    const ourSession = provider && typeof provider.isOurSession === 'function'
+      && provider.isOurSession(req.headers || {});
+
+    function sendUpstreamFallback() {
+      if (req.method === 'OPTIONS') {
+        sendJson(res, 204, {});
+        return true;
+      }
+      const useEmptyList = matched.adapter === 'emptyList';
+      const result = series.mapResponse(
+        useEmptyList ? OP.EMPTY_RECORDS : OP.LOBBY_OK,
+        { ok: true, data: useEmptyList ? [] : {} },
+        { adapter: matched.adapter }
+      );
+      sendJson(res, 200, result, { 'X-SD-Adapter': 'upstream-fallback' });
+      return true;
+    }
+
     if (matched.adapter === 'emptyList') {
-      if (isMockWgameSession(req, cfg)) {
-        if (req.method === 'OPTIONS') {
-          sendJson(res, 204, {});
-          return true;
-        }
-        const result = series.mapResponse(OP.EMPTY_RECORDS, { ok: true, data: [] }, { adapter: 'emptyList' });
-        sendJson(res, 200, result);
-        return true;
-      }
-      const { getPopupBody } = require('./providers/wgame/popup-config');
-      const blob = getPopupBody(cfg._siteDir || options.siteDir || '', resolved.pathname, req.method);
-      if (blob && blob.body) {
-        if (req.method === 'OPTIONS') {
-          sendJson(res, 204, {});
-          return true;
-        }
-        res.writeHead(200, {
-          'Content-Type': blob.contentType || 'text/plain; charset=utf-8',
-          'Cache-Control': 'no-store',
-          'Access-Control-Allow-Origin': '*',
-          'X-SD-Adapter': 'popup-har'
-        });
-        res.end(blob.body);
-        return true;
-      }
-    } else {
-      const { getProvider } = require('./providers');
-      const provider = getProvider('wgame');
-      const ourSession = provider && typeof provider.isOurSession === 'function'
-        && provider.isOurSession(req.headers || {});
-      if (ourSession) {
-        const { getOssSnapshotBody } = require('./providers/wgame/oss-config');
-        const snap = getOssSnapshotBody(
-          cfg._siteDir || options.siteDir || '',
-          resolved.pathname,
-          req.method
-        );
-        if (snap && snap.body) {
+      if (isMockWgameSession(req, cfg) || ourSession) {
+        const { getPopupBody } = require('./providers/wgame/popup-config');
+        const blob = getPopupBody(cfg._siteDir || options.siteDir || '', resolved.pathname, req.method);
+        if (blob && blob.body) {
           if (req.method === 'OPTIONS') {
             sendJson(res, 204, {});
             return true;
           }
-          let body = snap.body;
-          if (body.indexOf('{$WG_BUCKET_SITE$}') !== -1) {
-            const host = req.headers.host || '127.0.0.1';
-            body = body.replace(/\{\$WG_BUCKET_SITE\$\}/g, `http://${host}`);
-          }
           res.writeHead(200, {
-            'Content-Type': snap.contentType || 'application/json; charset=utf-8',
+            'Content-Type': blob.contentType || 'text/plain; charset=utf-8',
             'Cache-Control': 'no-store',
             'Access-Control-Allow-Origin': '*',
-            'X-SD-Adapter': 'oss-har'
+            'X-SD-Adapter': 'popup-har'
           });
-          res.end(body);
+          res.end(blob.body);
           return true;
         }
+        return sendUpstreamFallback();
       }
+    } else if (ourSession) {
+      const { getOssSnapshotBody } = require('./providers/wgame/oss-config');
+      const snap = getOssSnapshotBody(
+        cfg._siteDir || options.siteDir || '',
+        resolved.pathname,
+        req.method
+      );
+      if (snap && snap.body) {
+        if (req.method === 'OPTIONS') {
+          sendJson(res, 204, {});
+          return true;
+        }
+        let body = snap.body;
+        if (body.indexOf('{$WG_BUCKET_SITE$}') !== -1) {
+          const host = req.headers.host || '127.0.0.1';
+          body = body.replace(/\{\$WG_BUCKET_SITE\$\}/g, `http://${host}`);
+        }
+        res.writeHead(200, {
+          'Content-Type': snap.contentType || 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store',
+          'Access-Control-Allow-Origin': '*',
+          'X-SD-Adapter': 'oss-har'
+        });
+        res.end(body);
+        return true;
+      }
+      return sendUpstreamFallback();
     }
     return false;
   }

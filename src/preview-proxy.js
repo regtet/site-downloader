@@ -902,7 +902,7 @@ function sanitizeUpstreamAuthJson(text, opts) {
     const isKick =
       num === -1
       || code === '-1'
-      || /desconectad|token\s*expir|fa[cç]a login novamente|n[aã]o est[aá] autorizada|not\s*authorized|unauthorized|login\s*again/i.test(msg);
+      || /dispositivo|desconectad|token\s*expir|fa[cç]a login novamente|n[aã]o est[aá] autorizada|not\s*authorized|unauthorized|login\s*again/i.test(msg);
     if (!isKick) return text;
     let data = j.data !== undefined ? j.data : null;
     if (opts && opts.emptyListOnKick && (data == null || (Array.isArray(data) && !data.length))) {

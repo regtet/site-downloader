@@ -217,7 +217,7 @@ function createStaticServer(siteDir, options = {}) {
           if (
             tryFallbackMissingAsset(req, res, apiUpstreamOrigin, lobbyPath, lobbySearch, {
               stripAuth: shouldStripAuth(req, adapterCfg),
-              sanitizeAuthKick: false,
+              sanitizeAuthKick: shouldStripAuth(req, adapterCfg),
               refererOrigin: apiUpstreamOrigin,
               forcePath: lobbyPath
             })
@@ -281,7 +281,7 @@ function createStaticServer(siteDir, options = {}) {
           if (
             tryFallbackMissingAsset(req, res, apiUpstreamOrigin, hallPath, hallSearch, {
               stripAuth: strip,
-              sanitizeAuthKick: emptyListOnKick,
+              sanitizeAuthKick: strip,
               emptyListOnKick,
               refererOrigin: apiUpstreamOrigin,
               forcePath: hallPath

@@ -151,7 +151,70 @@ function defaultRecommendAmounts(pay) {
   return normalizeRecommendList(fromCfg);
 }
 
-function mapWgameChannelsToPack(list, pay) {
+function resolvePayTypeMeta(pay, har, siteDir) {
+  const harType = har && Array.isArray(har.types) && har.types[0];
+  const cfgType = pay && Array.isArray(pay.types) && pay.types[0];
+  const sample = har && har.payplatformlistSample;
+  const paymentId = Number(
+    (harType && (harType.paymentid || harType.id))
+    || (cfgType && (cfgType.paymentid || cfgType.id))
+    || (sample && sample.paymentid)
+    || 570082
+  );
+  const payTypeName = (sample && sample.pay_type_name)
+    || (harType && (harType.name || harType.pay_type_name))
+    || (cfgType && (cfgType.name || cfgType.pay_type_name))
+    || 'PIX';
+  let iconUrl = (harType && harType.iconUrl) || (cfgType && cfgType.iconUrl) || '';
+  try {
+    const { loadOssSnapshot } = require('./oss-config');
+    const snap = loadOssSnapshot(siteDir);
+    const row = snap && snap.endpoints
+      && snap.endpoints['GET /api/finance/pay/payTypeSetting/language/pt.json'];
+    if (row && row.body) {
+      const j = JSON.parse(row.body);
+      const list = j.data && j.data.payTypeList;
+      if (Array.isArray(list)) {
+        const match = list.find((r) => Number(r.payTypeId) === paymentId || Number(r.paymentId) === paymentId)
+          || list.find((r) => r.supplyCurrency === 'BRL')
+          || list[0];
+        if (match && match.iconUrl) iconUrl = match.iconUrl;
+        if (match && match.payTypeName && payTypeName === 'PIX') {
+          return {
+            paymentId,
+            payTypeName: match.payTypeName,
+            iconUrl,
+            payKind: 100
+          };
+        }
+      }
+    }
+  } catch (_) { /* ignore */ }
+  return { paymentId, payTypeName, iconUrl, payKind: 100 };
+}
+
+/** dist 充值页 Método de Pagamento 读 pay_type_name + iconUrl */
+function buildPayTypeList(meta) {
+  const id = Number(meta && meta.paymentId) || 570082;
+  const name = (meta && meta.payTypeName) || 'PIX';
+  const iconUrl = (meta && meta.iconUrl) || '';
+  return [{
+    id,
+    paymentid: id,
+    payplatformid: id,
+    payKind: (meta && meta.payKind != null) ? meta.payKind : 100,
+    type: 1,
+    iconUrl,
+    name,
+    pay_type_name: name,
+    payment_name: name,
+    noChannelTopUp: false
+  }];
+}
+
+function mapWgameChannelsToPack(list, pay, har, siteDir) {
+  const meta = resolvePayTypeMeta(pay, har, siteDir);
+  const paymentId = meta.paymentId;
   const open = (Array.isArray(list) ? list : []).filter((c) => {
     if (!c) return false;
     if (c.nStatus != null && Number(c.nStatus) === 0) return false;
@@ -165,7 +228,7 @@ function mapWgameChannelsToPack(list, pay) {
     return {
       id,
       payplatformid: id,
-      paymentid: id,
+      paymentid: paymentId,
       paymentMethodId: id,
       channelId: id,
       channelCode: String(id),
@@ -181,7 +244,9 @@ function mapWgameChannelsToPack(list, pay) {
         const n = Number(row.amount);
         return n >= Number(min) && n <= Number(max);
       }),
-      iconUrl: '',
+      iconUrl: meta.iconUrl || '',
+      channelTooltip: 'HOT',
+      payicon: '9',
       orderEffectiveTime: 900,
       realNameSwitch: c.kycFlag ? 1 : 0,
       payment_type: 0,
@@ -254,6 +319,12 @@ function applyHarPaySnapshot(cfg, har) {
   if (!har || typeof har !== 'object') return cfg;
   if (Array.isArray(har.categories) && har.categories.length) cfg.categories = har.categories;
   if (Array.isArray(har.types) && har.types.length) cfg.types = har.types;
+  if (har.paysubmitUrl) {
+    const pack = cfg.channelsByPayKind && cfg.channelsByPayKind['100'];
+    if (pack) pack.url = har.paysubmitUrl;
+  }
+  // wgame 模式只用真实渠道列表；HAR 仅用于 enrichPayChannelPack 补图标/文案
+  if (String(cfg.source || '').toLowerCase() === 'wgame') return cfg;
   if (har.channelsByPayKind && typeof har.channelsByPayKind === 'object') {
     cfg.channelsByPayKind = Object.assign({}, cfg.channelsByPayKind, har.channelsByPayKind);
   }
@@ -333,6 +404,8 @@ module.exports = {
   buildQrDataUrl,
   normalizeRecommendList,
   defaultRecommendAmounts,
+  resolvePayTypeMeta,
+  buildPayTypeList,
   mapWgameChannelsToPack,
   loadHarPaySnapshot,
   applyHarPaySnapshot,
