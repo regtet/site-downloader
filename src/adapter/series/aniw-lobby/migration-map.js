@@ -85,9 +85,13 @@ const CORE_MAP = {
   '/api/finance/pay/orderListV3': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no pay orders' },
   '/api/finance/claim/userInfo': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no claim engine' },
   '/api/finance/maxChargeRate': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'OSS json preferred' },
+  '/api/finance/pay/payTypeSetting': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'pay page HOT/amount UI' },
+  '/api/finance/payPopup/content': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'pay popup content OSS' },
+  '/api/finance/payPopup/settingAndSlogans': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'pay popup slogans OSS' },
 
   // —— 活动红点/弹窗（无活动引擎：空列表，不伪造奖励）——
   '/api/active/category': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'upstream activity categories' },
+  '/api/active/getByTemplate': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'activity banners OSS/HAR' },
   '/api/active/getRedDotV2': { op: OP.EMPTY_RECORDS, adapter: 'redDotEmpty', note: 'zero red dots' },
   '/api/active/pop_canReceiveReward': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no rewards' },
   '/api/active/popRegressActive': { op: OP.EMPTY_RECORDS, adapter: 'emptyList', note: 'no regress popup' },
@@ -156,6 +160,7 @@ const CORE_MAP = {
 
   // —— gohal / 投注报表 ——
   '/api/gohal/getSysInfo': { op: OP.LOBBY_OK, adapter: 'lobbyOk' },
+  '/api/gohal/staffAllV3': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'nav/menu staff config OSS' },
   '/api/gohal/behaviorValidateList': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords' },
   '/api/bet-manager/recentreport/betrecords/_query': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords' },
   '/api/bet-manager/recentreport/bet_report/personal/_query': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords' },

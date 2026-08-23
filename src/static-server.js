@@ -240,6 +240,21 @@ function createStaticServer(siteDir, options = {}) {
           ) {
             return;
           }
+          const { getOssSnapshotBody } = require('./adapter/providers/wgame/oss-config');
+          const snap = getOssSnapshotBody(root, reqUrl.pathname, 'GET');
+          if (snap && snap.body) {
+            let body = snap.body;
+            if (body.indexOf('{$WG_BUCKET_SITE$}') !== -1) {
+              body = body.replace(/\{\$WG_BUCKET_SITE\$\}/g, `http://${host}`);
+            }
+            res.writeHead(200, {
+              'Content-Type': snap.contentType || 'application/json; charset=utf-8',
+              'Cache-Control': 'no-store',
+              'X-SD-Adapter': 'oss-har'
+            });
+            res.end(body);
+            return;
+          }
         }
         // home/lobby 等未映射接口：保持原站回源（OSS/aniw），不空数据覆盖
         // 本地 wgame 会话 Token 不能带给真实上游 → 剥 Token，但不再伪造 code:1
@@ -259,7 +274,7 @@ function createStaticServer(siteDir, options = {}) {
           if (
             tryFallbackMissingAsset(req, res, apiUpstreamOrigin, hallPath, hallSearch, {
               stripAuth: strip,
-              sanitizeAuthKick: emptyListOnKick || strip,
+              sanitizeAuthKick: emptyListOnKick,
               emptyListOnKick,
               refererOrigin: apiUpstreamOrigin,
               forcePath: hallPath

@@ -68,6 +68,7 @@ function isOssAssetPath(pathname) {
     p.startsWith('/siteadmin/')
     || p.startsWith('/lobby_asset/')
     || p.startsWith('/game_pictures/')
+    || p.startsWith('/active/')
     || p.includes('/upload/')
   ) return true;
   // OSS 元数据（version.json 等）：本地常缺，需回 oniw；404 会触发域名探测失败

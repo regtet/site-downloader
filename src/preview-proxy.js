@@ -209,6 +209,7 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
     if (p.indexOf('/siteadmin/') === 0) return true;
     if (p.indexOf('/lobby_asset/') === 0) return true;
     if (p.indexOf('/game_pictures/') === 0) return true;
+    if (p.indexOf('/active/') === 0) return true;
     if (p.indexOf('/upload/') !== -1) return true;
     return false;
   }
@@ -331,6 +332,9 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
   function localizeOssInText(text) {
     if (!text || typeof text !== 'string') return text;
     var out = text;
+    if (out.indexOf('{$WG_BUCKET_SITE$}') !== -1) {
+      out = out.replace(/\\{\\$WG_BUCKET_SITE\\$\\}/g, LOCAL_ORIGIN);
+    }
     // 强制站点走「OSS=当前页 origin」，避免 ping/回切把图片域名改回 oniw 后整页重绘闪没
     if (out.indexOf('siteBucketSwitchStatus') !== -1) {
       out = out.replace(/"siteBucketSwitchStatus"\\s*:\\s*\\d+/g, '"siteBucketSwitchStatus":1');
@@ -389,6 +393,8 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
         try {
           if (v && typeof v === 'object') {
             if ('ossBaseUrl' in v) v.ossBaseUrl = LOCAL_ORIGIN + '/';
+            if ('bucketSite' in v) v.bucketSite = LOCAL_ORIGIN;
+            if ('ossHost' in v) v.ossHost = LOCAL_ORIGIN.replace(/\\/$/, '');
           }
         } catch (e) {}
       }

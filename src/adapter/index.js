@@ -168,6 +168,38 @@ async function tryHandleAdapter(req, res, options = {}) {
         res.end(blob.body);
         return true;
       }
+    } else {
+      const { getProvider } = require('./providers');
+      const provider = getProvider('wgame');
+      const ourSession = provider && typeof provider.isOurSession === 'function'
+        && provider.isOurSession(req.headers || {});
+      if (ourSession) {
+        const { getOssSnapshotBody } = require('./providers/wgame/oss-config');
+        const snap = getOssSnapshotBody(
+          cfg._siteDir || options.siteDir || '',
+          resolved.pathname,
+          req.method
+        );
+        if (snap && snap.body) {
+          if (req.method === 'OPTIONS') {
+            sendJson(res, 204, {});
+            return true;
+          }
+          let body = snap.body;
+          if (body.indexOf('{$WG_BUCKET_SITE$}') !== -1) {
+            const host = req.headers.host || '127.0.0.1';
+            body = body.replace(/\{\$WG_BUCKET_SITE\$\}/g, `http://${host}`);
+          }
+          res.writeHead(200, {
+            'Content-Type': snap.contentType || 'application/json; charset=utf-8',
+            'Cache-Control': 'no-store',
+            'Access-Control-Allow-Origin': '*',
+            'X-SD-Adapter': 'oss-har'
+          });
+          res.end(body);
+          return true;
+        }
+      }
     }
     return false;
   }
