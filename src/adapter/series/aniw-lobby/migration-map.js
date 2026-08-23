@@ -94,7 +94,7 @@ const CORE_MAP = {
   '/api/active/recharge/financeGiveReward': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no give reward' },
   '/api/active/redPackIndex': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no redpack' },
   '/api/active/tasks/task': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no tasks' },
-  '/api/active/tasks/newcomer_benefit_pop': { op: OP.EMPTY_RECORDS, adapter: 'emptyList', note: 'frontend forEach; [] = no newcomer pop' },
+  '/api/active/tasks/newcomer_benefit_pop': { op: OP.UPSTREAM, adapter: 'emptyList', note: 'HAR encrypted newcomer popup' },
 
   // —— 游戏收藏 ——
   '/api/gameCenter/gameApi/favoriteGameList': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no favorites' },

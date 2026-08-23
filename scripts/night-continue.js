@@ -88,6 +88,11 @@ function main() {
       encoding: 'utf8',
       timeout: 30000
     });
+    spawnSync(process.execPath, ['scripts/extract-har-popup.js', siteId, harFile], {
+      cwd: root,
+      encoding: 'utf8',
+      timeout: 30000
+    });
   }
 
   const verify = spawnSync(process.execPath, ['scripts/verify-p0.js', siteId], {

@@ -74,17 +74,16 @@ function resolveAdapterPath(reqUrl, hostCfg, series) {
   return { pathname, via: 'local', host: null };
 }
 
-/** 本地 wgame/mock 会话不能打真实上游；UPSTREAM 弹窗类接口改由 adapter 回空列表 */
-function isOurWgameSession(req, cfg) {
+/** 本地 wgame/mock 会话不能打真实上游；mock 弹窗回空列表，实网会话用 HAR 加密体 */
+function isMockWgameSession(req, cfg) {
   try {
     if (cfg && cfg.provider && cfg.provider !== 'wgame') return false;
-    const h = req.headers || {};
-    const hasToken = !!(h.token || h.Token || h['x-session-key'] || h['session-key']);
-    if (!hasToken) return false;
     const { getProvider } = require('./providers');
     const provider = getProvider('wgame');
-    if (provider && typeof provider.isOurSession === 'function' && provider.isOurSession(h)) return true;
-    return !!(cfg && cfg.provider === 'wgame');
+    if (provider && typeof provider.isMockSession === 'function') {
+      return provider.isMockSession(req.headers || {});
+    }
+    return false;
   } catch (_) {
     return false;
   }
@@ -143,14 +142,32 @@ async function tryHandleAdapter(req, res, options = {}) {
 
   if (shouldPassthroughAuth(cfg, matched)) return false;
   if (matched.op === OP.UPSTREAM) {
-    if (matched.adapter === 'emptyList' && isOurWgameSession(req, cfg)) {
-      if (req.method === 'OPTIONS') {
-        sendJson(res, 204, {});
+    if (matched.adapter === 'emptyList') {
+      if (isMockWgameSession(req, cfg)) {
+        if (req.method === 'OPTIONS') {
+          sendJson(res, 204, {});
+          return true;
+        }
+        const result = series.mapResponse(OP.EMPTY_RECORDS, { ok: true, data: [] }, { adapter: 'emptyList' });
+        sendJson(res, 200, result);
         return true;
       }
-      const result = series.mapResponse(OP.EMPTY_RECORDS, { ok: true, data: [] }, { adapter: 'emptyList' });
-      sendJson(res, 200, result);
-      return true;
+      const { getPopupBody } = require('./providers/wgame/popup-config');
+      const blob = getPopupBody(cfg._siteDir || options.siteDir || '', resolved.pathname, req.method);
+      if (blob && blob.body) {
+        if (req.method === 'OPTIONS') {
+          sendJson(res, 204, {});
+          return true;
+        }
+        res.writeHead(200, {
+          'Content-Type': blob.contentType || 'text/plain; charset=utf-8',
+          'Cache-Control': 'no-store',
+          'Access-Control-Allow-Origin': '*',
+          'X-SD-Adapter': 'popup-har'
+        });
+        res.end(blob.body);
+        return true;
+      }
     }
     return false;
   }

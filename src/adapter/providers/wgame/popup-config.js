@@ -38,13 +38,21 @@ function getPopupBody(siteDir, pathname, method) {
   const snap = loadPopupSnapshot(siteDir);
   if (!snap || !snap.endpoints) return null;
   const p = normPath(pathname);
-  const key = String(method || 'POST').toUpperCase() + ' ' + p;
-  const row = snap.endpoints[key];
-  if (!row || row.body == null) return null;
-  return {
-    body: String(row.body),
-    contentType: row.contentType || 'text/plain; charset=utf-8'
-  };
+  const m = String(method || 'POST').toUpperCase();
+  const keys = [m + ' ' + p];
+  if (p === '/api/member/registerPopupDlgInfo') {
+    keys.push(m + ' /api/member/user/registerPopupDlgInfo');
+  }
+  for (const key of keys) {
+    const row = snap.endpoints[key];
+    if (row && row.body != null) {
+      return {
+        body: String(row.body),
+        contentType: row.contentType || 'text/plain; charset=utf-8'
+      };
+    }
+  }
+  return null;
 }
 
 module.exports = {

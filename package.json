@@ -18,6 +18,7 @@
     "analyze-apis": "node scripts/analyze-apis.js",
     "extract-har-pay": "node scripts/extract-har-pay.js",
     "extract-har-agent": "node scripts/extract-har-agent.js",
+    "extract-har-popup": "node scripts/extract-har-popup.js",
     "import-capture-agent": "node scripts/import-capture-agent.js",
     "apply-production-env": "node scripts/apply-production-env.js",
     "probe-production-hooks": "node scripts/probe-production-hooks.js",

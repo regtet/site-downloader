@@ -1,5 +1,5 @@
 {
-  "extractedAt": "2026-08-23T00:29:28.626Z",
+  "extractedAt": "2026-08-23T00:34:46.586Z",
   "sourceHar": "C:\\Users\\Administrator\\Downloads\\679win.com.har",
   "sourceCaptures": [],
   "endpointCount": 2,
@@ -42,5 +42,5 @@
     "getIpBindInfo": {}
   },
   "importedFromCapture": 0,
-  "note": "no agent capture yet; login+browse agent page then stop capture"
+  "note": "HAR missing indexInfo/myTotalData; set AGENT_HTTP_BASE or capture more HAR"
 }
