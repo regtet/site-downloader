@@ -1,12 +1,24 @@
 {
-  "at": "2026-08-23T00:34:23.654Z",
-  "totalKeys": 1,
+  "at": "2026-08-23T01:17:09.262Z",
+  "totalKeys": 3,
   "top": [
+    {
+      "key": "GET /api/active/category",
+      "count": 7,
+      "firstAt": 1787445263671,
+      "lastAt": 1787445278728
+    },
     {
       "key": "POST /api/member/user/vipInfoV2",
       "count": 1,
       "firstAt": 1787445263654,
       "lastAt": 1787445263654
+    },
+    {
+      "key": "GET /api/finance/maxChargeRate",
+      "count": 1,
+      "firstAt": 1787447829262,
+      "lastAt": 1787447829262
     }
   ]
 }
