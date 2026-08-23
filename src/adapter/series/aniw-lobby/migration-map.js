@@ -103,6 +103,12 @@ const CORE_MAP = {
   '/api/active/tasks/task': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no tasks' },
   '/api/active/tasks/newcomer_benefit_pop': { op: OP.UPSTREAM, adapter: 'emptyList', note: 'HAR encrypted newcomer popup' },
 
+  // —— 游戏启动：OSS 列表仅展示，点击走 wgame 映射 ——
+  '/api/gameCenter/gameApi/login': { op: OP.GAME_LAUNCH, adapter: 'gameLaunch', note: 'wgame game mapping' },
+  '/api/gameCenter/gameApi/apiLogin': { op: OP.GAME_LAUNCH, adapter: 'gameLaunch', note: 'wgame game mapping bypass' },
+  '/api/gameCenter/gameApi/localLogin': { op: OP.GAME_LAUNCH, adapter: 'gameLaunch', note: 'wgame local account game' },
+  '/api/gameCenter/gameApi/tgLogin': { op: OP.GAME_LAUNCH, adapter: 'gameLaunch', note: 'wgame tg game' },
+
   // —— 游戏收藏 ——
   '/api/gameCenter/gameApi/favoriteGameList': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no favorites' },
 

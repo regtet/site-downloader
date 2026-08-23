@@ -104,6 +104,12 @@ const CATALOG = [
     out: ['orderNo', 'status']
   },
   {
+    op: OP.GAME_LAUNCH,
+    transport: 'local',
+    steps: ['providerOptions.game.mappings'],
+    out: ['game_url', 'gameName', 'direction']
+  },
+  {
     op: OP.AGENT_MODE,
     transport: 'local',
     steps: ['providerOptions.agent.agentMode'],

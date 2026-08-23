@@ -129,8 +129,15 @@ function createStaticServer(siteDir, options = {}) {
     excludeHosts: adapterCfg.excludeHosts || [],
     ossOrigin: ossOrigin || '',
     upstreamOrigin: apiUpstreamOrigin || '',
-    ossHosts: []
+    ossHosts: [],
+    lobbyGameUrl: ''
   };
+  try {
+    const { loadGameConfig } = require('./adapter/providers/wgame/game-config');
+    const po = (adapterCfg && adapterCfg.providerOptions) || {};
+    const gameCfg = loadGameConfig(root, po);
+    if (gameCfg && gameCfg.lobbyGameUrl) bootCfg.lobbyGameUrl = gameCfg.lobbyGameUrl;
+  } catch (_) { /* ignore */ }
   try {
     if (ossOrigin) bootCfg.ossHosts.push(new URL(ossOrigin).hostname);
   } catch (_) { /* ignore */ }

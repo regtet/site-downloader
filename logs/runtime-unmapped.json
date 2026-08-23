@@ -1,12 +1,24 @@
 {
-  "at": "2026-08-23T06:43:24.002Z",
-  "totalKeys": 1,
+  "at": "2026-08-23T07:18:54.847Z",
+  "totalKeys": 3,
   "top": [
     {
       "key": "GET /api/active/category",
+      "count": 7,
+      "firstAt": 1787468955024,
+      "lastAt": 1787469031781
+    },
+    {
+      "key": "POST /api/agent/promote/commissionMarquee",
+      "count": 3,
+      "firstAt": 1787468632714,
+      "lastAt": 1787469534847
+    },
+    {
+      "key": "GET /api/finance/maxChargeRate",
       "count": 1,
-      "firstAt": 1787467404002,
-      "lastAt": 1787467404002
+      "firstAt": 1787468952170,
+      "lastAt": 1787468952170
     }
   ]
 }

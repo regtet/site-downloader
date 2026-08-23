@@ -126,7 +126,8 @@ function normalizeBootCfg(adapterHostsOrCfg) {
     excludeHosts: Array.isArray(c.excludeHosts) ? c.excludeHosts : [],
     ossHosts,
     ossOrigin: c.ossOrigin ? String(c.ossOrigin) : '',
-    upstreamOrigin: c.upstreamOrigin ? String(c.upstreamOrigin) : ''
+    upstreamOrigin: c.upstreamOrigin ? String(c.upstreamOrigin) : '',
+    lobbyGameUrl: c.lobbyGameUrl ? String(c.lobbyGameUrl) : ''
   };
 }
 
@@ -138,6 +139,7 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
   const patternsJson = JSON.stringify(cfg.apiHostPatterns);
   const excludeJson = JSON.stringify(cfg.excludeHosts);
   const ossHostsJson = JSON.stringify(cfg.ossHosts || []);
+  const lobbyGameUrlJson = JSON.stringify(cfg.lobbyGameUrl || '');
   return `/*! site-downloader preview proxy boot */
 (function () {
   var SOURCE_ORIGIN = ${origin};
@@ -146,9 +148,11 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
   var API_HOST_PATTERNS = ${patternsJson};
   var EXCLUDE_HOSTS = ${excludeJson};
   var OSS_HOSTS = ${ossHostsJson};
+  var LOBBY_GAME_URL = ${lobbyGameUrlJson};
   if (!SOURCE_ORIGIN) return;
   if (window.__SD_PROXY_BOOT__) return;
   window.__SD_PROXY_BOOT__ = true;
+  if (LOBBY_GAME_URL) window.lobby_game_url = LOBBY_GAME_URL;
 
   var LOCAL_ORIGIN = location.origin;
   var ADAPTER_HOST_SET = {};

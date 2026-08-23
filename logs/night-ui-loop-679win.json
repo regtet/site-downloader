@@ -1217,10 +1217,184 @@
         }
       },
       "ok": true
+    },
+    {
+      "at": "2026-08-23T06:49:27.723Z",
+      "steps": {
+        "extractPay": {
+          "ok": true,
+          "status": 0,
+          "stdout": "{\n  \"ok\": true,\n  \"outPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\output\\\\679win\\\\har-pay-snapshot.json\",\n  \"logPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\logs\\\\har-pay-snapshot-679win.json\",\n  \"channelCount\": 6,\n  \"paysubmitUrl\": \"https://aniw976.679win.net/pay/paysubmit/12025\"\n}\n",
+          "stderr": ""
+        },
+        "extractAgent": {
+          "ok": true,
+          "status": 0,
+          "stdout": "{\n  \"ok\": true,\n  \"outPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\output\\\\679win\\\\har-agent-snapshot.json\",\n  \"logPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\logs\\\\har-agent-snapshot-679win.json\",\n  \"endpointCount\": 2,\n  \"keys\": [\n    \"POST /api/agent/promote/binding/reportViewV2\",\n    \"POST /api/agent/promote/getIpBindInfo\"\n  ]\n}\n",
+          "stderr": ""
+        },
+        "extractPopup": {
+          "ok": true,
+          "status": 0,
+          "stdout": "{\n  \"ok\": true,\n  \"outPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\output\\\\679win\\\\har-popup-snapshot.json\",\n  \"logPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\logs\\\\har-popup-snapshot-679win.json\",\n  \"endpointCount\": 3,\n  \"keys\": [\n    \"GET /api/active/tasks/newcomer_benefit_reward/default.json\",\n    \"POST /api/active/tasks/newcomer_benefit_pop\",\n    \"POST /api/member/user/registerPopupDlgInfo\"\n  ]\n}\n",
+          "stderr": ""
+        },
+        "extractOss": {
+          "ok": true,
+          "status": 0,
+          "stdout": "{\n  \"ok\": true,\n  \"outPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\output\\\\679win\\\\har-oss-snapshot.json\",\n  \"endpointCount\": 8,\n  \"keys\": [\n    \"GET /api/active/category/currency/BRL/language/pt.json\",\n    \"GET /api/active/active_popRecharge/currency/BRL/language/pt.json\",\n    \"GET /api/gohal/staffAllV3/currency/BRL/language/pt.json\",\n    \"GET /api/active/isShowV2/default.json\",\n    \"GET /api/finance/maxChargeRate/currency/BRL/osType/4.json\",\n    \"GET /api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json\",\n    \"GET /api/active/getByTemplate/currency/BRL.json\",\n    \"GET /api/finance/pay/payTypeSetting/language/pt.json\"\n  ]\n}\n",
+          "stderr": ""
+        },
+        "verify": {
+          "ok": true,
+          "status": 0,
+          "stdout": "finance/certify/withdrawRecord → lobby.emptyRecords/emptyRecords 1\n  OK  withdrawRecord empty list\n[bridge] aniw-lobby/wgame POST /api/finance/certify/withdrawSettingV3 → withdraw.pending/withdrawPending 10060\n  OK  withdrawSetting pending\n[bridge] aniw-lobby/wgame POST /api/gohal/heartbeat → lobby.ok/lobbyOk 1\n  OK  heartbeat lobbyOk\n[bridge] aniw-lobby/wgame POST /api/active/getRedDotV2 → lobby.emptyRecords/redDotEmpty 1\n  OK  redDotEmpty\n[bridge] aniw-lobby/wgame POST /api/member/getFingerprint → user.info/fingerprint 1\n  OK  fingerprint from session\n[bridge] aniw-lobby/wgame POST /api/member/listAccount → user.info/listAccount 1\n  OK  listAccount current only\n[bridge] aniw-lobby/wgame POST /api/member/logout → auth.logout/logout 1\n  OK  logout ok\n\n==== Result: passed=130 failed=0 ====\n",
+          "stderr": "[provider:wgame] register failed: register error 170\n"
+        },
+        "smoke": {
+          "ok": true,
+          "status": 0
+        },
+        "uiProbe": {
+          "ok": true,
+          "status": 0,
+          "stdout": "{\n  \"ok\": true,\n  \"outPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\logs\\\\ui-probe-679win\\\\report.json\",\n  \"shots\": [\n    \"event\",\n    \"pay\",\n    \"profile\",\n    \"agent\"\n  ]\n}\n",
+          "stderr": ""
+        },
+        "night": {
+          "ok": true,
+          "status": 0,
+          "stdout": "{\n  \"ok\": true,\n  \"e2eOk\": true,\n  \"mapSize\": 538,\n  \"interestingUnmappedCount\": 9,\n  \"actionableUnmapped\": [],\n  \"distActionableLeft\": [],\n  \"runtimeTop\": [],\n  \"progressPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\logs\\\\night-progress-679win.json\"\n}\n",
+          "stderr": ""
+        },
+        "export": {
+          "ok": true,
+          "status": 0,
+          "stdout": "{\n  \"ok\": true,\n  \"outPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\logs\\\\api-contract-679win.json\",\n  \"siteOutPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\output\\\\679win\\\\api-contract.json\"\n}\n",
+          "stderr": ""
+        }
+      },
+      "ok": true
+    },
+    {
+      "at": "2026-08-23T07:04:22.310Z",
+      "steps": {
+        "extractPay": {
+          "ok": true,
+          "status": 0,
+          "stdout": "{\n  \"ok\": true,\n  \"outPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\output\\\\679win\\\\har-pay-snapshot.json\",\n  \"logPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\logs\\\\har-pay-snapshot-679win.json\",\n  \"channelCount\": 6,\n  \"paysubmitUrl\": \"https://aniw976.679win.net/pay/paysubmit/12025\"\n}\n",
+          "stderr": ""
+        },
+        "extractAgent": {
+          "ok": true,
+          "status": 0,
+          "stdout": "{\n  \"ok\": true,\n  \"outPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\output\\\\679win\\\\har-agent-snapshot.json\",\n  \"logPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\logs\\\\har-agent-snapshot-679win.json\",\n  \"endpointCount\": 2,\n  \"keys\": [\n    \"POST /api/agent/promote/binding/reportViewV2\",\n    \"POST /api/agent/promote/getIpBindInfo\"\n  ]\n}\n",
+          "stderr": ""
+        },
+        "extractPopup": {
+          "ok": true,
+          "status": 0,
+          "stdout": "{\n  \"ok\": true,\n  \"outPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\output\\\\679win\\\\har-popup-snapshot.json\",\n  \"logPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\logs\\\\har-popup-snapshot-679win.json\",\n  \"endpointCount\": 3,\n  \"keys\": [\n    \"GET /api/active/tasks/newcomer_benefit_reward/default.json\",\n    \"POST /api/active/tasks/newcomer_benefit_pop\",\n    \"POST /api/member/user/registerPopupDlgInfo\"\n  ]\n}\n",
+          "stderr": ""
+        },
+        "extractOss": {
+          "ok": true,
+          "status": 0,
+          "stdout": "{\n  \"ok\": true,\n  \"outPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\output\\\\679win\\\\har-oss-snapshot.json\",\n  \"endpointCount\": 8,\n  \"keys\": [\n    \"GET /api/active/category/currency/BRL/language/pt.json\",\n    \"GET /api/active/active_popRecharge/currency/BRL/language/pt.json\",\n    \"GET /api/gohal/staffAllV3/currency/BRL/language/pt.json\",\n    \"GET /api/active/isShowV2/default.json\",\n    \"GET /api/finance/maxChargeRate/currency/BRL/osType/4.json\",\n    \"GET /api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json\",\n    \"GET /api/active/getByTemplate/currency/BRL.json\",\n    \"GET /api/finance/pay/payTypeSetting/language/pt.json\"\n  ]\n}\n",
+          "stderr": ""
+        },
+        "verify": {
+          "ok": true,
+          "status": 0,
+          "stdout": "finance/certify/withdrawRecord → lobby.emptyRecords/emptyRecords 1\n  OK  withdrawRecord empty list\n[bridge] aniw-lobby/wgame POST /api/finance/certify/withdrawSettingV3 → withdraw.pending/withdrawPending 10060\n  OK  withdrawSetting pending\n[bridge] aniw-lobby/wgame POST /api/gohal/heartbeat → lobby.ok/lobbyOk 1\n  OK  heartbeat lobbyOk\n[bridge] aniw-lobby/wgame POST /api/active/getRedDotV2 → lobby.emptyRecords/redDotEmpty 1\n  OK  redDotEmpty\n[bridge] aniw-lobby/wgame POST /api/member/getFingerprint → user.info/fingerprint 1\n  OK  fingerprint from session\n[bridge] aniw-lobby/wgame POST /api/member/listAccount → user.info/listAccount 1\n  OK  listAccount current only\n[bridge] aniw-lobby/wgame POST /api/member/logout → auth.logout/logout 1\n  OK  logout ok\n\n==== Result: passed=131 failed=0 ====\n",
+          "stderr": "[provider:wgame] register failed: register error 170\n"
+        },
+        "smoke": {
+          "ok": false,
+          "status": 1
+        },
+        "uiProbe": {
+          "ok": true,
+          "status": 0,
+          "stdout": "{\n  \"ok\": true,\n  \"outPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\logs\\\\ui-probe-679win\\\\report.json\",\n  \"shots\": [\n    \"event\",\n    \"pay\",\n    \"profile\",\n    \"agent\"\n  ]\n}\n",
+          "stderr": ""
+        },
+        "night": {
+          "ok": true,
+          "status": 0,
+          "stdout": "{\n  \"ok\": true,\n  \"e2eOk\": true,\n  \"mapSize\": 538,\n  \"interestingUnmappedCount\": 9,\n  \"actionableUnmapped\": [],\n  \"distActionableLeft\": [],\n  \"runtimeTop\": [],\n  \"progressPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\logs\\\\night-progress-679win.json\"\n}\n",
+          "stderr": ""
+        },
+        "export": {
+          "ok": true,
+          "status": 0,
+          "stdout": "{\n  \"ok\": true,\n  \"outPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\logs\\\\api-contract-679win.json\",\n  \"siteOutPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\output\\\\679win\\\\api-contract.json\"\n}\n",
+          "stderr": ""
+        }
+      },
+      "ok": false
+    },
+    {
+      "at": "2026-08-23T07:19:26.728Z",
+      "steps": {
+        "extractPay": {
+          "ok": true,
+          "status": 0,
+          "stdout": "{\n  \"ok\": true,\n  \"outPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\output\\\\679win\\\\har-pay-snapshot.json\",\n  \"logPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\logs\\\\har-pay-snapshot-679win.json\",\n  \"channelCount\": 6,\n  \"paysubmitUrl\": \"https://aniw976.679win.net/pay/paysubmit/12025\"\n}\n",
+          "stderr": ""
+        },
+        "extractAgent": {
+          "ok": true,
+          "status": 0,
+          "stdout": "{\n  \"ok\": true,\n  \"outPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\output\\\\679win\\\\har-agent-snapshot.json\",\n  \"logPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\logs\\\\har-agent-snapshot-679win.json\",\n  \"endpointCount\": 2,\n  \"keys\": [\n    \"POST /api/agent/promote/binding/reportViewV2\",\n    \"POST /api/agent/promote/getIpBindInfo\"\n  ]\n}\n",
+          "stderr": ""
+        },
+        "extractPopup": {
+          "ok": true,
+          "status": 0,
+          "stdout": "{\n  \"ok\": true,\n  \"outPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\output\\\\679win\\\\har-popup-snapshot.json\",\n  \"logPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\logs\\\\har-popup-snapshot-679win.json\",\n  \"endpointCount\": 3,\n  \"keys\": [\n    \"GET /api/active/tasks/newcomer_benefit_reward/default.json\",\n    \"POST /api/active/tasks/newcomer_benefit_pop\",\n    \"POST /api/member/user/registerPopupDlgInfo\"\n  ]\n}\n",
+          "stderr": ""
+        },
+        "extractOss": {
+          "ok": true,
+          "status": 0,
+          "stdout": "{\n  \"ok\": true,\n  \"outPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\output\\\\679win\\\\har-oss-snapshot.json\",\n  \"endpointCount\": 8,\n  \"keys\": [\n    \"GET /api/active/category/currency/BRL/language/pt.json\",\n    \"GET /api/active/active_popRecharge/currency/BRL/language/pt.json\",\n    \"GET /api/gohal/staffAllV3/currency/BRL/language/pt.json\",\n    \"GET /api/active/isShowV2/default.json\",\n    \"GET /api/finance/maxChargeRate/currency/BRL/osType/4.json\",\n    \"GET /api/finance/payPopup/settingAndSlogans/currency/BRL/language/pt.json\",\n    \"GET /api/active/getByTemplate/currency/BRL.json\",\n    \"GET /api/finance/pay/payTypeSetting/language/pt.json\"\n  ]\n}\n",
+          "stderr": ""
+        },
+        "verify": {
+          "ok": true,
+          "status": 0,
+          "stdout": "finance/certify/withdrawRecord → lobby.emptyRecords/emptyRecords 1\n  OK  withdrawRecord empty list\n[bridge] aniw-lobby/wgame POST /api/finance/certify/withdrawSettingV3 → withdraw.pending/withdrawPending 10060\n  OK  withdrawSetting pending\n[bridge] aniw-lobby/wgame POST /api/gohal/heartbeat → lobby.ok/lobbyOk 1\n  OK  heartbeat lobbyOk\n[bridge] aniw-lobby/wgame POST /api/active/getRedDotV2 → lobby.emptyRecords/redDotEmpty 1\n  OK  redDotEmpty\n[bridge] aniw-lobby/wgame POST /api/member/getFingerprint → user.info/fingerprint 1\n  OK  fingerprint from session\n[bridge] aniw-lobby/wgame POST /api/member/listAccount → user.info/listAccount 1\n  OK  listAccount current only\n[bridge] aniw-lobby/wgame POST /api/member/logout → auth.logout/logout 1\n  OK  logout ok\n\n==== Result: passed=131 failed=0 ====\n",
+          "stderr": "[provider:wgame] register failed: register error 170\n"
+        },
+        "smoke": {
+          "ok": false,
+          "status": 1
+        },
+        "uiProbe": {
+          "ok": true,
+          "status": 0,
+          "stdout": "{\n  \"ok\": true,\n  \"outPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\logs\\\\ui-probe-679win\\\\report.json\",\n  \"shots\": [\n    \"event\",\n    \"pay\",\n    \"profile\",\n    \"agent\"\n  ]\n}\n",
+          "stderr": ""
+        },
+        "night": {
+          "ok": true,
+          "status": 0,
+          "stdout": "{\n  \"ok\": true,\n  \"e2eOk\": true,\n  \"mapSize\": 538,\n  \"interestingUnmappedCount\": 9,\n  \"actionableUnmapped\": [],\n  \"distActionableLeft\": [],\n  \"runtimeTop\": [],\n  \"progressPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\logs\\\\night-progress-679win.json\"\n}\n",
+          "stderr": ""
+        },
+        "export": {
+          "ok": true,
+          "status": 0,
+          "stdout": "{\n  \"ok\": true,\n  \"outPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\logs\\\\api-contract-679win.json\",\n  \"siteOutPath\": \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\site-downloader\\\\output\\\\679win\\\\api-contract.json\"\n}\n",
+          "stderr": ""
+        }
+      },
+      "ok": false
     }
   ],
   "last": {
-    "at": "2026-08-23T06:34:29.219Z",
+    "at": "2026-08-23T07:19:26.728Z",
     "steps": {
       "extractPay": {
         "ok": true,
@@ -1249,12 +1423,12 @@
       "verify": {
         "ok": true,
         "status": 0,
-        "stdout": "finance/certify/withdrawRecord → lobby.emptyRecords/emptyRecords 1\n  OK  withdrawRecord empty list\n[bridge] aniw-lobby/wgame POST /api/finance/certify/withdrawSettingV3 → withdraw.pending/withdrawPending 10060\n  OK  withdrawSetting pending\n[bridge] aniw-lobby/wgame POST /api/gohal/heartbeat → lobby.ok/lobbyOk 1\n  OK  heartbeat lobbyOk\n[bridge] aniw-lobby/wgame POST /api/active/getRedDotV2 → lobby.emptyRecords/redDotEmpty 1\n  OK  redDotEmpty\n[bridge] aniw-lobby/wgame POST /api/member/getFingerprint → user.info/fingerprint 1\n  OK  fingerprint from session\n[bridge] aniw-lobby/wgame POST /api/member/listAccount → user.info/listAccount 1\n  OK  listAccount current only\n[bridge] aniw-lobby/wgame POST /api/member/logout → auth.logout/logout 1\n  OK  logout ok\n\n==== Result: passed=130 failed=0 ====\n",
+        "stdout": "finance/certify/withdrawRecord → lobby.emptyRecords/emptyRecords 1\n  OK  withdrawRecord empty list\n[bridge] aniw-lobby/wgame POST /api/finance/certify/withdrawSettingV3 → withdraw.pending/withdrawPending 10060\n  OK  withdrawSetting pending\n[bridge] aniw-lobby/wgame POST /api/gohal/heartbeat → lobby.ok/lobbyOk 1\n  OK  heartbeat lobbyOk\n[bridge] aniw-lobby/wgame POST /api/active/getRedDotV2 → lobby.emptyRecords/redDotEmpty 1\n  OK  redDotEmpty\n[bridge] aniw-lobby/wgame POST /api/member/getFingerprint → user.info/fingerprint 1\n  OK  fingerprint from session\n[bridge] aniw-lobby/wgame POST /api/member/listAccount → user.info/listAccount 1\n  OK  listAccount current only\n[bridge] aniw-lobby/wgame POST /api/member/logout → auth.logout/logout 1\n  OK  logout ok\n\n==== Result: passed=131 failed=0 ====\n",
         "stderr": "[provider:wgame] register failed: register error 170\n"
       },
       "smoke": {
-        "ok": true,
-        "status": 0
+        "ok": false,
+        "status": 1
       },
       "uiProbe": {
         "ok": true,
@@ -1275,6 +1449,6 @@
         "stderr": ""
       }
     },
-    "ok": true
+    "ok": false
   }
 }

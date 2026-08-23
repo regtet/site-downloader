@@ -130,6 +130,27 @@ function buildQrDataUrl(payload) {
   return String(payload || '');
 }
 
+/** dist 充值页读 recommendList[].amount，不能是裸字符串 */
+function normalizeRecommendList(list) {
+  if (!Array.isArray(list)) return [];
+  return list.map((row) => {
+    if (row != null && typeof row === 'object' && !Array.isArray(row)) {
+      const amount = row.amount != null ? String(row.amount) : '';
+      if (amount) return Object.assign({}, row, { amount });
+      return row;
+    }
+    const amount = String(row != null ? row : '').trim();
+    return amount ? { amount } : null;
+  }).filter(Boolean);
+}
+
+function defaultRecommendAmounts(pay) {
+  const fromCfg = pay && Array.isArray(pay.fixedRecommendList) && pay.fixedRecommendList.length
+    ? pay.fixedRecommendList
+    : ['10', '30', '50', '100', '500', '1000', '5000', '10000'];
+  return normalizeRecommendList(fromCfg);
+}
+
 function mapWgameChannelsToPack(list, pay) {
   const open = (Array.isArray(list) ? list : []).filter((c) => {
     if (!c) return false;
@@ -156,8 +177,8 @@ function mapWgameChannelsToPack(list, pay) {
       currencySign: (pay && pay.currencySign) || 'R$',
       min_recharge_limit: min,
       max_recharge_limit: max,
-      recommendList: ['20', '50', '100', '200', '500'].filter((x) => {
-        const n = Number(x);
+      recommendList: defaultRecommendAmounts(pay).filter((row) => {
+        const n = Number(row.amount);
         return n >= Number(min) && n <= Number(max);
       }),
       iconUrl: '',
@@ -176,11 +197,41 @@ function mapWgameChannelsToPack(list, pay) {
     min = String(Math.min(...mapped.map((m) => Number(m.min_recharge_limit) || 0)));
     max = String(Math.max(...mapped.map((m) => Number(m.max_recharge_limit) || 0)));
   }
-  return { list: mapped, min, max, url: '', realInfoRule: 0 };
+  const rec = mapped.length && mapped[0].recommendList && mapped[0].recommendList.length
+    ? mapped[0].recommendList
+    : defaultRecommendAmounts(pay);
+  return {
+    list: mapped,
+    min,
+    max,
+    url: '',
+    realInfoRule: 0,
+    recommendList: rec
+  };
+}
+
+function normalizePayChannelPack(pack) {
+  if (!pack || typeof pack !== 'object') return pack;
+  const out = Object.assign({}, pack);
+  if (Array.isArray(out.list)) {
+    out.list = out.list.map((ch) => {
+      const row = Object.assign({}, ch);
+      if (Array.isArray(row.recommendList)) {
+        row.recommendList = normalizeRecommendList(row.recommendList);
+      }
+      return row;
+    });
+  }
+  if (Array.isArray(out.recommendList)) {
+    out.recommendList = normalizeRecommendList(out.recommendList);
+  } else if (out.list && out.list[0] && Array.isArray(out.list[0].recommendList)) {
+    out.recommendList = out.list[0].recommendList.slice();
+  }
+  return out;
 }
 
 function finalizePayChannelPack(pack, siteDir) {
-  return enrichPayChannelPack(pack, loadHarPaySnapshot(siteDir));
+  return normalizePayChannelPack(enrichPayChannelPack(pack, loadHarPaySnapshot(siteDir)));
 }
 
 function loadHarPaySnapshot(siteDir) {
@@ -212,8 +263,10 @@ function applyHarPaySnapshot(cfg, har) {
     if (!Array.isArray(pack.recommendList) || !pack.recommendList.length) {
       const first = pack.list[0];
       pack.recommendList = (first && Array.isArray(first.recommendList) && first.recommendList.length)
-        ? first.recommendList.slice()
-        : ['10', '30', '50', '100', '500', '1000', '5000', '10000'];
+        ? normalizeRecommendList(first.recommendList)
+        : defaultRecommendAmounts(cfg);
+    } else {
+      pack.recommendList = normalizeRecommendList(pack.recommendList);
     }
   }
   // paysubmitUrl 是收银台页面基址（channelData.url），不是 createOrder.httpUrl JSON API
@@ -230,42 +283,10 @@ function enrichPayChannelItem(ch, harRow) {
   if (!out.payicon && harRow && harRow.payicon) out.payicon = harRow.payicon;
   if (!out.openWay && out.openWay !== 0) out.openWay = 4;
   if (!out.id && id) out.id = id;
+  if (Array.isArray(out.recommendList)) {
+    out.recommendList = normalizeRecommendList(out.recommendList);
+  }
   return out;
-}
-
-/** wgame 渠道数少于 HAR 时，以 HAR 展示为准并叠加 wgame 真实下单字段 */
-function mergePayChannelPacks(wgamePack, harPack, siteDir) {
-  const wg = (wgamePack && Array.isArray(wgamePack.list)) ? wgamePack : { list: [] };
-  const har = (harPack && Array.isArray(harPack.list)) ? harPack : { list: [] };
-  if (!har.list.length) return finalizePayChannelPack(wg, siteDir);
-  if (!wg.list.length) return finalizePayChannelPack(har, siteDir);
-
-  const wgById = Object.create(null);
-  for (const ch of wg.list) {
-    const id = ch.id || ch.channelId || ch.payplatformid;
-    if (id != null) wgById[id] = ch;
-  }
-  const seen = new Set();
-  const list = har.list.map((row) => {
-    const id = row.id || row.channelId || row.payplatformid;
-    if (id != null) seen.add(id);
-    const wgRow = id != null ? wgById[id] : null;
-    return enrichPayChannelItem(Object.assign({}, row, wgRow || {}), row);
-  });
-  for (const ch of wg.list) {
-    const id = ch.id || ch.channelId || ch.payplatformid;
-    if (id != null && seen.has(id)) continue;
-    list.push(enrichPayChannelItem(ch, null));
-  }
-  const out = Object.assign({}, har, wg, {
-    list,
-    min: har.min || wg.min || '10',
-    max: har.max || wg.max || '50000',
-    recommendList: (Array.isArray(har.recommendList) && har.recommendList.length)
-      ? har.recommendList.slice()
-      : wg.recommendList
-  });
-  return finalizePayChannelPack(out, siteDir);
 }
 
 function enrichPayChannelPack(pack, har) {
@@ -297,21 +318,25 @@ function enrichPayChannelPack(pack, har) {
     } else if (har && har.channelsByPayKind && har.channelsByPayKind['100']) {
       const hr = har.channelsByPayKind['100'];
       pack.recommendList = Array.isArray(hr.recommendList) && hr.recommendList.length
-        ? hr.recommendList.slice()
-        : ['10', '30', '50', '100', '500', '1000', '5000', '10000'];
+        ? normalizeRecommendList(hr.recommendList)
+        : defaultRecommendAmounts(har);
+    } else {
+      pack.recommendList = normalizeRecommendList(pack.recommendList);
     }
   }
-  return pack;
+  return normalizePayChannelPack(pack);
 }
 
 module.exports = {
   DEFAULT_PAY,
   loadPayConfig,
   buildQrDataUrl,
+  normalizeRecommendList,
+  defaultRecommendAmounts,
   mapWgameChannelsToPack,
   loadHarPaySnapshot,
   applyHarPaySnapshot,
   enrichPayChannelPack,
-  mergePayChannelPacks,
+  normalizePayChannelPack,
   finalizePayChannelPack
 };

@@ -31,6 +31,8 @@ const OP = {
   AGENT_BIND: 'agent.bind',
   AGENT_DIRECT: 'agent.direct',
   AGENT_CONFIG: 'agent.config',
+  /** 点击游戏 → wgame 自有客户端 URL */
+  GAME_LAUNCH: 'game.launch',
   WITHDRAW_PENDING: 'withdraw.pending',
   /** 心跳/埋点等无业务数据：显式成功空壳（非伪造余额/渠道） */
   LOBBY_OK: 'lobby.ok',

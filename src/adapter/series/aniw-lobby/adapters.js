@@ -383,16 +383,34 @@ function adaptPayType(providerResult) {
 }
 
 /** payplatformlist：渠道包 */
+function normalizeRecommendListForUi(list) {
+  if (!Array.isArray(list)) return [];
+  return list.map((row) => {
+    if (row != null && typeof row === 'object' && !Array.isArray(row)) {
+      return row.amount != null ? row : row;
+    }
+    const amount = String(row != null ? row : '').trim();
+    return amount ? { amount } : null;
+  }).filter(Boolean);
+}
+
 function adaptPayChannels(providerResult) {
   if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
   const d = providerResult.data || {};
+  const list = Array.isArray(d.list) ? d.list.map((ch) => {
+    const row = Object.assign({}, ch);
+    if (Array.isArray(row.recommendList)) {
+      row.recommendList = normalizeRecommendListForUi(row.recommendList);
+    }
+    return row;
+  }) : [];
   return envelope({
-    list: Array.isArray(d.list) ? d.list : [],
+    list,
     min: d.min != null ? String(d.min) : '0',
     max: d.max != null ? String(d.max) : '0',
     url: d.url || '',
     realInfoRule: d.realInfoRule != null ? d.realInfoRule : 0,
-    recommendList: Array.isArray(d.recommendList) ? d.recommendList : [],
+    recommendList: normalizeRecommendListForUi(d.recommendList),
     sign_key: d.sign_key || ''
   });
 }
@@ -428,6 +446,20 @@ function adaptPayCreate(providerResult) {
 function adaptPayOrderInfo(providerResult) {
   if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
   return envelope(providerResult.data != null ? providerResult.data : {});
+}
+
+/** gameApi/login → { game_url, gameName, direction, gameid, platfromid } */
+function adaptGameLaunch(providerResult) {
+  if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
+  const d = providerResult.data || {};
+  return envelope({
+    game_url: d.game_url || d.gameUrl || '',
+    gameName: d.gameName || d.name || '',
+    direction: d.direction != null ? Number(d.direction) : 1,
+    gameid: d.gameid != null ? d.gameid : (d.gameId != null ? d.gameId : 0),
+    platfromid: d.platfromid != null ? d.platfromid : (d.platformId != null ? d.platformId : ''),
+    platformId: d.platformId != null ? d.platformId : (d.platfromid != null ? d.platfromid : '')
+  });
 }
 
 /** 代理配置/报表：透传 providerOptions.agent 形状 */
@@ -564,6 +596,7 @@ const ADAPTERS = {
   payInfos: adaptPayInfos,
   payCreate: adaptPayCreate,
   payOrderInfo: adaptPayOrderInfo,
+  gameLaunch: adaptGameLaunch,
   agentBlob: adaptAgentBlob,
   withdrawPending: adaptWithdrawPending,
   logout: adaptLogout,
@@ -611,6 +644,7 @@ module.exports = {
   adaptPayInfos,
   adaptPayCreate,
   adaptPayOrderInfo,
+  adaptGameLaunch,
   adaptAgentBlob,
   adaptWithdrawPending,
   adaptLogout,

@@ -433,8 +433,7 @@ async function execute(op, ctx) {
       loadPayConfig,
       buildQrDataUrl,
       mapWgameChannelsToPack,
-      finalizePayChannelPack,
-      mergePayChannelPacks
+      finalizePayChannelPack
     } = require('./pay-config');
     const { putOrder, getOrder, listOrders } = require('./pay-orders');
     const pay = loadPayConfig(ctx && ctx.siteDir, cfg);
@@ -850,6 +849,22 @@ async function execute(op, ctx) {
 
   if (op === OP.WITHDRAW_PENDING) {
     return fail(10060, 'withdraw adapter pending: wgame has no withdraw channel');
+  }
+
+  if (op === OP.GAME_LAUNCH) {
+    const { loadGameConfig, buildGameLaunchData } = require('./game-config');
+    const game = loadGameConfig(ctx && ctx.siteDir, cfg);
+    if (!game.enabled) {
+      return fail(10060, 'game launch disabled in providerOptions.game');
+    }
+    const sessionRow = findSession(body, headers);
+    const sessionUser = sessionRow && sessionRow.user;
+    if (!sessionUser) return fail(401, 'not logged in');
+    const data = buildGameLaunchData(body || {}, sessionUser, game);
+    if (!data || !data.game_url) {
+      return fail(10061, 'no game mapping for platformId=' + (body.platfromid || body.platformId));
+    }
+    return ok(data, 'ok');
   }
 
   if (op === OP.AUTH_LOGOUT) {

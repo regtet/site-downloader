@@ -49,6 +49,8 @@ function mapResponse(op, providerResult, meta) {
                             ? 'payCreate'
                             : op === OP.PAY_ORDER_INFO
                               ? 'payOrderInfo'
+                              : op === OP.GAME_LAUNCH
+                                ? 'gameLaunch'
                               : (op === OP.AGENT_MODE
                                 || op === OP.AGENT_PROMOTION
                                 || op === OP.AGENT_INDEX

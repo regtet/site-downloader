@@ -1,5 +1,5 @@
 {
-  "at": "2026-08-23T06:33:33.817Z",
+  "at": "2026-08-23T07:18:33.111Z",
   "port": 3476,
   "base": "http://127.0.0.1:3476",
   "login": true,
@@ -51,8 +51,13 @@
     },
     {
       "status": 200,
+      "path": "/hall/api/gohal/staffAllV3/currency/BRL/language/pt.json",
+      "sample": "{\"code\":1,\"data\":{\"customer\":{\"customerContentConfig\":[],\"liveChatCustomer\":null,\"onlineCustomers\":[{\"appDisplayPage\":0,\"customerCode\":\"\",\"customerCodeApp\":\"\",\"customerName\":\"Serviço Online\",\"customer"
+    },
+    {
+      "status": 200,
       "path": "/hall/api/agent/promote/config/agentMode",
-      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"agent_id\":0,\"agentModeName\":\"Infinite\",\"settleDuration\":0,\"settleDurationDays\":1,\"settleDurationCustom\":\"\",\"nextSettleTime\":0,\"isProAgent\":false,\"_mockToken\":\"ccc661e27b3a\""
+      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"agent_id\":0,\"agentModeName\":\"Infinite\",\"settleDuration\":0,\"settleDurationDays\":1,\"settleDurationCustom\":\"\",\"nextSettleTime\":0,\"isProAgent\":false,\"_mockToken\":\"04c1ca72d50b\""
     },
     {
       "status": 200,
@@ -61,18 +66,18 @@
     },
     {
       "status": 200,
-      "path": "/hall/api/agent/promote/binding/reportViewV2",
-      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"list\":[],\"total\":0,\"records\":[],\"rows\":[],\"page\":1,\"pageSize\":20}}"
+      "path": "/hall/api/member/vipInfoUnLogin",
+      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"VipSettings\":[{\"vip\":0,\"name\":\"VIP 0\",\"level_up_deposit\":100,\"level_up_bet\":0,\"total_deposit\":0,\"total_bet\":0},{\"vip\":1,\"name\":\"VIP 1\",\"level_up_deposit\":500,\"level_up_bet\""
     },
     {
       "status": 200,
-      "path": "/hall/api/member/vipInfoUnLogin",
-      "sample": "dWDd9Ax9N1AusShSB46jD00KyPrX+3qBAnAgR5hTL3ZJ/hbsHHIHRfBStD0RZeulOzKoCu0umsz433q4sdZiOdoHfQkOelpSCezzLlQ5axfL2aLKc4KmkB4pymEo5hbEUgvfT2U9/Kfffhfq4LGg7TNMlfWimLLeA+mQGLydeepCv9DeKk5tHgXaNtkyhBD35l5mE/nc"
+      "path": "/hall/api/agent/promote/binding/reportViewV2",
+      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"list\":[],\"total\":0,\"records\":[],\"rows\":[],\"page\":1,\"pageSize\":20}}"
     },
     {
       "status": 200,
       "path": "/hall/api/agent/promote/getIpBindInfo",
-      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"bind\":false,\"list\":[],\"_mockToken\":\"ccc661e27b3a\"}}"
+      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"bind\":false,\"list\":[],\"_mockToken\":\"04c1ca72d50b\"}}"
     },
     {
       "status": 200,
@@ -82,7 +87,7 @@
     {
       "status": 200,
       "path": "/hall/api/agent/promote/config/agentMode",
-      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"agent_id\":0,\"agentModeName\":\"Infinite\",\"settleDuration\":0,\"settleDurationDays\":1,\"settleDurationCustom\":\"\",\"nextSettleTime\":0,\"isProAgent\":false,\"_mockToken\":\"ccc661e27b3a\""
+      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"agent_id\":0,\"agentModeName\":\"Infinite\",\"settleDuration\":0,\"settleDurationDays\":1,\"settleDurationCustom\":\"\",\"nextSettleTime\":0,\"isProAgent\":false,\"_mockToken\":\"04c1ca72d50b\""
     },
     {
       "status": 200,
@@ -91,13 +96,13 @@
     },
     {
       "status": 200,
-      "path": "/hall/api/agent/promote/binding/reportViewV2",
-      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"list\":[],\"total\":0,\"records\":[],\"rows\":[],\"page\":1,\"pageSize\":20}}"
+      "path": "/hall/api/member/vipInfoUnLogin",
+      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"VipSettings\":[{\"vip\":0,\"name\":\"VIP 0\",\"level_up_deposit\":100,\"level_up_bet\":0,\"total_deposit\":0,\"total_bet\":0},{\"vip\":1,\"name\":\"VIP 1\",\"level_up_deposit\":500,\"level_up_bet\""
     },
     {
       "status": 200,
-      "path": "/hall/api/member/vipInfoUnLogin",
-      "sample": "dWDd9Ax9N1AusShSB46jD00KyPrX+3qBAnAgR5hTL3YMGDK4aFf1I8n5tWr4xN6oas8w4PgQimrkRLZam/VZNGHGUK2dti+pE4R1O4U+9Pnkm+sailAyfz0yMirxe9sKu8FVFx73Ys/MVtp25xkOAEeX07frIqAkvR8rUCJFo7hzRoM3XTduhr914ya+sslYZJmVZ9Fv"
+      "path": "/hall/api/agent/promote/binding/reportViewV2",
+      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"list\":[],\"total\":0,\"records\":[],\"rows\":[],\"page\":1,\"pageSize\":20}}"
     },
     {
       "status": 200,
@@ -107,7 +112,7 @@
     {
       "status": 200,
       "path": "/hall/api/agent/promote/config/agentMode",
-      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"agent_id\":0,\"agentModeName\":\"Infinite\",\"settleDuration\":0,\"settleDurationDays\":1,\"settleDurationCustom\":\"\",\"nextSettleTime\":0,\"isProAgent\":false,\"_mockToken\":\"ccc661e27b3a\""
+      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"agent_id\":0,\"agentModeName\":\"Infinite\",\"settleDuration\":0,\"settleDurationDays\":1,\"settleDurationCustom\":\"\",\"nextSettleTime\":0,\"isProAgent\":false,\"_mockToken\":\"04c1ca72d50b\""
     },
     {
       "status": 200,
@@ -131,28 +136,28 @@
     },
     {
       "status": 200,
-      "path": "/hall/api/agent/promote/binding/reportViewV2",
-      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"list\":[],\"total\":0,\"records\":[],\"rows\":[],\"page\":1,\"pageSize\":20}}"
-    },
-    {
-      "status": 200,
       "path": "/hall/api/agent/promote/config/share/currency/BRL/language/pt.json",
       "sample": "{\"code\":1,\"data\":{\"currency\":\"BRL\",\"customizeImage\":\"\",\"promoteIndexBarrageSwitch\":\"1\",\"promoteShareAdvertiseSwitch\":\"2\",\"slogan\":\"679win.vip  explora as mais emocionantes máquinas caça-níqueis online"
     },
     {
       "status": 200,
-      "path": "/hall/api/agent/promote/commissionMarquee",
-      "sample": "dWDd9Ax9N1AusShSB46jD00KyPrX+3qBAnAgR5hTL3avTTWM/rRKjzqStHbRbEcZQ41gyUSmtd3lHa5N3l3APV70cBk/dIbgfw48sbXtnDPZ3uDxvxISu8obh2G3lsCNc3RkJ4xvwYyOcPwJ5ERjO6QyRmLxJmF8STU+xatx0twnkTfFL2UoCC1AQG3Opl7Fj5ALnsXo"
+      "path": "/hall/api/agent/promote/binding/reportViewV2",
+      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"list\":[],\"total\":0,\"records\":[],\"rows\":[],\"page\":1,\"pageSize\":20}}"
     },
     {
       "status": 200,
-      "path": "/hall/api/agent/promote/getPromoteStrangerSetting/default.json",
-      "sample": "{\"code\":1,\"data\":{\"conditionSettings\":[{\"getCondVal\":[],\"getCount\":10,\"getRule\":1,\"getScope\":1,\"getTotal\":200,\"inviteType\":0},{\"getCondVal\":[],\"getCount\":10,\"getRule\":1,\"getScope\":1,\"getTotal\":200,\"in"
+      "path": "/hall/api/agent/promote/commissionMarquee",
+      "sample": "dWDd9Ax9N1AusShSB46jD00KyPrX+3qBAnAgR5hTL3bCWMP6WZFZbaNP5Ei5Rx0HncD9LpLhkrP7jo5gOcB27h9Mi07ll8zLdEfWLGvplNhVIpaJ5aB2DoKN34Lho5k5BQcZELEZTY5cRJxahOoSOWXwHX49gBL/2fwUhbb3pzIFVWrNmAB9ByoXGxf2StFlPDuycv5P"
     },
     {
       "status": 200,
       "path": "/hall/api/agent/promote/config/tutorial/agentId/0/currency/BRL/language/pt.json",
       "sample": "{\"code\":1,\"data\":{\"agentId\":0,\"agentSource\":0,\"languageCode\":\"\",\"richText\":\"\",\"useDefault\":1},\"siteCode\":\"12025\",\"time\":1787335580}"
+    },
+    {
+      "status": 200,
+      "path": "/hall/api/agent/promote/getPromoteStrangerSetting/default.json",
+      "sample": "{\"code\":1,\"data\":{\"conditionSettings\":[{\"getCondVal\":[],\"getCount\":10,\"getRule\":1,\"getScope\":1,\"getTotal\":200,\"inviteType\":0},{\"getCondVal\":[],\"getCount\":10,\"getRule\":1,\"getScope\":1,\"getTotal\":200,\"in"
     },
     {
       "status": 200,
