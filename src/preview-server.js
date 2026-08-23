@@ -70,7 +70,7 @@ class PreviewManager {
     };
   }
 
-  async start(siteDir) {
+  async start(siteDir, options = {}) {
     const key = this.keyOf(siteDir);
     const existing = this.previews.get(key);
     // 每次重新拉起，避免沿用旧进程里的旧 boot/adapter 代码
@@ -87,7 +87,9 @@ class PreviewManager {
       spaFallback: this.spaFallback,
       host: this.host
     });
-    const info = await server.start(siteDir, preferred);
+    const info = await server.start(siteDir, preferred, {
+      enableAdapter: options.enableAdapter
+    });
     const entry = {
       server,
       siteDir: key,
@@ -95,6 +97,7 @@ class PreviewManager {
       port: info.port,
       url: info.url,
       sourceOrigin: info.sourceOrigin || '',
+      adapterEnabled: info.adapterEnabled !== false,
       startedAt: new Date().toISOString()
     };
     this.previews.set(key, entry);
@@ -104,6 +107,7 @@ class PreviewManager {
       port: entry.port,
       url: entry.url,
       sourceOrigin: entry.sourceOrigin || null,
+      adapterEnabled: entry.adapterEnabled !== false,
       reused: false
     };
   }

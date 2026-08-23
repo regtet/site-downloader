@@ -512,7 +512,11 @@ async function handleApi(req, res, pathname) {
             return;
         }
         try {
-            const info = await previewServer.start(siteDir);
+            const info = await previewServer.start(siteDir, {
+              enableAdapter: body.enableAdapter === true
+                ? true
+                : (body.enableAdapter === false ? false : undefined)
+            });
             sendJson(res, 200, { ...info, previews: previewServer.list() });
         } catch (err) {
             sendJson(res, 500, { error: err.message });

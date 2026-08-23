@@ -156,9 +156,19 @@ function loadAdapterHosts(siteDir, fs, path) {
   return loadAdapterConfig(siteDir, fs, path).hosts;
 }
 
+/** 是否已执行第二步「替换接口」（部署包内才有 adapter-hosts.json） */
+function hasAdapterPack(siteDir, fs, path) {
+  try {
+    return fs.existsSync(path.join(siteDir, 'adapter-hosts.json'));
+  } catch (_) {
+    return false;
+  }
+}
+
 module.exports = {
   loadAdapterConfig,
   loadAdapterHosts,
+  hasAdapterPack,
   inferOriginsFromNetwork,
   inferSiteCodeFromSite,
   ensureSiteCodeQuery,

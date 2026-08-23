@@ -14,6 +14,7 @@ const {
 const { tryHandleAdapter } = require('./adapter');
 const { noteUnmapped, isApiPath } = require('./adapter/unmapped-log');
 const { loadAdapterConfig, isHallApiPath, isOssAssetPath } = require('./adapter/hosts');
+const { hasAdapterPack, inferOriginsFromNetwork, inferSiteCodeFromSite } = require('./adapter/config');
 const { getProvider } = require('./adapter/providers');
 const { isMockCashierPath, handleMockCashierRequest } = require('./mock-cashier');
 const { isMockAgentPath, handleMockAgentRequest } = require('./mock-agent-api');
@@ -115,9 +116,25 @@ function createStaticServer(siteDir, options = {}) {
     || resolveSourceOrigin(root, fs, path)
     || '';
   const headerProxy = options.headerProxy !== false && !!sourceOrigin;
-  const adapterCfg = options.adapterConfig
-    || loadAdapterConfig(root, fs, path)
-    || { hosts: [], upstreamOrigin: '' };
+  const adapterPack = hasAdapterPack(root, fs, path);
+  const adapterEnabled = options.enableAdapter !== undefined
+    ? !!options.enableAdapter
+    : adapterPack;
+  const adapterCfg = adapterEnabled
+    ? (options.adapterConfig || loadAdapterConfig(root, fs, path) || { hosts: [], upstreamOrigin: '' })
+    : (() => {
+      const inferred = inferOriginsFromNetwork(root, fs, path) || {};
+      return {
+        hosts: [],
+        apiHostPatterns: [],
+        excludeHosts: [],
+        upstreamOrigin: inferred.upstreamOrigin || '',
+        ossOrigin: inferred.ossOrigin || '',
+        siteCode: inferSiteCodeFromSite(root, fs, path) || '',
+        provider: null,
+        providerOptions: {}
+      };
+    })();
   const adapterHosts = options.adapterHosts || adapterCfg.hosts || [];
   // aniw 业务 API（可 POST）；绝不能回退成 OSS，否则 MethodNotAllowed ResourceType=OBJECT
   const apiUpstreamOrigin = options.apiUpstreamOrigin || adapterCfg.upstreamOrigin || '';
@@ -130,7 +147,8 @@ function createStaticServer(siteDir, options = {}) {
     ossOrigin: ossOrigin || '',
     upstreamOrigin: apiUpstreamOrigin || '',
     ossHosts: [],
-    lobbyGameUrl: ''
+    lobbyGameUrl: '',
+    adapterEnabled
   };
   try {
     const { loadGameConfig } = require('./adapter/providers/wgame/game-config');
@@ -156,7 +174,7 @@ function createStaticServer(siteDir, options = {}) {
         }
       } catch (_) { /* ignore */ }
 
-      if (await tryHandleAdapter(req, res, {
+      if (adapterEnabled && await tryHandleAdapter(req, res, {
         adapterHosts: bootCfg,
         adapterConfig: adapterCfg,
         siteDir: root
@@ -164,7 +182,7 @@ function createStaticServer(siteDir, options = {}) {
 
       try {
         const u = new URL(req.url || '/', `http://${host}`);
-        if (isApiPath(u.pathname)) noteUnmapped(u.pathname, req.method);
+        if (adapterEnabled && isApiPath(u.pathname)) noteUnmapped(u.pathname, req.method);
       } catch (_) { /* ignore */ }
 
       if (headerProxy && tryHandleProxy(req, res, sourceOrigin, bootCfg)) {
@@ -393,7 +411,8 @@ class StaticServer {
             siteDir: this.siteDir,
             url: `http://${this.host}:${this.port}`,
             sourceOrigin: this.sourceOrigin || null,
-            headerProxy: !!(this.headerProxy && this.sourceOrigin)
+            headerProxy: !!(this.headerProxy && this.sourceOrigin),
+            adapterEnabled: this.adapterEnabled !== false
         };
     }
 
@@ -412,7 +431,7 @@ class StaticServer {
         });
     }
 
-    start(siteDir, preferredPort) {
+    start(siteDir, preferredPort, startOptions = {}) {
         return new Promise((resolve, reject) => {
             if (!fs.existsSync(siteDir)) {
                 reject(new Error('目录不存在'));
@@ -430,7 +449,8 @@ class StaticServer {
                     host: this.host,
                     spaFallback: this.spaFallback,
                     sourceOrigin,
-                    headerProxy: this.headerProxy
+                    headerProxy: this.headerProxy,
+                    enableAdapter: startOptions.enableAdapter
                 });
 
                 server.on('error', (err) => {
@@ -445,6 +465,9 @@ class StaticServer {
                     this.server = server;
                     this.port = port;
                     this.siteDir = resolvedDir;
+                    this.adapterEnabled = startOptions.enableAdapter !== undefined
+                      ? !!startOptions.enableAdapter
+                      : hasAdapterPack(resolvedDir, fs, path);
                     resolve(this.getInfo());
                 });
             };

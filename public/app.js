@@ -540,7 +540,7 @@ function showResultForTask(task) {
   if (preview) {
     previewBtn.textContent = `打开预览 :${preview.port}`;
   } else {
-    previewBtn.textContent = migratedPath ? '预览部署包' : '本地预览';
+    previewBtn.textContent = migratedPath ? '预览部署包' : '预览原始 dist';
   }
 
   if (summary) renderErrors(summary.errors, summary);
@@ -736,6 +736,13 @@ function attachJobEvents(taskId, url, options = {}) {
       t.interfaceReplaced = false;
       t.migratedPath = null;
       t.migrateError = '';
+      const oldDirs = [
+        t.outputDir,
+        t.summary?.outputDir,
+        t.historyMeta?.migratedPath,
+        t.historyMeta?.path
+      ].filter(Boolean);
+      for (const d of [...new Set(oldDirs)]) stopPreview(d);
       finishLiveTask(taskId);
       needPanel = true;
       needList = true;
@@ -857,13 +864,16 @@ function updatePreviewStatus(info) {
   }
 }
 
-async function startPreview(dir) {
+async function startPreview(dir, options = {}) {
   try {
     previewBtn.disabled = true;
     const res = await fetch('/api/preview/start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: dir })
+      body: JSON.stringify({
+        path: dir,
+        enableAdapter: options.enableAdapter === true
+      })
     });
     const data = await res.json();
     if (!res.ok) {
@@ -992,7 +1002,7 @@ previewBtn.addEventListener('click', async () => {
     window.open(existing.url, '_blank');
     return;
   }
-  await startPreview(dir);
+  await startPreview(dir, { enableAdapter: !!task.interfaceReplaced });
 });
 
 stopPreviewBtn.addEventListener('click', () => {
@@ -1033,6 +1043,8 @@ async function runMigrate() {
       migratedAt: new Date().toISOString()
     };
     appendTaskLog(task.id, `接口已替换 → ${data.outputDir}`, false);
+    const prevDir = task.outputDir || task.summary?.outputDir;
+    if (prevDir) await stopPreview(prevDir);
     refreshTaskPanel();
     renderTaskList();
   } catch (err) {

@@ -109,7 +109,8 @@ function normalizeBootCfg(adapterHostsOrCfg) {
       excludeHosts: [],
       ossHosts: [],
       ossOrigin: '',
-      upstreamOrigin: ''
+      upstreamOrigin: '',
+      adapterEnabled: true
     };
   }
   const c = adapterHostsOrCfg && typeof adapterHostsOrCfg === 'object' ? adapterHostsOrCfg : {};
@@ -127,7 +128,8 @@ function normalizeBootCfg(adapterHostsOrCfg) {
     ossHosts,
     ossOrigin: c.ossOrigin ? String(c.ossOrigin) : '',
     upstreamOrigin: c.upstreamOrigin ? String(c.upstreamOrigin) : '',
-    lobbyGameUrl: c.lobbyGameUrl ? String(c.lobbyGameUrl) : ''
+    lobbyGameUrl: c.lobbyGameUrl ? String(c.lobbyGameUrl) : '',
+    adapterEnabled: c.adapterEnabled !== false
   };
 }
 
@@ -140,6 +142,7 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
   const excludeJson = JSON.stringify(cfg.excludeHosts);
   const ossHostsJson = JSON.stringify(cfg.ossHosts || []);
   const lobbyGameUrlJson = JSON.stringify(cfg.lobbyGameUrl || '');
+  const adapterEnabledJson = cfg.adapterEnabled === false ? 'false' : 'true';
   return `/*! site-downloader preview proxy boot */
 (function () {
   var SOURCE_ORIGIN = ${origin};
@@ -149,6 +152,7 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
   var EXCLUDE_HOSTS = ${excludeJson};
   var OSS_HOSTS = ${ossHostsJson};
   var LOBBY_GAME_URL = ${lobbyGameUrlJson};
+  var ADAPTER_ENABLED = ${adapterEnabledJson};
   if (!SOURCE_ORIGIN) return;
   if (window.__SD_PROXY_BOOT__) return;
   window.__SD_PROXY_BOOT__ = true;
@@ -220,7 +224,7 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
 
   function isLocalShortPath(pathname) {
     var p = pathname || '';
-    if (p.indexOf('/hall/api/') === 0 || p.indexOf('/api/') === 0) return true;
+    if (ADAPTER_ENABLED && (p.indexOf('/hall/api/') === 0 || p.indexOf('/api/') === 0)) return true;
     return isMirroredAssetPath(p);
   }
 
@@ -299,9 +303,10 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
       var u = new URL(href);
       if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
       if (u.origin === LOCAL_ORIGIN) return null;
-      // 业务 API 一律改本地短 path。oniw OSS 只允许 GET 对象；POST 打上去会 405 MethodNotAllowed
+      // 业务 API：部署包走本地 Bridge；原始 dist 回源官方
       if (u.pathname.indexOf('/hall/api/') === 0 || u.pathname.indexOf('/api/') === 0) {
-        return LOCAL_ORIGIN + u.pathname + u.search + u.hash;
+        if (ADAPTER_ENABLED) return LOCAL_ORIGIN + u.pathname + u.search + u.hash;
+        return toProxy(href);
       }
       // OSS(oniw)：已下载的图片/静态走本地；version.json 等元数据必须回源（本地 404 会触发域名探测失败→整页图闪没）
       if (isOssHost(u.hostname)) {
@@ -310,9 +315,10 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
         }
         return toProxy(href);
       }
-      // 其它业务 API 主机 → 本地短 path
+      // 其它业务 API 主机 → 本地短 path（仅部署包）或代理回源
       if (isAdapterApiHost(u.hostname) && isLocalShortPath(u.pathname)) {
-        return LOCAL_ORIGIN + u.pathname + u.search + u.hash;
+        if (ADAPTER_ENABLED) return LOCAL_ORIGIN + u.pathname + u.search + u.hash;
+        return toProxy(href);
       }
       // 其它跨域 → 本地代理
       return toProxy(href);
@@ -723,6 +729,7 @@ function buildServiceWorkerScript(adapterHostsOrCfg) {
   const patternsJson = JSON.stringify(cfg.apiHostPatterns);
   const excludeJson = JSON.stringify(cfg.excludeHosts);
   const ossHostsJson = JSON.stringify(cfg.ossHosts || []);
+  const adapterEnabledJson = cfg.adapterEnabled === false ? 'false' : 'true';
   return `/*! site-downloader api adapter sw v10 */
 self.addEventListener('install', function (e) { self.skipWaiting(); });
 self.addEventListener('activate', function (e) { e.waitUntil(self.clients.claim()); });
@@ -732,6 +739,7 @@ var ADAPTER_HOSTS = ${hostsJson};
 var API_HOST_PATTERNS = ${patternsJson};
 var EXCLUDE_HOSTS = ${excludeJson};
 var OSS_HOSTS = ${ossHostsJson};
+var ADAPTER_ENABLED = ${adapterEnabledJson};
 var ADAPTER_HOST_SET = {};
 for (var hi = 0; hi < ADAPTER_HOSTS.length; hi++) ADAPTER_HOST_SET[String(ADAPTER_HOSTS[hi]).toLowerCase()] = true;
 var EXCLUDE_HOST_SET = {};
@@ -772,7 +780,7 @@ function isMirroredAssetPath(pathname) {
 
 function isLocalShortPath(pathname) {
   var p = pathname || '';
-  if (p.indexOf('/hall/api/') === 0 || p.indexOf('/api/') === 0) return true;
+  if (ADAPTER_ENABLED && (p.indexOf('/hall/api/') === 0 || p.indexOf('/api/') === 0)) return true;
   return isMirroredAssetPath(p);
 }
 
@@ -799,10 +807,15 @@ self.addEventListener('fetch', function (event) {
   try { url = new URL(req.url); } catch (e) { return; }
   if (url.origin === self.location.origin) return;
 
-  // 业务 API 一律改本地短 path，禁止 POST 打到 oniw OSS（会 405 MethodNotAllowed）
+  // 业务 API：部署包走本地 Bridge；原始 dist 代理回官方
   if (url.pathname.indexOf('/hall/api/') === 0 || url.pathname.indexOf('/api/') === 0) {
-    var apiLocal = self.location.origin + url.pathname + url.search;
-    event.respondWith(relay(req, apiLocal));
+    if (ADAPTER_ENABLED) {
+      var apiLocal = self.location.origin + url.pathname + url.search;
+      event.respondWith(relay(req, apiLocal));
+      return;
+    }
+    var proxyUrl = self.location.origin + PROXY_PREFIX + encodeURIComponent(req.url);
+    event.respondWith(relay(req, proxyUrl));
     return;
   }
 
