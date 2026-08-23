@@ -93,7 +93,9 @@ function memberProfile(user) {
 
     // —— 身份：username=数字会员ID；nickname 官方注册后可为空 ——
     username,
-    nickname: user.nickname != null ? String(user.nickname) : '',
+    nickname: (user.nickname != null && String(user.nickname).trim())
+      ? String(user.nickname)
+      : (user.account ? String(user.account) : ''),
     userkey: session || (uid != null ? String(uid) : ''),
     user_id: uid != null ? String(uid) : undefined,
     userid: uid != null ? String(uid) : undefined,

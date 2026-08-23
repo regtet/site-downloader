@@ -39,7 +39,9 @@ const OP = {
   /** 功能未接：明确失败，禁止空成功领奖/绑卡 */
   FEATURE_PENDING: 'feature.pending',
   /** 本地会话上下文 → 由 response adapter 填目标结构 */
-  LOBBY_LOCAL: 'lobby.local'
+  LOBBY_LOCAL: 'lobby.local',
+  /** 不拦截：交 static-server 回源 OSS/aniw */
+  UPSTREAM: 'upstream.passthrough'
 };
 
 module.exports = { OP };

@@ -1,5 +1,5 @@
 {
-  "extractedAt": "2026-08-23T00:02:16.501Z",
+  "extractedAt": "2026-08-23T00:29:28.530Z",
   "sourceHar": "C:\\Users\\Administrator\\Downloads\\679win.com.har",
   "paysubmitUrl": "https://aniw976.679win.net/pay/paysubmit/12025",
   "siteCode": "12025",
@@ -55,6 +55,8 @@
             "5000",
             "10000"
           ],
+          "channelTooltip": "HOT",
+          "payicon": "9",
           "iconUrl": "",
           "orderEffectiveTime": 1800,
           "realNameSwitch": 0,
@@ -88,6 +90,8 @@
             "5000",
             "10000"
           ],
+          "channelTooltip": "HOT",
+          "payicon": "9",
           "iconUrl": "",
           "orderEffectiveTime": 1800,
           "realNameSwitch": 0,
@@ -121,6 +125,8 @@
             "5000",
             "10000"
           ],
+          "channelTooltip": "HOT",
+          "payicon": "9",
           "iconUrl": "",
           "orderEffectiveTime": 1800,
           "realNameSwitch": 0,
@@ -153,6 +159,8 @@
             "1555",
             "5555"
           ],
+          "channelTooltip": "HOT",
+          "payicon": "9",
           "iconUrl": "",
           "orderEffectiveTime": 1800,
           "realNameSwitch": 0,
@@ -186,6 +194,8 @@
             "30000",
             "50000"
           ],
+          "channelTooltip": "HOT",
+          "payicon": "9",
           "iconUrl": "",
           "orderEffectiveTime": 1800,
           "realNameSwitch": 0,
@@ -219,6 +229,8 @@
             "5000",
             "10000"
           ],
+          "channelTooltip": "HOT",
+          "payicon": "9",
           "iconUrl": "",
           "orderEffectiveTime": 1800,
           "realNameSwitch": 0,
@@ -227,7 +239,1192 @@
           "walletType": "",
           "openWay": 4
         }
+      ],
+      "recommendList": [
+        "10",
+        "30",
+        "50",
+        "100",
+        "500",
+        "1000",
+        "5000",
+        "10000"
       ]
     }
+  },
+  "payplatformlistSample": {
+    "type": 1,
+    "name": "Depósito online",
+    "payline_type": 1,
+    "paymentid": 570082,
+    "payment_name": "Canal personalizado",
+    "url": "https://aniw976.679win.net/pay/paysubmit/12025",
+    "merge_status": 0,
+    "pay_type_name": "777Clube",
+    "payment_ids": "[210563,150563,210565,330564,360564,240563]",
+    "remark": "",
+    "min": 10,
+    "max": 50000,
+    "min_recharge_limit": 10,
+    "max_recharge_limit": 50000,
+    "recommendList": [],
+    "balance_switch": 1,
+    "realNameSwitch": 0,
+    "payAddressSwitch": 0,
+    "orderEffectiveTime": 1800,
+    "rewardDetailsSwitch": 0,
+    "captchaSwitch": 0,
+    "combineOpenWay": 4,
+    "slogan": "",
+    "list": [
+      {
+        "channel_type": "",
+        "channelCode": "1",
+        "specialCPFSwitch": 0,
+        "channelTooltip": "HOT",
+        "moneybtns": null,
+        "money_btns": [],
+        "remark": "",
+        "subtitle": "",
+        "title": "Canal personalizado",
+        "payplatformid": 210563,
+        "id": 210563,
+        "min_recharge_limit": 10,
+        "max_recharge_limit": 50000,
+        "merch_desc": "777Clube",
+        "app_type": 11,
+        "openWay": 4,
+        "slogan": "",
+        "balance_switch": 1,
+        "charge_rate": 0,
+        "paymentid": 570082,
+        "payment_type": "0",
+        "payicon": "9",
+        "weight": 704,
+        "realNameSwitch": 0,
+        "payCurrency": "BRL",
+        "merchCode": "brlcbpaysec",
+        "merch_agent_id": 281332,
+        "currencySign": "R$",
+        "payAddressSwitch": 0,
+        "captchaSwitch": 0,
+        "downloadUrl": {
+          "url": "",
+          "text": ""
+        },
+        "mobileSupport": 0,
+        "emailSupport": 0,
+        "chargeRateConfig": null,
+        "feeRate": "0",
+        "operators": null,
+        "recommendList": [
+          {
+            "amount": "10",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "30",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "50",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "100",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "500",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "1000",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "5000",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "10000",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          }
+        ],
+        "cardIDType": 0,
+        "cardIDSupport": 0,
+        "cardIDSupportTrigger": "0",
+        "walletType": "",
+        "moneyList": [],
+        "chargeRateList": [],
+        "deduceLimit": "0",
+        "giftShowMode": 1,
+        "giftColor": ""
+      },
+      {
+        "channel_type": "",
+        "channelCode": "BRL002",
+        "specialCPFSwitch": 1,
+        "channelTooltip": "HOT",
+        "moneybtns": null,
+        "money_btns": [],
+        "remark": "",
+        "subtitle": "",
+        "title": "Canal personalizado",
+        "payplatformid": 150563,
+        "id": 150563,
+        "min_recharge_limit": 10,
+        "max_recharge_limit": 15000,
+        "merch_desc": "777Clube",
+        "app_type": 11,
+        "openWay": 4,
+        "slogan": "",
+        "balance_switch": 1,
+        "charge_rate": 0,
+        "paymentid": 570082,
+        "payment_type": "0",
+        "payicon": "9",
+        "weight": 703,
+        "realNameSwitch": 0,
+        "payCurrency": "BRL",
+        "merchCode": "owenpay",
+        "merch_agent_id": 221332,
+        "currencySign": "R$",
+        "payAddressSwitch": 0,
+        "captchaSwitch": 0,
+        "downloadUrl": {
+          "url": "",
+          "text": ""
+        },
+        "mobileSupport": 0,
+        "emailSupport": 0,
+        "chargeRateConfig": null,
+        "feeRate": "0",
+        "operators": null,
+        "recommendList": [
+          {
+            "amount": "10",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "30",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "50",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "100",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "500",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "1000",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "5000",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "10000",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          }
+        ],
+        "cardIDType": 0,
+        "cardIDSupport": 0,
+        "cardIDSupportTrigger": "0",
+        "walletType": "",
+        "moneyList": [],
+        "chargeRateList": [],
+        "deduceLimit": "0",
+        "giftShowMode": 1,
+        "giftColor": ""
+      },
+      {
+        "channel_type": "",
+        "channelCode": "PIX",
+        "specialCPFSwitch": 0,
+        "channelTooltip": "HOT",
+        "moneybtns": null,
+        "money_btns": [],
+        "remark": "",
+        "subtitle": "",
+        "title": "Canal personalizado",
+        "payplatformid": 210565,
+        "id": 210565,
+        "min_recharge_limit": 10,
+        "max_recharge_limit": 14999,
+        "merch_desc": "777Clube",
+        "app_type": 11,
+        "openWay": 4,
+        "slogan": "",
+        "balance_switch": 1,
+        "charge_rate": 0,
+        "paymentid": 570082,
+        "payment_type": "0",
+        "payicon": "9",
+        "weight": 702,
+        "realNameSwitch": 0,
+        "payCurrency": "BRL",
+        "merchCode": "brlpay4zpay",
+        "merch_agent_id": 281334,
+        "currencySign": "R$",
+        "payAddressSwitch": 0,
+        "captchaSwitch": 0,
+        "downloadUrl": {
+          "url": "",
+          "text": ""
+        },
+        "mobileSupport": 0,
+        "emailSupport": 0,
+        "chargeRateConfig": null,
+        "feeRate": "0",
+        "operators": null,
+        "recommendList": [
+          {
+            "amount": "10",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "30",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "50",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "100",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "500",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "1000",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "5000",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "10000",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          }
+        ],
+        "cardIDType": 0,
+        "cardIDSupport": 0,
+        "cardIDSupportTrigger": "0",
+        "walletType": "",
+        "moneyList": [],
+        "chargeRateList": [],
+        "deduceLimit": "0",
+        "giftShowMode": 1,
+        "giftColor": ""
+      },
+      {
+        "channel_type": "",
+        "channelCode": "502",
+        "specialCPFSwitch": 0,
+        "channelTooltip": "HOT",
+        "moneybtns": null,
+        "money_btns": [],
+        "remark": "",
+        "subtitle": "",
+        "title": "Canal personalizado",
+        "payplatformid": 330564,
+        "id": 330564,
+        "min_recharge_limit": 10,
+        "max_recharge_limit": 15000,
+        "merch_desc": "777Clube",
+        "app_type": 11,
+        "openWay": 4,
+        "slogan": "",
+        "balance_switch": 1,
+        "charge_rate": 0,
+        "paymentid": 570082,
+        "payment_type": "0",
+        "payicon": "9",
+        "weight": 700,
+        "realNameSwitch": 0,
+        "payCurrency": "BRL",
+        "merchCode": "brlqq2pay",
+        "merch_agent_id": 521332,
+        "currencySign": "R$",
+        "payAddressSwitch": 0,
+        "captchaSwitch": 0,
+        "downloadUrl": {
+          "url": "",
+          "text": ""
+        },
+        "mobileSupport": 0,
+        "emailSupport": 0,
+        "chargeRateConfig": null,
+        "feeRate": "0",
+        "operators": null,
+        "recommendList": [
+          {
+            "amount": "15",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "35",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "55",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "155",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "555",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "1555",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "5555",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          }
+        ],
+        "cardIDType": 0,
+        "cardIDSupport": 0,
+        "cardIDSupportTrigger": "0",
+        "walletType": "",
+        "moneyList": [],
+        "chargeRateList": [],
+        "deduceLimit": "0",
+        "giftShowMode": 1,
+        "giftColor": ""
+      },
+      {
+        "channel_type": "",
+        "channelCode": "910",
+        "specialCPFSwitch": 0,
+        "channelTooltip": "HOT",
+        "moneybtns": null,
+        "money_btns": [],
+        "remark": "",
+        "subtitle": "",
+        "title": "Canal personalizado",
+        "payplatformid": 360564,
+        "id": 360564,
+        "min_recharge_limit": 10,
+        "max_recharge_limit": 50000,
+        "merch_desc": "777Clube",
+        "app_type": 11,
+        "openWay": 4,
+        "slogan": "",
+        "balance_switch": 1,
+        "charge_rate": 0,
+        "paymentid": 570082,
+        "payment_type": "0",
+        "payicon": "9",
+        "weight": 698,
+        "realNameSwitch": 0,
+        "payCurrency": "BRL",
+        "merchCode": "brlyunpay",
+        "merch_agent_id": 581332,
+        "currencySign": "R$",
+        "payAddressSwitch": 0,
+        "captchaSwitch": 0,
+        "downloadUrl": {
+          "url": "",
+          "text": ""
+        },
+        "mobileSupport": 0,
+        "emailSupport": 0,
+        "chargeRateConfig": null,
+        "feeRate": "0",
+        "operators": null,
+        "recommendList": [
+          {
+            "amount": "10",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "20",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "30",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "500",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "10000",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "15000",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "30000",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "50000",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          }
+        ],
+        "cardIDType": 0,
+        "cardIDSupport": 0,
+        "cardIDSupportTrigger": "0",
+        "walletType": "",
+        "moneyList": [],
+        "chargeRateList": [],
+        "deduceLimit": "0",
+        "giftShowMode": 1,
+        "giftColor": ""
+      },
+      {
+        "channel_type": "",
+        "channelCode": "PIX_QRCODE",
+        "specialCPFSwitch": 0,
+        "channelTooltip": "HOT",
+        "moneybtns": null,
+        "money_btns": [],
+        "remark": "",
+        "subtitle": "",
+        "title": "Canal personalizado",
+        "payplatformid": 240563,
+        "id": 240563,
+        "min_recharge_limit": 10,
+        "max_recharge_limit": 50000,
+        "merch_desc": "777Clube",
+        "app_type": 11,
+        "openWay": 4,
+        "slogan": "",
+        "balance_switch": 1,
+        "charge_rate": 0,
+        "paymentid": 570082,
+        "payment_type": "0",
+        "payicon": "9",
+        "weight": 682,
+        "realNameSwitch": 0,
+        "payCurrency": "BRL",
+        "merchCode": "u2cpay",
+        "merch_agent_id": 341332,
+        "currencySign": "R$",
+        "payAddressSwitch": 0,
+        "captchaSwitch": 0,
+        "downloadUrl": {
+          "url": "",
+          "text": ""
+        },
+        "mobileSupport": 0,
+        "emailSupport": 0,
+        "chargeRateConfig": null,
+        "feeRate": "0",
+        "operators": null,
+        "recommendList": [
+          {
+            "amount": "10",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "30",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "50",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "100",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "500",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "1000",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "5000",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          },
+          {
+            "amount": "10000",
+            "bonus": "",
+            "chargeRate": "",
+            "bonusVal": "0",
+            "bonusScoreVal": "0",
+            "chargeRateVal": "0"
+          }
+        ],
+        "cardIDType": 0,
+        "cardIDSupport": 0,
+        "cardIDSupportTrigger": "0",
+        "walletType": "",
+        "moneyList": [],
+        "chargeRateList": [],
+        "deduceLimit": "0",
+        "giftShowMode": 1,
+        "giftColor": ""
+      }
+    ],
+    "channelIds": [
+      210563,
+      150563,
+      210565,
+      330564,
+      360564,
+      240563
+    ],
+    "realInfoRule": 1,
+    "cardIDType": 0,
+    "cardIDSupport": 0,
+    "cardIDSupportTrigger": "0",
+    "calculateGiftConfig": {
+      "mergeStatus": 0,
+      "OriginMoneyList": [],
+      "moneyList": [],
+      "chargeRateList": [],
+      "deduceLimit": "0",
+      "calculateByChildMoneyList": true,
+      "calculateByChildChargeRate": true,
+      "calculateChildList": [
+        {
+          "id": 210563,
+          "payKind": 0,
+          "OriginMoneyList": [
+            {
+              "amount": "10",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "30",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "50",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "100",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "500",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "1000",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "5000",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "10000",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            }
+          ],
+          "moneyList": [],
+          "chargeRateList": [],
+          "deduceLimit": "0",
+          "channelMerge": 0
+        },
+        {
+          "id": 150563,
+          "payKind": 0,
+          "OriginMoneyList": [
+            {
+              "amount": "10",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "30",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "50",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "100",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "500",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "1000",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "5000",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "10000",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            }
+          ],
+          "moneyList": [],
+          "chargeRateList": [],
+          "deduceLimit": "0",
+          "channelMerge": 0
+        },
+        {
+          "id": 210565,
+          "payKind": 0,
+          "OriginMoneyList": [
+            {
+              "amount": "10",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "30",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "50",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "100",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "500",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "1000",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "5000",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "10000",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            }
+          ],
+          "moneyList": [],
+          "chargeRateList": [],
+          "deduceLimit": "0",
+          "channelMerge": 0
+        },
+        {
+          "id": 330564,
+          "payKind": 0,
+          "OriginMoneyList": [
+            {
+              "amount": "15",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "35",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "55",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "155",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "555",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "1555",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "5555",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            }
+          ],
+          "moneyList": [],
+          "chargeRateList": [],
+          "deduceLimit": "0",
+          "channelMerge": 0
+        },
+        {
+          "id": 360564,
+          "payKind": 0,
+          "OriginMoneyList": [
+            {
+              "amount": "10",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "20",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "30",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "500",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "10000",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "15000",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "30000",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "50000",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            }
+          ],
+          "moneyList": [],
+          "chargeRateList": [],
+          "deduceLimit": "0",
+          "channelMerge": 0
+        },
+        {
+          "id": 240563,
+          "payKind": 0,
+          "OriginMoneyList": [
+            {
+              "amount": "10",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "30",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "50",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "100",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "500",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "1000",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "5000",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            },
+            {
+              "amount": "10000",
+              "bonus": "",
+              "chargeRate": "",
+              "bonusVal": "0",
+              "bonusScoreVal": "0",
+              "chargeRateVal": "0"
+            }
+          ],
+          "moneyList": [],
+          "chargeRateList": [],
+          "deduceLimit": "0",
+          "channelMerge": 0
+        }
+      ]
+    },
+    "channelAllocDimension": 1
   }
 }

@@ -254,10 +254,13 @@ function createStaticServer(siteDir, options = {}) {
           }
           const { ensureSiteCodeQuery } = require('./adapter/config');
           const hallSearch = ensureSiteCodeQuery(reqUrl.search, adapterCfg.siteCode);
+          const strip = shouldStripAuth(req, adapterCfg);
+          const emptyListOnKick = /registerPopupDlgInfo|newcomer_benefit_pop/i.test(reqUrl.pathname);
           if (
             tryFallbackMissingAsset(req, res, apiUpstreamOrigin, hallPath, hallSearch, {
-              stripAuth: shouldStripAuth(req, adapterCfg),
-              sanitizeAuthKick: false,
+              stripAuth: strip,
+              sanitizeAuthKick: emptyListOnKick || strip,
+              emptyListOnKick,
               refererOrigin: apiUpstreamOrigin,
               forcePath: hallPath
             })

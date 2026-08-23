@@ -1,5 +1,5 @@
 {
-  "at": "2026-08-23T00:02:16.721Z",
+  "at": "2026-08-23T00:30:54.714Z",
   "siteId": "679win",
   "preview": "http://127.0.0.1:3476",
   "via": "yarn",
@@ -36,7 +36,7 @@
     },
     "payOrder": {
       "code": 1,
-      "orderNo": "WG1787443339446227",
+      "orderNo": "WG1787445057442101",
       "mockQr": true,
       "ok": true
     },
@@ -102,12 +102,12 @@
     "liveAgentPromotion": {
       "code": 1,
       "hasInviteUrl": true,
-      "wgame": true,
+      "wgame": false,
       "ok": true
     },
     "liveAgentIndex": {
       "code": 1,
-      "wgame": true,
+      "wgame": false,
       "ok": true
     },
     "httpAgent": {

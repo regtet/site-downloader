@@ -84,10 +84,10 @@ const CORE_MAP = {
   // —— 充值订单流水 ——
   '/api/finance/pay/orderListV3': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no pay orders' },
   '/api/finance/claim/userInfo': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no claim engine' },
-  '/api/finance/maxChargeRate': { op: OP.LOBBY_OK, adapter: 'lobbyOk', note: 'rate from OSS json preferred; API ok empty' },
+  '/api/finance/maxChargeRate': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'OSS json preferred' },
 
   // —— 活动红点/弹窗（无活动引擎：空列表，不伪造奖励）——
-  '/api/active/category': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no activity categories engine' },
+  '/api/active/category': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'upstream activity categories' },
   '/api/active/getRedDotV2': { op: OP.EMPTY_RECORDS, adapter: 'redDotEmpty', note: 'zero red dots' },
   '/api/active/pop_canReceiveReward': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no rewards' },
   '/api/active/popRegressActive': { op: OP.EMPTY_RECORDS, adapter: 'emptyList', note: 'no regress popup' },
@@ -137,8 +137,8 @@ const CORE_MAP = {
   '/api/finance/certify/deleteAccount': { op: OP.WITHDRAW_PENDING, adapter: 'withdrawPending' },
 
   // —— 活动：列表/公告空；领取类明确 pending ——
-  '/api/active/announcement': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords' },
-  '/api/active/categoryV2': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords' },
+  '/api/active/announcement': { op: OP.UPSTREAM, adapter: 'lobbyOk' },
+  '/api/active/categoryV2': { op: OP.UPSTREAM, adapter: 'lobbyOk' },
   '/api/active/receivedAwardList': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords' },
   '/api/active/unreceiveAwardList': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords' },
   '/api/active/expireAwardList': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords' },
@@ -146,9 +146,9 @@ const CORE_MAP = {
   '/api/active/coupon/popList': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords' },
   '/api/active/afterRechargePop': { op: OP.LOBBY_OK, adapter: 'lobbyOk' },
   '/api/active/confirmMsgPop': { op: OP.LOBBY_OK, adapter: 'lobbyOk' },
-  '/api/active/isShowV2': { op: OP.LOBBY_OK, adapter: 'lobbyOk' },
+  '/api/active/isShowV2': { op: OP.UPSTREAM, adapter: 'lobbyOk' },
   '/api/active/reportWarnLog': { op: OP.LOBBY_OK, adapter: 'lobbyOk' },
-  '/api/active/active_popRecharge': { op: OP.LOBBY_OK, adapter: 'lobbyOk' },
+  '/api/active/active_popRecharge': { op: OP.UPSTREAM, adapter: 'lobbyOk' },
   '/api/active/receiveOne': { op: OP.FEATURE_PENDING, adapter: 'featurePending' },
   '/api/active/receiveManualSend': { op: OP.FEATURE_PENDING, adapter: 'featurePending' },
   '/api/active/tasks/receiveOne': { op: OP.FEATURE_PENDING, adapter: 'featurePending' },
@@ -161,13 +161,13 @@ const CORE_MAP = {
   '/api/bet-manager/recentreport/bet_report/personal/_query': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords' },
 
   // —— VIP 全量表：无进度数据，明确 pending（禁止伪造充值/打码表）——
-  '/api/member/user/vipInfoV2': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no vip ladder; empty avoids 10060 toast on login' },
-  '/api/member/vipInfoUnLogin': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no vip ladder unlogin' },
+  '/api/member/user/vipInfoV2': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'vip ladder from upstream OSS' },
+  '/api/member/vipInfoUnLogin': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'vip ladder unlogin from upstream' },
 
   // —— 代理：配置驱动（providerOptions.agent）；默认零态可打开页面 ——
   '/api/agent/promote/config/agentMode': { op: OP.AGENT_MODE, adapter: 'agentBlob', note: 'providerOptions.agent' },
-  '/api/agent/promote/config/index': { op: OP.AGENT_CONFIG, adapter: 'agentBlob', note: 'providerOptions.agent' },
-  '/api/agent/promote/config/getAgentConfig': { op: OP.AGENT_CONFIG, adapter: 'agentBlob', note: 'providerOptions.agent' },
+  '/api/agent/promote/config/index': { op: OP.UPSTREAM, adapter: 'agentBlob', note: 'upstream promote config' },
+  '/api/agent/promote/config/getAgentConfig': { op: OP.UPSTREAM, adapter: 'agentBlob', note: 'upstream agent config' },
   '/api/agent/promote/report/agentPromotion': { op: OP.AGENT_PROMOTION, adapter: 'agentBlob', note: 'providerOptions.agent' },
   '/api/agent/promote/report/indexInfo': { op: OP.AGENT_INDEX, adapter: 'agentBlob', note: 'providerOptions.agent' },
   '/api/agent/promote/report/indexDirect': { op: OP.AGENT_INDEX, adapter: 'agentBlob', note: 'same blob as indexInfo' },
@@ -180,7 +180,7 @@ const CORE_MAP = {
   '/api/agent/promote/report/clubCommissionDetail': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'club commission detail empty' },
   '/api/agent/promote/report/clubPerformance': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'club performance empty' },
   '/api/agent/promote/report/clubPerformanceUserV1': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'club performance user empty' },
-  '/api/agent/promote/commissionMarquee': { op: OP.AGENT_MARQUEE, adapter: 'agentBlob', note: 'providerOptions.agent' },
+  '/api/agent/promote/commissionMarquee': { op: OP.UPSTREAM, adapter: 'agentBlob', note: 'upstream agent marquee' },
   '/api/agent/promote/getIpBindInfo': { op: OP.AGENT_BIND, adapter: 'agentBlob', note: 'providerOptions.agent' },
   '/api/agent/promote/binding/reportViewV2': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'bind report soft empty' },
   '/api/agent/promote/report/directReportV5': { op: OP.AGENT_DIRECT, adapter: 'agentBlob', note: 'providerOptions.agent' },
@@ -199,8 +199,8 @@ const CORE_MAP = {
   '/api/game/hall/getTgPreparedInlineMessage': { op: OP.LOBBY_OK, adapter: 'lobbyOk' },
 
   // —— 注册弹窗 / 心跳 / 埋点 ——
-  '/api/member/user/registerPopupDlgInfo': { op: OP.EMPTY_RECORDS, adapter: 'emptyList', note: 'no register popup payload yet' },
-  '/api/member/registerPopupDlgInfo': { op: OP.EMPTY_RECORDS, adapter: 'emptyList', note: 'alias without /user/' },
+  '/api/member/user/registerPopupDlgInfo': { op: OP.UPSTREAM, adapter: 'emptyList', note: 'upstream register success popup' },
+  '/api/member/registerPopupDlgInfo': { op: OP.UPSTREAM, adapter: 'emptyList', note: 'alias without /user/' },
   '/api/member/user/registerRetentionDlgInfo': { op: OP.EMPTY_RECORDS, adapter: 'emptyList', note: 'no retention dlg' },
   '/api/member/user/rechargePopupDlgInfo': { op: OP.EMPTY_RECORDS, adapter: 'emptyList', note: 'no recharge popup payload' },
   '/api/gohal/heartbeat': { op: OP.LOBBY_OK, adapter: 'lobbyOk' },

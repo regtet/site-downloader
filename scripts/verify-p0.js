@@ -77,9 +77,11 @@ function testAdapters() {
   assert(String(m.portrait_id).startsWith('https://'), 'portrait_id CDN url');
   assert(m.vip_level === 3, 'vip_level');
 
-  const lean = memberProfile({ account: 'a', session: 's', userId: '10001', game_gold: 0 });
+  const lean = memberProfile({ account: 'a', session: 's', userId: '10001', game_gold: 0, nickname: '' });
   assert(lean.username === 10001, 'username from userId number');
-  assert(lean.nickname === '', 'empty nickname ok like official register');
+  assert(lean.nickname === 'a', 'nickname falls back to account for profile display');
+  const leanBare = memberProfile({ session: 's', userId: '10001', game_gold: 0, nickname: '' });
+  assert(leanBare.nickname === '', 'empty nickname without account');
   assert(lean.phone === '' || lean.phone === undefined || lean.mobile_phone === '', 'empty phone');
   assert(String(lean.portrait_id).startsWith('https://'), 'default CDN portrait');
 
@@ -145,7 +147,7 @@ function testMap() {
   assert(series.matchRoute('/api/active/getRedDotV2').adapter === 'redDotEmpty', 'redDotEmpty');
   assert(series.matchRoute('/api/member/getFingerprint').adapter === 'fingerprint', 'fingerprint');
   assert(series.matchRoute('/api/member/listAccount').adapter === 'listAccount', 'listAccount');
-  assert(series.matchRoute('/api/member/user/vipInfoV2').adapter === 'emptyRecords', 'vipInfoV2 empty not 10060');
+  assert(series.matchRoute('/api/member/user/vipInfoV2').adapter === 'lobbyOk', 'vipInfoV2 upstream passthrough');
   assert(series.matchRoute('/api/agent/promote/config/agentMode').adapter === 'agentBlob', 'agentMode config-driven');
   assert(series.matchRoute('/api/active/receivedAwardList').adapter === 'emptyRecords', 'award list empty not forged');
   assert(series.matchRoute('/api/active/receiveOne').adapter === 'featurePending', 'receiveOne pending not empty-ok');

@@ -74,6 +74,22 @@ function resolveAdapterPath(reqUrl, hostCfg, series) {
   return { pathname, via: 'local', host: null };
 }
 
+/** 本地 wgame/mock 会话不能打真实上游；UPSTREAM 弹窗类接口改由 adapter 回空列表 */
+function isOurWgameSession(req, cfg) {
+  try {
+    if (cfg && cfg.provider && cfg.provider !== 'wgame') return false;
+    const h = req.headers || {};
+    const hasToken = !!(h.token || h.Token || h['x-session-key'] || h['session-key']);
+    if (!hasToken) return false;
+    const { getProvider } = require('./providers');
+    const provider = getProvider('wgame');
+    if (provider && typeof provider.isOurSession === 'function' && provider.isOurSession(h)) return true;
+    return !!(cfg && cfg.provider === 'wgame');
+  } catch (_) {
+    return false;
+  }
+}
+
 function shouldPassthroughAuth(cfg, matched) {
   try {
     const { loadWgameConfig } = require('./providers/wgame/config');
@@ -126,6 +142,18 @@ async function tryHandleAdapter(req, res, options = {}) {
   if (!matched) return false;
 
   if (shouldPassthroughAuth(cfg, matched)) return false;
+  if (matched.op === OP.UPSTREAM) {
+    if (matched.adapter === 'emptyList' && isOurWgameSession(req, cfg)) {
+      if (req.method === 'OPTIONS') {
+        sendJson(res, 204, {});
+        return true;
+      }
+      const result = series.mapResponse(OP.EMPTY_RECORDS, { ok: true, data: [] }, { adapter: 'emptyList' });
+      sendJson(res, 200, result);
+      return true;
+    }
+    return false;
+  }
 
   if (req.method === 'OPTIONS') {
     sendJson(res, 204, {});

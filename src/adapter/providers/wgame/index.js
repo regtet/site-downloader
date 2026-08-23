@@ -248,6 +248,34 @@ function isOurSession(headersOrToken) {
   return false;
 }
 
+/** mock / IP170 回退会话（非 wgame 网关实网登录） */
+function isMockSession(headersOrToken) {
+  if (!isOurSession(headersOrToken)) return false;
+  let token = '';
+  if (typeof headersOrToken === 'string') {
+    token = headersOrToken;
+  } else if (headersOrToken && typeof headersOrToken === 'object') {
+    token = String(
+      headersOrToken.token
+      || headersOrToken.Token
+      || headersOrToken['x-session-key']
+      || headersOrToken['session-key']
+      || ''
+    );
+  }
+  if (token) {
+    const row = sessions.get('sk:' + token);
+    if (row && row.user) return !!row.user.mock;
+  }
+  for (const row of sessions.values()) {
+    const u = row && row.user;
+    if (!u) continue;
+    if (token && u.session === token) return !!u.mock;
+    if (!token && u.mock) return true;
+  }
+  return false;
+}
+
 function mapError(err) {
   const code = err && err.code != null ? Number(err.code) : 1005;
   const known = {
@@ -401,7 +429,7 @@ async function execute(op, ctx) {
     || op === OP.PAY_CREATE
     || op === OP.PAY_ORDER_INFO
   ) {
-    const { loadPayConfig, buildQrDataUrl, mapWgameChannelsToPack } = require('./pay-config');
+    const { loadPayConfig, buildQrDataUrl, mapWgameChannelsToPack, finalizePayChannelPack } = require('./pay-config');
     const { putOrder, getOrder, listOrders } = require('./pay-orders');
     const pay = loadPayConfig(ctx && ctx.siteDir, cfg);
     if (!pay.enabled) {
@@ -490,13 +518,13 @@ async function execute(op, ctx) {
           const pack = await wgamePayChannels();
           const wCount = pack && pack.list ? pack.list.length : 0;
           if (pack && wCount > 0) {
-            return ok(pack, 'ok');
+            return ok(finalizePayChannelPack(pack, ctx && ctx.siteDir), 'ok');
           }
         } catch (err) {
           console.warn('[provider:wgame] payChannels failed:', (err && err.message) || err);
         }
       }
-      return ok(Object.assign({ list: [] }, configPack), 'ok');
+      return ok(finalizePayChannelPack(Object.assign({ list: [] }, configPack), ctx && ctx.siteDir), 'ok');
     }
     if (op === OP.PAY_INFOS) {
       return ok(Array.isArray(pay.payInfos) ? pay.payInfos : [], 'ok');
@@ -878,5 +906,6 @@ module.exports = {
   normalizeBody,
   loadWgameConfig,
   isOurSession,
+  isMockSession,
   CATALOG: require('./catalog').CATALOG
 };

@@ -83,7 +83,9 @@ function main() {
           currencySign: ch.currencySign || 'R$',
           min_recharge_limit: String(ch.min_recharge_limit || '10'),
           max_recharge_limit: String(ch.max_recharge_limit || '50000'),
-          recommendList: (ch.recommendList || []).map((r) => String(r.amount || r)),
+          recommendList: (ch.recommendList || ch.money_btns || []).map((r) => String(r.amount || r)),
+          channelTooltip: ch.channelTooltip || 'HOT',
+          payicon: ch.payicon || ch.app_type || '',
           iconUrl: '',
           orderEffectiveTime: best.orderEffectiveTime || 1800,
           realNameSwitch: ch.realNameSwitch || 0,
@@ -91,9 +93,13 @@ function main() {
           channel_type: 0,
           walletType: ch.walletType || '',
           openWay: ch.openWay || 4
-        }))
+        })),
+        recommendList: (best.recommendList && best.recommendList.length)
+          ? best.recommendList.map((r) => String(r))
+          : ['10', '30', '50', '100', '500', '1000', '5000', '10000']
       }
-    }
+    },
+    payplatformlistSample: best
   };
 
   fs.mkdirSync(path.dirname(outPath), { recursive: true });

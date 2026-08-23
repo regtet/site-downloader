@@ -879,7 +879,7 @@ function copyRequestHeaders(req, refererOrigin, options = {}) {
  * wgame 会话打真实 aniw HTTP 会返回 code:-1（TOKEN_EXPIRED）踢下线。
  * 剥 Token 后上游也常回 -1 /「未授权」文案。预览里改成静默成功，避免断线弹窗。
  */
-function sanitizeUpstreamAuthJson(text) {
+function sanitizeUpstreamAuthJson(text, opts) {
   if (!text || typeof text !== 'string') return text;
   const trimmed = text.trim();
   if (!trimmed || (trimmed[0] !== '{' && trimmed[0] !== '[')) return text;
@@ -894,10 +894,14 @@ function sanitizeUpstreamAuthJson(text) {
       || code === '-1'
       || /desconectad|token\s*expir|fa[cç]a login novamente|n[aã]o est[aá] autorizada|not\s*authorized|unauthorized|login\s*again/i.test(msg);
     if (!isKick) return text;
+    let data = j.data !== undefined ? j.data : null;
+    if (opts && opts.emptyListOnKick && (data == null || (Array.isArray(data) && !data.length))) {
+      data = [];
+    }
     return JSON.stringify({
       code: 1,
       msg: '',
-      data: j.data !== undefined ? j.data : null
+      data
     });
   } catch (_) {
     return text;
@@ -934,7 +938,7 @@ function proxyRequest(req, res, target, refererOrigin, options = {}) {
   const method = String(req.method || 'GET').toUpperCase();
 
   // 走 axios：自动尊重 HTTPS_PROXY / 系统代理（浏览器能开、Node https 直连常 ECONNRESET）
-  const run = async () => {
+    const run = async () => {
     let body = undefined;
     if (method !== 'GET' && method !== 'HEAD') {
       body = await new Promise((resolve, reject) => {
@@ -967,7 +971,9 @@ function proxyRequest(req, res, target, refererOrigin, options = {}) {
       const ct = String((upRes.headers && (upRes.headers['content-type'] || upRes.headers['Content-Type'])) || '');
       if (/json|text|javascript/i.test(ct) || buf.length < 2e6) {
         const raw = buf.toString('utf8');
-        const next = sanitizeUpstreamAuthJson(raw);
+        const next = sanitizeUpstreamAuthJson(raw, {
+          emptyListOnKick: !!options.emptyListOnKick
+        });
         if (next !== raw) {
           outHeaders['X-SD-Auth-Sanitized'] = '1';
           buf = Buffer.from(next, 'utf8');
@@ -1035,7 +1041,8 @@ function tryFallbackMissingAsset(req, res, fallbackOrigin, pathname, search, opt
     : stripAuth;
   proxyRequest(req, res, target, referer, {
     stripAuth,
-    sanitizeAuthKick
+    sanitizeAuthKick,
+    emptyListOnKick: !!options.emptyListOnKick
   });
   return true;
 }

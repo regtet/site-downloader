@@ -1,12 +1,12 @@
 {
-  "at": "2026-08-22T13:50:58.451Z",
+  "at": "2026-08-23T00:31:08.994Z",
   "totalKeys": 1,
   "top": [
     {
-      "key": "POST /api/member/registerPopupDlgInfo",
+      "key": "GET /api/finance/maxChargeRate",
       "count": 1,
-      "firstAt": 1787406658451,
-      "lastAt": 1787406658451
+      "firstAt": 1787445068993,
+      "lastAt": 1787445068993
     }
   ]
 }

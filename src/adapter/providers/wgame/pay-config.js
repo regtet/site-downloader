@@ -179,6 +179,10 @@ function mapWgameChannelsToPack(list, pay) {
   return { list: mapped, min, max, url: '', realInfoRule: 0 };
 }
 
+function finalizePayChannelPack(pack, siteDir) {
+  return enrichPayChannelPack(pack, loadHarPaySnapshot(siteDir));
+}
+
 function loadHarPaySnapshot(siteDir) {
   const candidates = [];
   if (siteDir) candidates.push(path.join(siteDir, 'har-pay-snapshot.json'));
@@ -202,8 +206,67 @@ function applyHarPaySnapshot(cfg, har) {
   if (har.channelsByPayKind && typeof har.channelsByPayKind === 'object') {
     cfg.channelsByPayKind = Object.assign({}, cfg.channelsByPayKind, har.channelsByPayKind);
   }
+  const pack = cfg.channelsByPayKind && cfg.channelsByPayKind['100'];
+  if (pack && Array.isArray(pack.list)) {
+    pack.list = pack.list.map((ch) => enrichPayChannelItem(ch, null));
+    if (!Array.isArray(pack.recommendList) || !pack.recommendList.length) {
+      const first = pack.list[0];
+      pack.recommendList = (first && Array.isArray(first.recommendList) && first.recommendList.length)
+        ? first.recommendList.slice()
+        : ['10', '30', '50', '100', '500', '1000', '5000', '10000'];
+    }
+  }
   // paysubmitUrl 是收银台页面基址（channelData.url），不是 createOrder.httpUrl JSON API
   return cfg;
+}
+
+function enrichPayChannelItem(ch, harRow) {
+  const out = Object.assign({}, harRow || {}, ch || {});
+  const id = out.id || out.channelId || out.payplatformid;
+  if (!out.merch_desc && out.channlName) out.merch_desc = out.channlName;
+  if (!out.channlName && out.merch_desc) out.channlName = out.merch_desc;
+  if (!out.paymentid && out.payplatformid) out.paymentid = out.payplatformid;
+  if (!out.channelTooltip) out.channelTooltip = (harRow && harRow.channelTooltip) || 'HOT';
+  if (!out.payicon && harRow && harRow.payicon) out.payicon = harRow.payicon;
+  if (!out.openWay && out.openWay !== 0) out.openWay = 4;
+  if (!out.id && id) out.id = id;
+  return out;
+}
+
+function enrichPayChannelPack(pack, har) {
+  if (!pack || !Array.isArray(pack.list)) return pack;
+  const harList = har && har.channelsByPayKind && har.channelsByPayKind['100']
+    && har.channelsByPayKind['100'].list;
+  const byId = Object.create(null);
+  if (Array.isArray(harList)) {
+    for (const row of harList) {
+      const id = row.id || row.channelId || row.payplatformid;
+      if (id != null) byId[id] = row;
+    }
+  }
+  const sample = har && har.payplatformlistSample && har.payplatformlistSample.list;
+  if (Array.isArray(sample)) {
+    for (const row of sample) {
+      const id = row.id || row.payplatformid;
+      if (id != null) byId[id] = Object.assign({}, byId[id] || {}, row);
+    }
+  }
+  pack.list = pack.list.map((ch) => {
+    const id = ch.id || ch.channelId || ch.payplatformid;
+    return enrichPayChannelItem(ch, byId[id]);
+  });
+  if (!Array.isArray(pack.recommendList) || !pack.recommendList.length) {
+    const first = pack.list[0];
+    if (first && Array.isArray(first.recommendList) && first.recommendList.length) {
+      pack.recommendList = first.recommendList.slice();
+    } else if (har && har.channelsByPayKind && har.channelsByPayKind['100']) {
+      const hr = har.channelsByPayKind['100'];
+      pack.recommendList = Array.isArray(hr.recommendList) && hr.recommendList.length
+        ? hr.recommendList.slice()
+        : ['10', '30', '50', '100', '500', '1000', '5000', '10000'];
+    }
+  }
+  return pack;
 }
 
 module.exports = {
@@ -212,5 +275,7 @@ module.exports = {
   buildQrDataUrl,
   mapWgameChannelsToPack,
   loadHarPaySnapshot,
-  applyHarPaySnapshot
+  applyHarPaySnapshot,
+  enrichPayChannelPack,
+  finalizePayChannelPack
 };
