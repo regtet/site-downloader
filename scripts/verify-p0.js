@@ -149,6 +149,59 @@ function testMap() {
   assert(series.matchRoute('/api/member/listAccount').adapter === 'listAccount', 'listAccount');
   assert(series.matchRoute('/api/member/user/vipInfoV2').adapter === 'vipInfoV2', 'vipInfoV2 session adapter');
   assert(series.matchRoute('/api/gameCenter/gameApi/login').adapter === 'gameLaunch', 'game launch mapping');
+  const { buildGameLaunchData, deriveLobbyGameUrlFromWss } = require('../src/adapter/providers/wgame/game-config');
+  const launch = buildGameLaunchData(
+    { platfromid: '200', gameid: 88 },
+    { nickname: 'Nick' },
+    { enabled: true, clientPath: 'gogamesac/clientv3/index.html', lobbyGameUrl: 'https://www.example.com/gogameccc/', fallbackToDefault: true, defaultTarget: { kindId: 3, roomId: 0, gameName: 'WGame', direction: 1 }, mappings: [] },
+    null
+  );
+  assert(launch && launch.game_url === 'https://www.example.com/gogameccc/clientv3/index.html', 'absolute game_url for third-party');
+  assert(launch.gameid === 3, 'wgame kindId as gameid');
+  assert(deriveLobbyGameUrlFromWss('wss://server.679win2.com') === 'https://www.679win2.com/gogameccc/', 'lobby url from wss');
+  const {
+    parseWgameWebConfigText,
+    parseBoolish,
+    deriveLobbyGameUrlFromProxyList,
+    resolveWgameWebRoot
+  } = require('../src/adapter/providers/wgame/wgame-web-config');
+  assert(parseBoolish(1) && parseBoolish('true') && !parseBoolish(0), 'wgame_web debug parse');
+  const sample = parseWgameWebConfigText(`
+    debug: 1,
+    baseWssUrl: 'wss://server.prod.com',
+    mockWssUrl: 'wss://server.test.com',
+    packageId: 46,
+    proxyShareUrlList: ['https://a.com', 'https://www.b.com']
+  `);
+  assert(sample.debug && sample.wssUrl === 'wss://server.test.com', 'debug=1 uses mockWssUrl');
+  const prod = parseWgameWebConfigText(`debug: false, baseWssUrl: 'wss://p.com', mockWssUrl: 'wss://t.com'`);
+  assert(prod.wssUrl === 'wss://p.com', 'debug off uses baseWssUrl');
+  assert(
+    deriveLobbyGameUrlFromProxyList(['https://679win2.com', 'https://www.679win2.com'])
+      === 'https://www.679win2.com/gogameccc/',
+    'lobby from proxyShareUrlList'
+  );
+  const commented = parseWgameWebConfigText(`
+    debug: 1,
+    // mockWssUrl: 'ws://192.168.50.117:38051',
+    mockWssUrl: 'wss://server.brmt777.com',
+    baseWssUrl: 'wss://server.679win2.com',
+    packageId: 46
+  `);
+  assert(commented.mockWssUrl === 'wss://server.brmt777.com', 'ignore commented mockWssUrl');
+  assert(commented.wssUrl === 'wss://server.brmt777.com', 'debug uses active mockWssUrl');
+  const { loadWgameConfig } = require('../src/adapter/providers/wgame/config');
+  const zeroPkg = loadWgameConfig(null);
+  if (zeroPkg.wgameWeb && zeroPkg.wgameWeb.debug) {
+    assert(zeroPkg.packageId === 0, 'packageId 0 from wgame_web');
+  }
+  const webRoot = resolveWgameWebRoot();
+  if (webRoot) {
+    const { loadWgameConfig } = require('../src/adapter/providers/wgame/config');
+    const cfg = loadWgameConfig(path.join(__dirname, '..', 'output', '679win'));
+    assert(cfg.wgameWeb && cfg.wgameWeb.root, 'wgame_web linked');
+    console.log('  OK  wgame_web', cfg.wgameWeb.branch || 'detached', cfg.wgameWeb.serverMode, cfg.wssUrl);
+  }
   assert(series.matchRoute('/api/agent/promote/config/agentMode').adapter === 'agentBlob', 'agentMode config-driven');
   assert(series.matchRoute('/api/active/receivedAwardList').adapter === 'emptyRecords', 'award list empty not forged');
   assert(series.matchRoute('/api/active/receiveOne').adapter === 'featurePending', 'receiveOne pending not empty-ok');

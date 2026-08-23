@@ -56,6 +56,14 @@ function main() {
       captureFiles: captureCount
     },
     wgameTestAccount: !!(process.env.WGAME_TEST_ACCOUNT && process.env.WGAME_TEST_PASSWORD),
+    wgame: (() => {
+      const cfg = loadWgameConfig(siteDir);
+      return {
+        wssUrl: cfg.wssUrl,
+        packageId: cfg.packageId,
+        web: cfg.wgameWeb || null
+      };
+    })(),
     wgameWssUrl: loadWgameConfig(siteDir).wssUrl,
     wssReachability: wgameProbe && wgameProbe.wssReachability ? wgameProbe.wssReachability : null,
     contract: path.join('output', siteId, 'api-contract.json'),

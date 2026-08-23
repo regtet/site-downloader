@@ -29,6 +29,13 @@ function applyProductionHooks(adapterHosts) {
   if (process.env.AGENT_USE_BUILTIN_MOCK === '1') {
     agent.useBuiltinMock = true;
   }
+  const game = po.game || (po.game = {});
+  if (process.env.GAME_LOBBY_URL) {
+    game.lobbyGameUrl = String(process.env.GAME_LOBBY_URL);
+  }
+  if (process.env.GAME_CLIENT_PATH) {
+    game.clientPath = String(process.env.GAME_CLIENT_PATH);
+  }
   return adapterHosts;
 }
 
@@ -36,8 +43,10 @@ function mergePreservedProductionHooks(next, preserved) {
   if (!preserved || !preserved.providerOptions) return applyProductionHooks(next);
   const pPay = preserved.providerOptions.pay || {};
   const pAgent = preserved.providerOptions.agent || {};
+  const pGame = preserved.providerOptions.game || {};
   const nPay = next.providerOptions.pay || {};
   const nAgent = next.providerOptions.agent || {};
+  const nGame = next.providerOptions.game || (next.providerOptions.game = {});
   const pUrl = pPay.createOrder && pPay.createOrder.httpUrl;
   const pBase = pAgent.httpBase;
 
@@ -51,6 +60,13 @@ function mergePreservedProductionHooks(next, preserved) {
   if (pBase && !isLocalDevUrl(pBase) && !process.env.AGENT_HTTP_BASE) {
     nAgent.httpBase = pBase;
     nAgent.useBuiltinMock = false;
+  }
+  const pLobby = pGame.lobbyGameUrl;
+  if (pLobby && !isLocalDevUrl(pLobby) && !process.env.GAME_LOBBY_URL) {
+    nGame.lobbyGameUrl = pLobby;
+  }
+  if (Array.isArray(pGame.mappings) && pGame.mappings.length && !Array.isArray(nGame.mappings)) {
+    nGame.mappings = pGame.mappings.slice();
   }
   return applyProductionHooks(next);
 }

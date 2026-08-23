@@ -5,11 +5,14 @@
 const path = require('path');
 const fs = require('fs');
 
+const { loadWgameConfig } = require('./config');
+const { loadWgameWebConfig } = require('./wgame-web-config');
+
 const DEFAULT_GAME = {
   enabled: true,
   /** dist 自营平台路径；前端会替换 gogamesac/ 为 lobbyGameUrl */
   clientPath: 'gogamesac/clientv3/index.html',
-  /** 注入 window.lobby_game_url，指向 wgame H5 客户端根 URL */
+  /** 注入 window.lobby_game_url，指向 wgame H5 客户端根 URL（可留空，从 wssUrl 推导） */
   lobbyGameUrl: '',
   /** 未命中 mappings 时是否全部落到 defaultTarget */
   fallbackToDefault: true,
@@ -27,6 +30,42 @@ const DEFAULT_GAME = {
    */
   mappings: []
 };
+
+/** wss://server.example.com → https://www.example.com/gogameccc/ */
+function deriveLobbyGameUrlFromWss(wssUrl) {
+  if (!wssUrl) return '';
+  try {
+    const u = new URL(String(wssUrl).replace(/^ws/i, 'http'));
+    let host = u.hostname;
+    if (/^server\./i.test(host)) {
+      host = host.replace(/^server\./i, 'www.');
+    } else if (!/^www\./i.test(host)) {
+      host = 'www.' + host;
+    }
+    return `https://${host}/gogameccc/`;
+  } catch (_) {
+    return '';
+  }
+}
+
+function resolveLobbyGameUrl(cfg, siteDir) {
+  if (cfg.lobbyGameUrl) return String(cfg.lobbyGameUrl).replace(/\/?$/, '/');
+  if (process.env.GAME_LOBBY_URL) return String(process.env.GAME_LOBBY_URL).replace(/\/?$/, '/');
+  const web = loadWgameWebConfig();
+  if (web && web.lobbyGameUrl) return String(web.lobbyGameUrl).replace(/\/?$/, '/');
+  const wg = loadWgameConfig(siteDir);
+  if (wg && wg.wgameWeb && wg.wgameWeb.lobbyGameUrl) {
+    return String(wg.wgameWeb.lobbyGameUrl).replace(/\/?$/, '/');
+  }
+  return deriveLobbyGameUrlFromWss(wg && wg.wssUrl);
+}
+
+function buildClientGameUrl(cfg, siteDir) {
+  const rel = String(cfg.clientPath || DEFAULT_GAME.clientPath);
+  const root = resolveLobbyGameUrl(cfg, siteDir);
+  if (!root) return rel;
+  return root + rel.replace(/^gogamesac\//, '');
+}
 
 function loadGameConfig(siteDir, providerOptions) {
   let raw = {};
@@ -53,6 +92,8 @@ function loadGameConfig(siteDir, providerOptions) {
   if (raw.fallbackToDefault != null) cfg.fallbackToDefault = !!raw.fallbackToDefault;
   if (process.env.GAME_LOBBY_URL) cfg.lobbyGameUrl = String(process.env.GAME_LOBBY_URL);
   if (process.env.GAME_CLIENT_PATH) cfg.clientPath = String(process.env.GAME_CLIENT_PATH);
+  const resolvedLobby = resolveLobbyGameUrl(cfg, siteDir);
+  if (resolvedLobby) cfg.lobbyGameUrl = resolvedLobby;
   return cfg;
 }
 
@@ -97,7 +138,7 @@ function resolveGameMapping(cfg, platformId, gameId, body) {
   };
 }
 
-function buildGameLaunchData(body, sessionUser, cfg) {
+function buildGameLaunchData(body, sessionUser, cfg, siteDir) {
   const platformId = String(
     body.platfromid != null ? body.platfromid
       : (body.platformId != null ? body.platformId : '')
@@ -111,11 +152,12 @@ function buildGameLaunchData(body, sessionUser, cfg) {
     || info.name
     || (sessionUser && sessionUser.nickname)
     || 'Game';
+  const wgameId = mapping.kindId != null ? Number(mapping.kindId) : (Number(gameId) || 0);
   return {
-    game_url: cfg.clientPath || DEFAULT_GAME.clientPath,
+    game_url: buildClientGameUrl(cfg, siteDir),
     gameName,
     direction: mapping.direction != null ? mapping.direction : 1,
-    gameid: Number(gameId) || 0,
+    gameid: wgameId,
     platfromid: platformId,
     platformId,
     kindId: mapping.kindId,
@@ -131,6 +173,9 @@ function isSelfPlatform(cfg, platformId) {
 
 module.exports = {
   DEFAULT_GAME,
+  deriveLobbyGameUrlFromWss,
+  resolveLobbyGameUrl,
+  buildClientGameUrl,
   loadGameConfig,
   resolveGameMapping,
   buildGameLaunchData,

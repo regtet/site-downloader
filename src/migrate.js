@@ -141,6 +141,23 @@ function exportMigrated(siteId) {
           bindingReport: '/bindingReport'
         },
         note: 'HTTP agent at httpBase+routes; replace with your production agent API.'
+      },
+      game: {
+        enabled: true,
+        clientPath: 'gogamesac/clientv3/index.html',
+        lobbyGameUrl: '',
+        fallbackToDefault: true,
+        selfPlatformIds: ['0999'],
+        defaultTarget: {
+          kindId: 1,
+          roomId: 0,
+          gameName: 'WGame',
+          direction: 1
+        },
+        mappings: [
+          { platformId: '0999', gameId: '*', kindId: 1, roomId: 0 }
+        ],
+        note: 'OSS lists are UI-only; gameApi/login maps to wgame client. Set lobbyGameUrl or GAME_LOBBY_URL.'
       }
     },
     upstreamOrigin: inferred.upstreamOrigin || '',
@@ -168,7 +185,8 @@ function exportMigrated(siteId) {
       'pay.list',
       'pay.create',
       'agent.mode',
-      'agent.index'
+      'agent.index',
+      'game.launch'
     ],
     migrationMap: MIGRATION_MAP
   };

@@ -864,7 +864,7 @@ async function execute(op, ctx) {
     const sessionRow = findSession(body, headers);
     const sessionUser = sessionRow && sessionRow.user;
     if (!sessionUser) return fail(401, 'not logged in');
-    const data = buildGameLaunchData(body || {}, sessionUser, game);
+    const data = buildGameLaunchData(body || {}, sessionUser, game, ctx && ctx.siteDir);
     if (!data || !data.game_url) {
       return fail(10061, 'no game mapping for platformId=' + (body.platfromid || body.platformId));
     }
