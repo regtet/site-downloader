@@ -63,10 +63,17 @@ function exportMigrated(siteId) {
   }
 
   let preservedHosts = null;
+  let preservedOssGameList = null;
   const prevHostsPath = path.join(out, 'adapter-hosts.json');
+  const prevOssListPath = path.join(out, 'oss-game-list.json');
   if (fs.existsSync(prevHostsPath)) {
     try {
       preservedHosts = JSON.parse(fs.readFileSync(prevHostsPath, 'utf8'));
+    } catch (_) { /* ignore */ }
+  }
+  if (fs.existsSync(prevOssListPath)) {
+    try {
+      preservedOssGameList = fs.readFileSync(prevOssListPath, 'utf8');
     } catch (_) { /* ignore */ }
   }
 
@@ -179,6 +186,22 @@ function exportMigrated(siteId) {
   const { mergePreservedProductionHooks } = require('./production-hooks');
   mergePreservedProductionHooks(adapterHosts, preservedHosts);
   fs.writeFileSync(path.join(out, 'adapter-hosts.json'), JSON.stringify(adapterHosts, null, 2), 'utf8');
+
+  if (preservedOssGameList) {
+    fs.writeFileSync(path.join(out, 'oss-game-list.json'), preservedOssGameList, 'utf8');
+  } else {
+    try {
+      const { buildOssGameListForSite } = require('./adapter/providers/wgame/oss-game-catalog');
+      const games = buildOssGameListForSite(out);
+      if (games && games.length) {
+        fs.writeFileSync(
+          path.join(out, 'oss-game-list.json'),
+          JSON.stringify({ source: 'hotListV2', games }, null, 2),
+          'utf8'
+        );
+      }
+    } catch (_) { /* ignore */ }
+  }
 
   const manifest = {
     generatedAt: new Date().toISOString(),
