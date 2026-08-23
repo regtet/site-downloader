@@ -1,5 +1,5 @@
 {
-  "at": "2026-08-22T16:04:22.747Z",
+  "at": "2026-08-23T00:02:16.721Z",
   "siteId": "679win",
   "preview": "http://127.0.0.1:3476",
   "via": "yarn",
@@ -36,7 +36,7 @@
     },
     "payOrder": {
       "code": 1,
-      "orderNo": "WG1787414667688832",
+      "orderNo": "WG1787443339446227",
       "mockQr": true,
       "ok": true
     },
@@ -80,6 +80,34 @@
     "httpCashier": {
       "code": 1,
       "mockQr": true,
+      "ok": true
+    },
+    "liveLogin": {
+      "code": 1,
+      "ok": true
+    },
+    "livePayChannels": {
+      "code": 1,
+      "count": 2,
+      "wgame": true,
+      "ok": true
+    },
+    "livePayOrder": {
+      "code": 1,
+      "hasUrl": true,
+      "hasQr": true,
+      "mockQr": false,
+      "ok": true
+    },
+    "liveAgentPromotion": {
+      "code": 1,
+      "hasInviteUrl": true,
+      "wgame": true,
+      "ok": true
+    },
+    "liveAgentIndex": {
+      "code": 1,
+      "wgame": true,
       "ok": true
     },
     "httpAgent": {

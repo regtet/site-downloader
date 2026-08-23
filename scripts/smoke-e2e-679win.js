@@ -243,6 +243,63 @@ async function main() {
       result.steps.httpCashier = { ok: false, error: String(err && err.message || err) };
     }
 
+    const liveAcc = process.env.WGAME_TEST_ACCOUNT || '';
+    const livePwd = process.env.WGAME_TEST_PASSWORD || '';
+    if (liveAcc && livePwd) {
+      const liveLogin = await post(preview.port, '/api/member/login', {
+        account: liveAcc,
+        password: livePwd,
+        userpass: livePwd
+      });
+      result.steps.liveLogin = {
+        code: liveLogin.json && liveLogin.json.code,
+        ok: liveLogin.json && liveLogin.json.code === 1
+      };
+      if (liveLogin.json && liveLogin.json.code === 1) {
+        const liveToken = liveLogin.json.data.session_key;
+        const liveCh = await post(preview.port, '/api/finance/pay/payplatformlistV3', { payKind: 100 }, liveToken);
+        const liveList = liveCh.json && liveCh.json.data && liveCh.json.data.list;
+        const liveCid = liveList && liveList[0] && (liveList[0].id || liveList[0].channelId);
+        result.steps.livePayChannels = {
+          code: liveCh.json && liveCh.json.code,
+          count: liveList ? liveList.length : 0,
+          wgame: !!(liveList && liveList.length > 0 && liveList.length < 6),
+          ok: liveCh.json && liveCh.json.code === 1 && liveList && liveList.length > 0
+        };
+        if (liveCid) {
+          const liveOrd = await post(preview.port, '/api/finance/pay/offlineOrderV3', {
+            amount: 10,
+            channelId: liveCid
+          }, liveToken);
+          const liveData = liveOrd.json && liveOrd.json.data;
+          result.steps.livePayOrder = {
+            code: liveOrd.json && liveOrd.json.code,
+            hasUrl: !!(liveData && liveData.url),
+            hasQr: !!(liveData && liveData.qrCode),
+            mockQr: !!(liveData && String(liveData.qrCode || '').includes('MOCK-')),
+            ok: liveOrd.json && liveOrd.json.code === 1
+              && !!(liveData && (liveData.url || liveData.qrCode))
+              && !String(liveData.qrCode || '').includes('MOCK-')
+          };
+        }
+        const livePromo = await post(preview.port, '/api/agent/promote/report/agentPromotion', {}, liveToken);
+        const liveInvite = livePromo.json && livePromo.json.data && livePromo.json.data.linkList
+          && livePromo.json.data.linkList[0] && livePromo.json.data.linkList[0].url;
+        const liveIdx = await post(preview.port, '/api/agent/promote/report/indexInfo', {}, liveToken);
+        result.steps.liveAgentPromotion = {
+          code: livePromo.json && livePromo.json.code,
+          hasInviteUrl: !!liveInvite,
+          wgame: !(livePromo.json && livePromo.json.data && '_mockToken' in livePromo.json.data),
+          ok: livePromo.json && livePromo.json.code === 1 && !!liveInvite
+        };
+        result.steps.liveAgentIndex = {
+          code: liveIdx.json && liveIdx.json.code,
+          wgame: !(liveIdx.json && liveIdx.json.data && '_mockToken' in liveIdx.json.data),
+          ok: liveIdx.json && liveIdx.json.code === 1
+        };
+      }
+    }
+
     try {
       const httpAgent = await post(3000, '/api/dev/mock-agent/indexInfo', {});
       const httpTeam = await post(3000, '/api/dev/mock-agent/teamDataV2', { token: 'e2e' });

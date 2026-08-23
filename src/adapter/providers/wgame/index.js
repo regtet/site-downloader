@@ -489,8 +489,7 @@ async function execute(op, ctx) {
         try {
           const pack = await wgamePayChannels();
           const wCount = pack && pack.list ? pack.list.length : 0;
-          const cCount = configPack.list ? configPack.list.length : 0;
-          if (pack && wCount > 0 && wCount >= cCount) {
+          if (pack && wCount > 0) {
             return ok(pack, 'ok');
           }
         } catch (err) {
@@ -679,6 +678,45 @@ async function execute(op, ctx) {
     };
     const key = keyByOp[op];
     const route = agent.routes && agent.routes[key];
+    const sessionRowEarly = findSession(body, headers);
+    const sessionUserEarly = sessionRowEarly && sessionRowEarly.user;
+    const agentSource = String(agent.source || 'wgame').toLowerCase();
+    const isDevMockHttp = !!(agent.httpBase && /\/api\/dev\/mock-agent/i.test(String(agent.httpBase)));
+
+    async function resolveWgameAgentViaInvite() {
+      if (agentSource !== 'wgame') return null;
+      if (!(op === OP.AGENT_INDEX || op === OP.AGENT_TOTAL || op === OP.AGENT_PROMOTION)) return null;
+      if (!sessionUserEarly || !sessionUserEarly.account || !sessionUserEarly.password) return null;
+      try {
+        const res = await wgameAuth({
+          action: 'login',
+          account: sessionUserEarly.account,
+          password: sessionUserEarly.password,
+          wssUrl: cfg.wssUrl,
+          packageId: cfg.packageId,
+          timeoutMs: Math.max(Number(cfg.timeoutMs) || 20000, 25000),
+          nGmType: cfg.nGmType,
+          hallAction: 'proxyInvite',
+          deviceId: sessionUserEarly.device_id
+        });
+        if (res && res.proxyInvite) {
+          let mapped = mapProxyInviteToAgent(res.proxyInvite, agent);
+          mapped = enrichAgentFromSession(mapped, sessionUserEarly, ctx && ctx.siteDir);
+          if (op === OP.AGENT_PROMOTION) return ok(mapped.agentPromotion, 'ok');
+          if (op === OP.AGENT_INDEX) return ok(mapped.indexInfo, 'ok');
+          if (op === OP.AGENT_TOTAL) return ok(mapped.myTotalData, 'ok');
+        }
+      } catch (err) {
+        console.warn('[provider:wgame] proxyInvite failed:', (err && err.message) || err);
+      }
+      return null;
+    }
+
+    if (isDevMockHttp) {
+      const wgameRsp = await resolveWgameAgentViaInvite();
+      if (wgameRsp) return wgameRsp;
+    }
+
     if (route && (agent.useBuiltinMock || agent.httpBase)) {
       if (agent.useBuiltinMock && !agent.httpBase) {
         const { createMockAgentResponse } = require('../../../mock-agent-api');
@@ -733,37 +771,17 @@ async function execute(op, ctx) {
       }
     }
 
-    const agentSource = String(agent.source || 'wgame').toLowerCase();
     if (
-      agentSource === 'wgame'
+      !isDevMockHttp
+      && agentSource === 'wgame'
       && (op === OP.AGENT_INDEX || op === OP.AGENT_TOTAL || op === OP.AGENT_PROMOTION)
     ) {
-      const sessionRow = findSession(body, headers);
-      const sessionUser = sessionRow && sessionRow.user;
-      if (sessionUser && sessionUser.account && sessionUser.password) {
-        try {
-          const res = await wgameAuth({
-            action: 'login',
-            account: sessionUser.account,
-            password: sessionUser.password,
-            wssUrl: cfg.wssUrl,
-            packageId: cfg.packageId,
-            timeoutMs: Math.max(Number(cfg.timeoutMs) || 20000, 25000),
-            nGmType: cfg.nGmType,
-            hallAction: 'proxyInvite',
-            deviceId: sessionUser.device_id
-          });
-          if (res && res.proxyInvite) {
-            agent = mapProxyInviteToAgent(res.proxyInvite, agent);
-          }
-        } catch (err) {
-          console.warn('[provider:wgame] proxyInvite failed:', (err && err.message) || err);
-        }
-      }
+      const wgameRsp = await resolveWgameAgentViaInvite();
+      if (wgameRsp) return wgameRsp;
     }
 
-    const sessionRow = findSession(body, headers);
-    const sessionUser = sessionRow && sessionRow.user;
+    const sessionRow = sessionRowEarly;
+    const sessionUser = sessionUserEarly;
     if (
       sessionUser
       && (op === OP.AGENT_PROMOTION || op === OP.AGENT_INDEX || op === OP.AGENT_TOTAL)
