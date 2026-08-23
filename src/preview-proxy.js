@@ -267,11 +267,12 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
     } catch (e) {}
     return window.__sdAuthFields;
   }
-  document.addEventListener('input', function () { harvestAuthFields(); }, true);
-  document.addEventListener('change', function () { harvestAuthFields(); }, true);
-  document.addEventListener('click', function () { harvestAuthFields(); }, true);
+  document.addEventListener('input', function () { if (ADAPTER_ENABLED) harvestAuthFields(); }, true);
+  document.addEventListener('change', function () { if (ADAPTER_ENABLED) harvestAuthFields(); }, true);
+  document.addEventListener('click', function () { if (ADAPTER_ENABLED) harvestAuthFields(); }, true);
 
   function withPlainAuthBody(href, body) {
+    if (!ADAPTER_ENABLED) return body;
     try {
       var u = new URL(href, LOCAL_ORIGIN);
       if (!isAuthApiPath(u.pathname)) return body;
@@ -572,7 +573,7 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
       }
 
       function dispatch(finalInit) {
-        if (next || (href && isAuthApiPath((function () { try { return new URL(href).pathname; } catch (e) { return ''; } })()))) {
+        if (ADAPTER_ENABLED && (next || (href && isAuthApiPath((function () { try { return new URL(href).pathname; } catch (e) { return ''; } })())))) {
           var authHref = next || href;
           if (finalInit && finalInit.body != null) {
             finalInit = Object.assign({}, finalInit);
@@ -631,8 +632,8 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
     XO.prototype.send = function (body) {
       var self = this;
       var href = this.__sdHref || this.__sdRewrote || '';
-      // 登录注册：用表单明文替换 AES 密文 body
-      if (body != null && href) {
+      // 登录注册明文替换仅部署包 Bridge 需要；原始 dist 必须保持官方 AES 密文
+      if (ADAPTER_ENABLED && body != null && href) {
         body = withPlainAuthBody(href, body);
       }
       if (body != null && href && (href.indexOf('cdn-cgi/rum') !== -1 || String(this.__sdHref || '').indexOf(LOCAL_ORIGIN) === 0)) {
@@ -705,19 +706,28 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
   }
 
   if (navigator.serviceWorker) {
-    var swUrl = ${JSON.stringify(SW_PATH + '?v=9')};
+    var swVer = ADAPTER_ENABLED ? '11a' : '11d';
+    var swUrl = ${JSON.stringify(SW_PATH)} + '?v=' + swVer + '&adapter=' + (ADAPTER_ENABLED ? '1' : '0');
     navigator.serviceWorker.getRegistrations().then(function (regs) {
       return Promise.all((regs || []).map(function (r) { return r.unregister(); }));
     }).then(function () {
+      if (!ADAPTER_ENABLED) {
+        try { console.info('[sd-preview] service workers cleared (dist mode)'); } catch (e) {}
+        return;
+      }
       return navigator.serviceWorker.register(swUrl, { scope: '/', updateViaCache: 'none' });
-    }).then(function () {
-      try { console.info('[sd-adapter] service worker v9 registered'); } catch (e) {}
+    }).then(function (reg) {
+      if (ADAPTER_ENABLED && reg) {
+        try { console.info('[sd-adapter] service worker registered', swVer); } catch (e) {}
+      }
     }).catch(function (err) {
-      try { console.warn('[sd-adapter] sw register failed', err); } catch (e) {}
+      try { console.warn('[sd-preview] sw cleanup failed', err); } catch (e) {}
     });
   }
 
-  try { console.info('[sd-adapter] boot ready', LOCAL_ORIGIN); } catch (e) {}
+  try {
+    console.info('[sd-preview] boot ready', LOCAL_ORIGIN, 'adapter=' + (ADAPTER_ENABLED ? '1' : '0'));
+  } catch (e) {}
 })();
 `;
 }
@@ -846,14 +856,20 @@ self.addEventListener('fetch', function (event) {
 }
 function injectBootIntoHtml(html, sourceOrigin, adapterHosts) {
   if (!sourceOrigin || !html) return html;
-  if (html.includes('__SD_PROXY_BOOT__') || html.includes('data-sd-boot=')) return html;
+  const cfg = normalizeBootCfg(adapterHosts);
+  const mode = cfg.adapterEnabled === false ? '0' : '1';
+  // 始终替换旧 boot，避免切换 dist/部署包 后浏览器仍执行旧脚本
+  let out = String(html).replace(
+    /<script\b[^>]*\bdata-sd-boot=["']?1["']?[^>]*>[\s\S]*?<\/script>/gi,
+    ''
+  );
   const raw = buildBootScript(sourceOrigin, adapterHosts);
   const safe = String(raw).replace(/<\/script/gi, '<\\/script');
-  const tag = `<script data-sd-boot="1">${safe}</script>`;
-  if (/<head[^>]*>/i.test(html)) {
-    return html.replace(/<head([^>]*)>/i, `<head$1>${tag}`);
+  const tag = `<script data-sd-boot="1" data-sd-adapter="${mode}">${safe}</script>`;
+  if (/<head[^>]*>/i.test(out)) {
+    return out.replace(/<head([^>]*)>/i, `<head$1>${tag}`);
   }
-  return tag + html;
+  return tag + out;
 }
 
 function copyRequestHeaders(req, refererOrigin, options = {}) {
@@ -1081,7 +1097,8 @@ function tryHandleProxy(req, res, sourceOrigin, adapterHosts) {
     const body = buildBootScript(sourceOrigin, adapterHosts);
     res.writeHead(200, {
       'Content-Type': 'application/javascript; charset=utf-8',
-      'Cache-Control': 'no-cache',
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+      'Pragma': 'no-cache',
       'X-Content-Type-Options': 'nosniff'
     });
     res.end(body);
@@ -1092,7 +1109,8 @@ function tryHandleProxy(req, res, sourceOrigin, adapterHosts) {
     const body = buildServiceWorkerScript(adapterHosts);
     res.writeHead(200, {
       'Content-Type': 'application/javascript; charset=utf-8',
-      'Cache-Control': 'no-cache',
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+      'Pragma': 'no-cache',
       'Service-Worker-Allowed': '/',
       'X-Content-Type-Options': 'nosniff'
     });
@@ -1128,17 +1146,18 @@ function tryHandleProxy(req, res, sourceOrigin, adapterHosts) {
     } catch (_) { /* keep original */ }
   }
 
-  // 代理到 API 主机时：本地 wgame Token 不能转给真实上游（会 -1 踢下线）
+  // 代理到 API 主机时：仅部署包模式才剥 wgame 本地 Token
   let stripAuth = false;
-  try {
-    if (isApi) {
+  if (bootCfg.adapterEnabled !== false && isApi) {
+    try {
       const { getProvider } = require('./adapter/providers');
       const provider = getProvider('wgame');
       const h = req.headers || {};
-      const hasToken = !!(h.token || h.Token || h['x-session-key'] || h['session-key']);
-      if (provider && (provider.isOurSession(h) || hasToken)) stripAuth = true;
-    }
-  } catch (_) { /* ignore */ }
+      if (provider && typeof provider.isOurSession === 'function' && provider.isOurSession(h)) {
+        stripAuth = true;
+      }
+    } catch (_) { /* ignore */ }
+  }
 
   proxyRequest(req, res, finalTarget, finalTarget.origin + '/', { stripAuth, sanitizeAuthKick: stripAuth });
   return true;

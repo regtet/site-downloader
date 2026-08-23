@@ -1,5 +1,5 @@
 {
-  "at": "2026-08-23T16:33:01.069Z",
+  "at": "2026-08-23T16:48:05.271Z",
   "siteId": "679win",
   "preview": "http://127.0.0.1:3476",
   "via": "yarn",
@@ -21,8 +21,8 @@
       "ok": null
     },
     "newcomerPop": {
-      "code": null,
-      "ok": null
+      "code": 1,
+      "ok": true
     },
     "payList": {
       "code": 1,
@@ -36,7 +36,7 @@
     },
     "payOrder": {
       "code": 1,
-      "orderNo": "WG1787502784120190",
+      "orderNo": "WG1787503688668813",
       "mockQr": true,
       "ok": true
     },

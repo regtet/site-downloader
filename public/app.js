@@ -882,7 +882,10 @@ async function startPreview(dir, options = {}) {
       return;
     }
     updatePreviewStatus({ previews: data.previews || [data], running: true });
-    window.open(data.url, '_blank');
+    const mode = options.enableAdapter ? 'migrated' : 'dist';
+    const openUrl = data.url + (data.url.indexOf('?') >= 0 ? '&' : '?')
+      + '_sd_preview=' + mode + '&_sd_t=' + Date.now();
+    window.open(openUrl, '_blank');
     previewBtn.disabled = false;
   } catch (err) {
     if (selectedTaskId) appendTaskLog(selectedTaskId, err.message, true);

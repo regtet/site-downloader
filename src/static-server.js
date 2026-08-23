@@ -336,7 +336,9 @@ function createStaticServer(siteDir, options = {}) {
             if (headerProxy) html = injectBootIntoHtml(html, sourceOrigin, bootCfg);
             res.writeHead(200, {
               'Content-Type': 'text/html; charset=utf-8',
-              'Cache-Control': 'no-cache'
+              'Cache-Control': 'no-store, no-cache, must-revalidate',
+              'Pragma': 'no-cache',
+              'X-SD-Preview-Adapter': adapterEnabled ? '1' : '0'
             });
             res.end(html);
             return;
@@ -363,8 +365,10 @@ function createStaticServer(siteDir, options = {}) {
             const html = injectBootIntoHtml(data.toString('utf8'), sourceOrigin, bootCfg);
             res.writeHead(200, {
               'Content-Type': 'text/html; charset=utf-8',
-              'Cache-Control': 'no-cache',
-              'X-Content-Type-Options': 'nosniff'
+              'Cache-Control': 'no-store, no-cache, must-revalidate',
+              'Pragma': 'no-cache',
+              'X-Content-Type-Options': 'nosniff',
+              'X-SD-Preview-Adapter': adapterEnabled ? '1' : '0'
             });
             res.end(html);
             resolve();
