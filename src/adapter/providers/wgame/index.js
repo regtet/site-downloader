@@ -429,7 +429,13 @@ async function execute(op, ctx) {
     || op === OP.PAY_CREATE
     || op === OP.PAY_ORDER_INFO
   ) {
-    const { loadPayConfig, buildQrDataUrl, mapWgameChannelsToPack, finalizePayChannelPack } = require('./pay-config');
+    const {
+      loadPayConfig,
+      buildQrDataUrl,
+      mapWgameChannelsToPack,
+      finalizePayChannelPack,
+      mergePayChannelPacks
+    } = require('./pay-config');
     const { putOrder, getOrder, listOrders } = require('./pay-orders');
     const pay = loadPayConfig(ctx && ctx.siteDir, cfg);
     if (!pay.enabled) {
@@ -513,18 +519,26 @@ async function execute(op, ctx) {
       const configPack = pay.channelsByPayKind[key]
         || pay.channelsByPayKind['100']
         || { list: [], min: '0', max: '0' };
+      const harPack = finalizePayChannelPack(
+        Object.assign({ list: [] }, configPack),
+        ctx && ctx.siteDir
+      );
       if (source === 'wgame') {
         try {
           const pack = await wgamePayChannels();
           const wCount = pack && pack.list ? pack.list.length : 0;
+          const harCount = harPack && harPack.list ? harPack.list.length : 0;
           if (pack && wCount > 0) {
+            if (harCount > wCount) {
+              return ok(mergePayChannelPacks(pack, harPack, ctx && ctx.siteDir), 'ok');
+            }
             return ok(finalizePayChannelPack(pack, ctx && ctx.siteDir), 'ok');
           }
         } catch (err) {
           console.warn('[provider:wgame] payChannels failed:', (err && err.message) || err);
         }
       }
-      return ok(finalizePayChannelPack(Object.assign({ list: [] }, configPack), ctx && ctx.siteDir), 'ok');
+      return ok(harPack, 'ok');
     }
     if (op === OP.PAY_INFOS) {
       return ok(Array.isArray(pay.payInfos) ? pay.payInfos : [], 'ok');

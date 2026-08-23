@@ -233,6 +233,41 @@ function enrichPayChannelItem(ch, harRow) {
   return out;
 }
 
+/** wgame 渠道数少于 HAR 时，以 HAR 展示为准并叠加 wgame 真实下单字段 */
+function mergePayChannelPacks(wgamePack, harPack, siteDir) {
+  const wg = (wgamePack && Array.isArray(wgamePack.list)) ? wgamePack : { list: [] };
+  const har = (harPack && Array.isArray(harPack.list)) ? harPack : { list: [] };
+  if (!har.list.length) return finalizePayChannelPack(wg, siteDir);
+  if (!wg.list.length) return finalizePayChannelPack(har, siteDir);
+
+  const wgById = Object.create(null);
+  for (const ch of wg.list) {
+    const id = ch.id || ch.channelId || ch.payplatformid;
+    if (id != null) wgById[id] = ch;
+  }
+  const seen = new Set();
+  const list = har.list.map((row) => {
+    const id = row.id || row.channelId || row.payplatformid;
+    if (id != null) seen.add(id);
+    const wgRow = id != null ? wgById[id] : null;
+    return enrichPayChannelItem(Object.assign({}, row, wgRow || {}), row);
+  });
+  for (const ch of wg.list) {
+    const id = ch.id || ch.channelId || ch.payplatformid;
+    if (id != null && seen.has(id)) continue;
+    list.push(enrichPayChannelItem(ch, null));
+  }
+  const out = Object.assign({}, har, wg, {
+    list,
+    min: har.min || wg.min || '10',
+    max: har.max || wg.max || '50000',
+    recommendList: (Array.isArray(har.recommendList) && har.recommendList.length)
+      ? har.recommendList.slice()
+      : wg.recommendList
+  });
+  return finalizePayChannelPack(out, siteDir);
+}
+
 function enrichPayChannelPack(pack, har) {
   if (!pack || !Array.isArray(pack.list)) return pack;
   const harList = har && har.channelsByPayKind && har.channelsByPayKind['100']
@@ -277,5 +312,6 @@ module.exports = {
   loadHarPaySnapshot,
   applyHarPaySnapshot,
   enrichPayChannelPack,
+  mergePayChannelPacks,
   finalizePayChannelPack
 };

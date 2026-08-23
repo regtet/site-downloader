@@ -1,18 +1,12 @@
 {
-  "at": "2026-08-23T01:51:28.510Z",
-  "totalKeys": 2,
+  "at": "2026-08-23T06:43:24.002Z",
+  "totalKeys": 1,
   "top": [
     {
-      "key": "POST /api/member/vipInfoUnLogin",
-      "count": 6,
-      "firstAt": 1787448588943,
-      "lastAt": 1787449888510
-    },
-    {
-      "key": "POST /api/agent/promote/commissionMarquee",
-      "count": 3,
-      "firstAt": 1787448595347,
-      "lastAt": 1787449733826
+      "key": "GET /api/active/category",
+      "count": 1,
+      "firstAt": 1787467404002,
+      "lastAt": 1787467404002
     }
   ]
 }

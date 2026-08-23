@@ -248,8 +248,10 @@ function enrichAgentFromSession(agent, sessionUser, siteDir) {
   const out = Object.assign({}, agent);
   const promo = Object.assign({}, out.agentPromotion || {});
   const links = Array.isArray(promo.linkList) ? promo.linkList.slice() : [];
-  const hasUrl = links.some((row) => row && row.url);
-  if (hasUrl && promo.inviteCode) return out;
+  const selected = links.find((row) => row && row.select) || links[0];
+  const selectedUrl = selected && selected.url ? String(selected.url).trim() : '';
+  const looksLocal = /^(https?:\/\/)?(127\.0\.0\.1|localhost)(:\d+)?/i.test(selectedUrl);
+  if (selectedUrl && promo.inviteCode && !looksLocal) return out;
 
   let baseUrl = '';
   try {

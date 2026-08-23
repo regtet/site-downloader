@@ -277,6 +277,63 @@ function adaptVipDetails(providerResult) {
   });
 }
 
+/** 默认 VIP 等级表（allVipLevel / vipInfoUnLogin 无 OSS 快照时） */
+function buildDefaultVipSettings() {
+  const deposits = [0, 100, 500, 2000, 10000, 50000, 100000];
+  return deposits.map((dep, idx) => ({
+    vip: idx,
+    name: 'VIP ' + idx,
+    level_up_deposit: idx < deposits.length - 1 ? deposits[idx + 1] : dep,
+    level_up_bet: 0,
+    total_deposit: dep,
+    total_bet: 0
+  }));
+}
+
+/**
+ * /api/member/user/vipInfoV2 —— 个人中心 VIP 进度卡
+ * 前端读 vip/next_vip/need_deposit/need_validbet 等字段
+ */
+function adaptVipInfoV2(providerResult) {
+  if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
+  const user = providerResult.data || {};
+  const level = Number(user.vip_level != null ? user.vip_level : 0);
+  const settings = buildDefaultVipSettings();
+  const cur = settings.find((row) => row.vip === level) || settings[0];
+  const next = settings.find((row) => row.vip === level + 1) || cur;
+  const nickname = (user.nickname != null && String(user.nickname).trim())
+    ? String(user.nickname)
+    : (user.account ? String(user.account) : '');
+  return envelope({
+    vip: level,
+    next_vip: next.vip,
+    need_deposit: 0,
+    need_validbet: 0,
+    next_vip_deposit: Number(next.level_up_deposit || 0),
+    next_vip_validbet: Number(next.level_up_bet || 0),
+    vip_status: 1,
+    birthday: '',
+    realname: nickname
+  });
+}
+
+/** /api/active/allVipLevel、/api/member/vipInfoUnLogin */
+function adaptVipLevelList(providerResult) {
+  const settings = buildDefaultVipSettings();
+  const level = (providerResult && providerResult.ok && providerResult.data)
+    ? Number(providerResult.data.vip_level || 0)
+    : 0;
+  return envelope({
+    VipSettings: settings,
+    vip_icon_show_type: 2,
+    icon_color_value: DEFAULT_VIP_ICON_COLOR_VALUE,
+    icon_style: DEFAULT_VIP_ICON_STYLE,
+    icon_color: DEFAULT_VIP_ICON_COLOR,
+    current_vip: level,
+    serverTime: Math.floor(Date.now() / 1000)
+  });
+}
+
 function adaptAvatars(providerResult) {
   if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
   const current = resolvePortraitUrl(providerResult.data && providerResult.data.face_id);
@@ -497,6 +554,8 @@ const ADAPTERS = {
   walletGold: adaptWalletGold,
   vipSummary: adaptVipSummary,
   vipDetails: adaptVipDetails,
+  vipInfoV2: adaptVipInfoV2,
+  vipLevelList: adaptVipLevelList,
   avatars: adaptAvatars,
   payPending: adaptPayPending,
   payList: adaptPayList,
@@ -542,6 +601,8 @@ module.exports = {
   adaptWalletGold,
   adaptVipSummary,
   adaptVipDetails,
+  adaptVipInfoV2,
+  adaptVipLevelList,
   adaptAvatars,
   adaptPayPending,
   adaptPayList,

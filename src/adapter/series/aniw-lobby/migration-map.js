@@ -38,9 +38,12 @@ const CORE_MAP = {
   // —— 头像 ——
   '/api/member/user/avatars': { op: OP.USER_AVATARS, adapter: 'avatars' },
 
-  // —— VIP（仅会话 vip_level；vipInfoV2 全量表暂不映射）——
+  // —— VIP（会话 vip_level + 等级表）——
   '/api/member/user/vip': { op: OP.USER_VIP, adapter: 'vipSummary' },
   '/api/member/user/vipDetails': { op: OP.USER_VIP, adapter: 'vipDetails' },
+  '/api/member/user/vipInfoV2': { op: OP.USER_VIP, adapter: 'vipInfoV2', note: 'session vip progress card' },
+  '/api/member/vipInfoUnLogin': { op: OP.LOBBY_OK, adapter: 'vipLevelList', note: 'vip ladder before login' },
+  '/api/active/allVipLevel': { op: OP.USER_VIP, adapter: 'vipLevelList', note: 'vip ladder after login' },
 
   // —— wallet.gold ——
   '/api/gameCenter/gold': { op: OP.WALLET_GOLD, adapter: 'walletGold' },
@@ -165,9 +168,8 @@ const CORE_MAP = {
   '/api/bet-manager/recentreport/betrecords/_query': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords' },
   '/api/bet-manager/recentreport/bet_report/personal/_query': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords' },
 
-  // —— VIP 全量表：无进度数据，明确 pending（禁止伪造充值/打码表）——
-  '/api/member/user/vipInfoV2': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'vip ladder from upstream OSS' },
-  '/api/member/vipInfoUnLogin': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'vip ladder unlogin from upstream' },
+  // —— 充值优惠比例（OSS 快照）——
+  '/api/finance/maxChargeRate': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'charge rate from OSS' },
 
   // —— 代理：配置驱动（providerOptions.agent）；默认零态可打开页面 ——
   '/api/agent/promote/config/agentMode': { op: OP.AGENT_MODE, adapter: 'agentBlob', note: 'providerOptions.agent' },

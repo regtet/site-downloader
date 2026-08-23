@@ -147,7 +147,7 @@ function testMap() {
   assert(series.matchRoute('/api/active/getRedDotV2').adapter === 'redDotEmpty', 'redDotEmpty');
   assert(series.matchRoute('/api/member/getFingerprint').adapter === 'fingerprint', 'fingerprint');
   assert(series.matchRoute('/api/member/listAccount').adapter === 'listAccount', 'listAccount');
-  assert(series.matchRoute('/api/member/user/vipInfoV2').adapter === 'lobbyOk', 'vipInfoV2 upstream passthrough');
+  assert(series.matchRoute('/api/member/user/vipInfoV2').adapter === 'vipInfoV2', 'vipInfoV2 session adapter');
   assert(series.matchRoute('/api/agent/promote/config/agentMode').adapter === 'agentBlob', 'agentMode config-driven');
   assert(series.matchRoute('/api/active/receivedAwardList').adapter === 'emptyRecords', 'award list empty not forged');
   assert(series.matchRoute('/api/active/receiveOne').adapter === 'featurePending', 'receiveOne pending not empty-ok');
