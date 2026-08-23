@@ -1,5 +1,5 @@
 {
-  "at": "2026-08-23T19:48:36.625Z",
+  "at": "2026-08-23T22:03:34.891Z",
   "port": 3476,
   "base": "http://127.0.0.1:3476",
   "login": true,
@@ -29,8 +29,8 @@
       "shot": "C:\\Users\\Administrator\\Desktop\\site-downloader\\logs\\ui-probe-679win\\agent.png",
       "title": "679win- Top Online Slot Games",
       "url": "http://127.0.0.1:3476/home/promote",
-      "imgCount": 29,
-      "text": "679win – Top Online Slot Games Promoção Começar Link de Convite Meus Dados Comissão Informações de afiliados Apostas de nível inferior Finanças de nível inferior Recebimentos de subordinados Taxa de Comissão - Vezes auditado - Infinite - (1dia(s)) Salvar código de convite http://127.0.0.1:3476 Partilhar Facebook Telegram WhatsApp Instagram Tiktok Kwai Youtube Line Taxa de Comissão Salvar código de"
+      "imgCount": 22,
+      "text": "679win – Top Online Slot Games Promoção Começar Link de Convite Meus Dados Comissão Informações de afiliados Apostas de nível inferior Finanças de nível inferior Recebimentos de subordinados Taxa de Comissão - Vezes auditado - - Salvar código de convite http://127.0.0.1:3476 Partilhar Facebook Telegram WhatsApp Instagram Tiktok Kwai Youtube Line Taxa de Comissão Salvar código de convite http://127"
     }
   },
   "apiLog": [
@@ -41,18 +41,18 @@
     },
     {
       "status": 200,
-      "path": "/hall/api/active/category/currency/BRL/language/pt.json",
-      "sample": "{\"code\":1,\"data\":{\"activeList\":[{\"activeId\":64047,\"activeName\":\"Recomendar o melhorcassino no Brasil 777Clube\",\"categories\":\"1\",\"clientShowDeviceType\":\"1,2,4,5,6\",\"cycleType\":0,\"endShowTime\":725812919"
-    },
-    {
-      "status": 200,
       "path": "/hall/api/agent/promote/binding/reportViewV2",
       "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"list\":[],\"total\":0,\"records\":[],\"rows\":[],\"page\":1,\"pageSize\":20}}"
     },
     {
       "status": 200,
+      "path": "/hall/api/active/category/currency/BRL/language/pt.json",
+      "sample": "{\"code\":1,\"data\":{\"activeList\":[{\"activeId\":64047,\"activeName\":\"Recomendar o melhorcassino no Brasil 777Clube\",\"categories\":\"1\",\"clientShowDeviceType\":\"1,2,4,5,6\",\"cycleType\":0,\"endShowTime\":725812919"
+    },
+    {
+      "status": 200,
       "path": "/hall/api/agent/promote/config/agentMode",
-      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"agent_id\":0,\"agentModeName\":\"Infinite\",\"settleDuration\":0,\"settleDurationDays\":1,\"settleDurationCustom\":\"\",\"nextSettleTime\":0,\"isProAgent\":false,\"_mockToken\":\"292172fb9f3d\""
+      "sample": "<!DOCTYPE html><html lang=pt data-version=\"Thu Aug 20 2026 01:51:26 GMT+0000 (Coordinated Universal Time)\" data-template-type=lobby data-request-id=b42ab172fda1beb5d34329d821a778e5 data-render=\"Sun Au"
     },
     {
       "status": 200,
@@ -72,7 +72,7 @@
     {
       "status": 200,
       "path": "/hall/api/agent/promote/getIpBindInfo",
-      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"bind\":false,\"list\":[],\"_mockToken\":\"292172fb9f3d\"}}"
+      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"bind\":false,\"list\":[],\"_mockToken\":\"0a9fdc804490\"}}"
     },
     {
       "status": 200,
@@ -82,7 +82,7 @@
     {
       "status": 200,
       "path": "/hall/api/agent/promote/config/agentMode",
-      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"agent_id\":0,\"agentModeName\":\"Infinite\",\"settleDuration\":0,\"settleDurationDays\":1,\"settleDurationCustom\":\"\",\"nextSettleTime\":0,\"isProAgent\":false,\"_mockToken\":\"292172fb9f3d\""
+      "sample": "<!DOCTYPE html><html lang=pt data-version=\"Thu Aug 20 2026 01:51:26 GMT+0000 (Coordinated Universal Time)\" data-template-type=lobby data-request-id=b42ab172fda1beb5d34329d821a778e5 data-render=\"Sun Au"
     },
     {
       "status": 200,
@@ -101,8 +101,8 @@
     },
     {
       "status": 200,
-      "path": "/hall/api/agent/promote/config/agentMode",
-      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"agent_id\":0,\"agentModeName\":\"Infinite\",\"settleDuration\":0,\"settleDurationDays\":1,\"settleDurationCustom\":\"\",\"nextSettleTime\":0,\"isProAgent\":false,\"_mockToken\":\"292172fb9f3d\""
+      "path": "/hall/api/gohal/staffAllV3/currency/BRL/language/pt.json",
+      "sample": "{\"code\":1,\"data\":{\"customer\":{\"customerContentConfig\":[],\"liveChatCustomer\":null,\"onlineCustomers\":[{\"appDisplayPage\":0,\"customerCode\":\"\",\"customerCodeApp\":\"\",\"customerName\":\"Serviço Online\",\"customer"
     },
     {
       "status": 200,
@@ -111,18 +111,23 @@
     },
     {
       "status": 200,
+      "path": "/hall/api/agent/promote/config/agentMode",
+      "sample": "<!DOCTYPE html><html lang=pt data-version=\"Thu Aug 20 2026 01:51:26 GMT+0000 (Coordinated Universal Time)\" data-template-type=lobby data-request-id=b42ab172fda1beb5d34329d821a778e5 data-render=\"Sun Au"
+    },
+    {
+      "status": 200,
       "path": "/hall/api/agent/promote/config/sensitiveData/currency/BRL/language/pt/platformType/5.json",
       "sample": "{\"code\":1,\"data\":{\"agentLevelDisplaySwitch\":1,\"commissionEmulatorSwitch\":1,\"dataList\":[{\"data\":[{\"name\":\"myDataPageMyProfitGetCommission\",\"remark\":\"实发佣金\",\"value\":\"0\"},{\"name\":\"myDataPageMyProfitTotalC"
     },
     {
       "status": 200,
-      "path": "/hall/api/agent/promote/commissionMarquee",
-      "sample": "{\"code\":1,\"msg\":\"\",\"data\":[]}"
+      "path": "/hall/api/agent/promote/config/index/language/pt.json",
+      "sample": "{\"code\":1,\"data\":{\"agent_levels\":[{\"commission\":0,\"level\":1,\"level_name\":\"LV1\"},{\"commission\":100,\"level\":2,\"level_name\":\"LV2\"},{\"commission\":300,\"level\":3,\"level_name\":\"LV3\"},{\"commission\":500,\"level"
     },
     {
       "status": 200,
-      "path": "/hall/api/agent/promote/config/index/language/pt.json",
-      "sample": "{\"code\":1,\"data\":{\"agent_levels\":[{\"commission\":0,\"level\":1,\"level_name\":\"LV1\"},{\"commission\":100,\"level\":2,\"level_name\":\"LV2\"},{\"commission\":300,\"level\":3,\"level_name\":\"LV3\"},{\"commission\":500,\"level"
+      "path": "/hall/api/agent/promote/commissionMarquee",
+      "sample": "{\"code\":1,\"msg\":\"\",\"data\":[]}"
     },
     {
       "status": 200,
@@ -146,8 +151,8 @@
     },
     {
       "status": 200,
-      "path": "/hall/api/agent/promote/config/tutorial/agentId/0/currency/BRL/language/pt.json",
-      "sample": "{\"code\":1,\"data\":{\"agentId\":0,\"agentSource\":0,\"languageCode\":\"\",\"richText\":\"\",\"useDefault\":1},\"siteCode\":\"12025\",\"time\":1787335580}"
+      "path": "/hall/api/gohal/staffAllV3/currency/BRL/language/pt.json",
+      "sample": "{\"code\":1,\"data\":{\"customer\":{\"customerContentConfig\":[],\"liveChatCustomer\":null,\"onlineCustomers\":[{\"appDisplayPage\":0,\"customerCode\":\"\",\"customerCodeApp\":\"\",\"customerName\":\"Serviço Online\",\"customer"
     }
   ]
 }
