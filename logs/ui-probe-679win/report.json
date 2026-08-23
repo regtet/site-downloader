@@ -1,5 +1,5 @@
 {
-  "at": "2026-08-23T19:33:34.806Z",
+  "at": "2026-08-23T19:48:36.625Z",
   "port": 3476,
   "base": "http://127.0.0.1:3476",
   "login": true,
@@ -29,16 +29,11 @@
       "shot": "C:\\Users\\Administrator\\Desktop\\site-downloader\\logs\\ui-probe-679win\\agent.png",
       "title": "679win- Top Online Slot Games",
       "url": "http://127.0.0.1:3476/home/promote",
-      "imgCount": 22,
-      "text": "679win – Top Online Slot Games Promoção Começar Link de Convite Meus Dados Comissão Informações de afiliados Apostas de nível inferior Finanças de nível inferior Recebimentos de subordinados Taxa de Comissão - Vezes auditado - - Salvar código de convite http://127.0.0.1:3476 Partilhar Facebook Telegram WhatsApp Instagram Tiktok Kwai Youtube Line Taxa de Comissão Salvar código de convite http://127"
+      "imgCount": 29,
+      "text": "679win – Top Online Slot Games Promoção Começar Link de Convite Meus Dados Comissão Informações de afiliados Apostas de nível inferior Finanças de nível inferior Recebimentos de subordinados Taxa de Comissão - Vezes auditado - Infinite - (1dia(s)) Salvar código de convite http://127.0.0.1:3476 Partilhar Facebook Telegram WhatsApp Instagram Tiktok Kwai Youtube Line Taxa de Comissão Salvar código de"
     }
   },
   "apiLog": [
-    {
-      "status": 200,
-      "path": "/hall/api/agent/promote/binding/reportViewV2",
-      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"list\":[],\"total\":0,\"records\":[],\"rows\":[],\"page\":1,\"pageSize\":20}}"
-    },
     {
       "status": 200,
       "path": "/hall/api/active/tasks/newcomer_benefit_reward/default.json",
@@ -51,13 +46,18 @@
     },
     {
       "status": 200,
-      "path": "/hall/api/active/tasks/newcomer_benefit_reward/default.json",
-      "sample": "{\"code\":1,\"data\":{\"currency\":\"BRL\",\"list\":[{\"bindType\":18,\"bindTypeText\":\"首次下载安装并登录APP\",\"bubbleContent\":\"\",\"content\":\"{\\\"requireFirstPay\\\":1,\\\"bindTypes\\\":[0,2,1,3,4]}\",\"currency\":\"[{\\\"awardType\\\":0,\\"
+      "path": "/hall/api/agent/promote/binding/reportViewV2",
+      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"list\":[],\"total\":0,\"records\":[],\"rows\":[],\"page\":1,\"pageSize\":20}}"
     },
     {
       "status": 200,
       "path": "/hall/api/agent/promote/config/agentMode",
-      "sample": "<!DOCTYPE html><html lang=pt data-version=\"Thu Aug 20 2026 01:51:26 GMT+0000 (Coordinated Universal Time)\" data-template-type=lobby data-request-id=f7d351e0a70ad36ca36cc87d23176ada data-render=\"Sun Au"
+      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"agent_id\":0,\"agentModeName\":\"Infinite\",\"settleDuration\":0,\"settleDurationDays\":1,\"settleDurationCustom\":\"\",\"nextSettleTime\":0,\"isProAgent\":false,\"_mockToken\":\"292172fb9f3d\""
+    },
+    {
+      "status": 200,
+      "path": "/hall/api/active/tasks/newcomer_benefit_reward/default.json",
+      "sample": "{\"code\":1,\"data\":{\"currency\":\"BRL\",\"list\":[{\"bindType\":18,\"bindTypeText\":\"首次下载安装并登录APP\",\"bubbleContent\":\"\",\"content\":\"{\\\"requireFirstPay\\\":1,\\\"bindTypes\\\":[0,2,1,3,4]}\",\"currency\":\"[{\\\"awardType\\\":0,\\"
     },
     {
       "status": 200,
@@ -72,7 +72,7 @@
     {
       "status": 200,
       "path": "/hall/api/agent/promote/getIpBindInfo",
-      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"bind\":false,\"list\":[],\"_mockToken\":\"25948a37f72b\"}}"
+      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"bind\":false,\"list\":[],\"_mockToken\":\"292172fb9f3d\"}}"
     },
     {
       "status": 200,
@@ -82,7 +82,7 @@
     {
       "status": 200,
       "path": "/hall/api/agent/promote/config/agentMode",
-      "sample": "<!DOCTYPE html><html lang=pt data-version=\"Thu Aug 20 2026 01:51:26 GMT+0000 (Coordinated Universal Time)\" data-template-type=lobby data-request-id=f7d351e0a70ad36ca36cc87d23176ada data-render=\"Sun Au"
+      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"agent_id\":0,\"agentModeName\":\"Infinite\",\"settleDuration\":0,\"settleDurationDays\":1,\"settleDurationCustom\":\"\",\"nextSettleTime\":0,\"isProAgent\":false,\"_mockToken\":\"292172fb9f3d\""
     },
     {
       "status": 200,
@@ -101,8 +101,8 @@
     },
     {
       "status": 200,
-      "path": "/hall/api/gohal/staffAllV3/currency/BRL/language/pt.json",
-      "sample": "{\"code\":1,\"data\":{\"customer\":{\"customerContentConfig\":[],\"liveChatCustomer\":null,\"onlineCustomers\":[{\"appDisplayPage\":0,\"customerCode\":\"\",\"customerCodeApp\":\"\",\"customerName\":\"Serviço Online\",\"customer"
+      "path": "/hall/api/agent/promote/config/agentMode",
+      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"agent_id\":0,\"agentModeName\":\"Infinite\",\"settleDuration\":0,\"settleDurationDays\":1,\"settleDurationCustom\":\"\",\"nextSettleTime\":0,\"isProAgent\":false,\"_mockToken\":\"292172fb9f3d\""
     },
     {
       "status": 200,
@@ -111,33 +111,13 @@
     },
     {
       "status": 200,
-      "path": "/hall/api/agent/promote/config/agentMode",
-      "sample": "<!DOCTYPE html><html lang=pt data-version=\"Thu Aug 20 2026 01:51:26 GMT+0000 (Coordinated Universal Time)\" data-template-type=lobby data-request-id=f7d351e0a70ad36ca36cc87d23176ada data-render=\"Sun Au"
-    },
-    {
-      "status": 200,
-      "path": "/hall/api/agent/promote/commissionMarquee",
-      "sample": "{\"code\":1,\"msg\":\"\",\"data\":[]}"
-    },
-    {
-      "status": 200,
       "path": "/hall/api/agent/promote/config/sensitiveData/currency/BRL/language/pt/platformType/5.json",
       "sample": "{\"code\":1,\"data\":{\"agentLevelDisplaySwitch\":1,\"commissionEmulatorSwitch\":1,\"dataList\":[{\"data\":[{\"name\":\"myDataPageMyProfitGetCommission\",\"remark\":\"实发佣金\",\"value\":\"0\"},{\"name\":\"myDataPageMyProfitTotalC"
     },
     {
       "status": 200,
-      "path": "/hall/api/agent/promote/binding/reportViewV2",
-      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"list\":[],\"total\":0,\"records\":[],\"rows\":[],\"page\":1,\"pageSize\":20}}"
-    },
-    {
-      "status": 200,
-      "path": "/hall/api/agent/promote/getPromoteStrangerSetting/default.json",
-      "sample": "{\"code\":1,\"data\":{\"conditionSettings\":[{\"getCondVal\":[],\"getCount\":10,\"getRule\":1,\"getScope\":1,\"getTotal\":200,\"inviteType\":0},{\"getCondVal\":[],\"getCount\":10,\"getRule\":1,\"getScope\":1,\"getTotal\":200,\"in"
-    },
-    {
-      "status": 200,
-      "path": "/hall/api/agent/promote/config/share/currency/BRL/language/pt.json",
-      "sample": "{\"code\":1,\"data\":{\"currency\":\"BRL\",\"customizeImage\":\"\",\"promoteIndexBarrageSwitch\":\"1\",\"promoteShareAdvertiseSwitch\":\"2\",\"slogan\":\"679win.vip  explora as mais emocionantes máquinas caça-níqueis online"
+      "path": "/hall/api/agent/promote/commissionMarquee",
+      "sample": "{\"code\":1,\"msg\":\"\",\"data\":[]}"
     },
     {
       "status": 200,
@@ -146,8 +126,8 @@
     },
     {
       "status": 200,
-      "path": "/hall/api/agent/promote/commissionMarquee",
-      "sample": "{\"code\":1,\"msg\":\"\",\"data\":[]}"
+      "path": "/hall/api/agent/promote/binding/reportViewV2",
+      "sample": "{\"code\":1,\"msg\":\"\",\"data\":{\"list\":[],\"total\":0,\"records\":[],\"rows\":[],\"page\":1,\"pageSize\":20}}"
     },
     {
       "status": 200,
@@ -156,8 +136,18 @@
     },
     {
       "status": 200,
-      "path": "/hall/api/gohal/staffAllV3/currency/BRL/language/pt.json",
-      "sample": "{\"code\":1,\"data\":{\"customer\":{\"customerContentConfig\":[],\"liveChatCustomer\":null,\"onlineCustomers\":[{\"appDisplayPage\":0,\"customerCode\":\"\",\"customerCodeApp\":\"\",\"customerName\":\"Serviço Online\",\"customer"
+      "path": "/hall/api/agent/promote/config/share/currency/BRL/language/pt.json",
+      "sample": "{\"code\":1,\"data\":{\"currency\":\"BRL\",\"customizeImage\":\"\",\"promoteIndexBarrageSwitch\":\"1\",\"promoteShareAdvertiseSwitch\":\"2\",\"slogan\":\"679win.vip  explora as mais emocionantes máquinas caça-níqueis online"
+    },
+    {
+      "status": 200,
+      "path": "/hall/api/agent/promote/getPromoteStrangerSetting/default.json",
+      "sample": "{\"code\":1,\"data\":{\"conditionSettings\":[{\"getCondVal\":[],\"getCount\":10,\"getRule\":1,\"getScope\":1,\"getTotal\":200,\"inviteType\":0},{\"getCondVal\":[],\"getCount\":10,\"getRule\":1,\"getScope\":1,\"getTotal\":200,\"in"
+    },
+    {
+      "status": 200,
+      "path": "/hall/api/agent/promote/config/tutorial/agentId/0/currency/BRL/language/pt.json",
+      "sample": "{\"code\":1,\"data\":{\"agentId\":0,\"agentSource\":0,\"languageCode\":\"\",\"richText\":\"\",\"useDefault\":1},\"siteCode\":\"12025\",\"time\":1787335580}"
     }
   ]
 }

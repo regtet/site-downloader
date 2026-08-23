@@ -157,6 +157,9 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
   if (window.__SD_PROXY_BOOT__) return;
   window.__SD_PROXY_BOOT__ = true;
   if (LOBBY_GAME_URL) window.lobby_game_url = LOBBY_GAME_URL;
+  // dist: platform 200 等在 http 预览下 isExternalLink=true → window.open 新窗口；
+  // 适配层强制同页内嵌（走 EmbeddedGame 路由 + iframe）
+  if (ADAPTER_ENABLED) window.lobbyOpenGame = false;
 
   var LOCAL_ORIGIN = location.origin;
   var ADAPTER_HOST_SET = {};
