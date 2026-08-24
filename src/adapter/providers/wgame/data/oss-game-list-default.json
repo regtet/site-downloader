@@ -1,0 +1,399 @@
+{
+  "source": "bundled-default",
+  "games": [
+    {
+      "platformId": 13,
+      "gameId": 3009,
+      "name": "Dragon's Treasure",
+      "nApiID": 2,
+      "nOriginalID": 20000140,
+      "game_key": "jili"
+    },
+    {
+      "platformId": 13,
+      "gameId": 3010,
+      "name": "Leopard of Gold",
+      "nApiID": 2,
+      "nOriginalID": 46003010,
+      "game_key": "jili"
+    },
+    {
+      "platformId": 13,
+      "gameId": 3019,
+      "name": "Treasure Bowl",
+      "nApiID": 2,
+      "nOriginalID": 20000052,
+      "game_key": "jili"
+    },
+    {
+      "platformId": 13,
+      "gameId": 3023,
+      "name": "Treasure Dragon",
+      "nApiID": 2,
+      "nOriginalID": 46003023,
+      "game_key": "jili"
+    },
+    {
+      "platformId": 13,
+      "gameId": 3027,
+      "name": "Dragon Hatch",
+      "nApiID": 2,
+      "nOriginalID": 11000,
+      "game_key": "jili"
+    },
+    {
+      "platformId": 13,
+      "gameId": 3028,
+      "name": "Dragon's Treasure2",
+      "nApiID": 2,
+      "nOriginalID": 20000140,
+      "game_key": "jili"
+    },
+    {
+      "platformId": 13,
+      "gameId": 3031,
+      "name": "Fortune Tiger",
+      "nApiID": 2,
+      "nOriginalID": 22000126,
+      "game_key": "jili"
+    },
+    {
+      "platformId": 13,
+      "gameId": 3033,
+      "name": "Fortune Ox",
+      "nApiID": 2,
+      "nOriginalID": 22000098,
+      "game_key": "jili"
+    },
+    {
+      "platformId": 13,
+      "gameId": 3035,
+      "name": "Fortune Rabbit",
+      "nApiID": 2,
+      "nOriginalID": 23543462,
+      "game_key": "jili"
+    },
+    {
+      "platformId": 13,
+      "gameId": 3038,
+      "name": "Fortune Snake",
+      "nApiID": 2,
+      "nOriginalID": 23879752,
+      "game_key": "jili"
+    },
+    {
+      "platformId": 13,
+      "gameId": 3049,
+      "name": "Fortune Rabbit 2",
+      "nApiID": 2,
+      "nOriginalID": 46003049,
+      "game_key": "jili"
+    },
+    {
+      "platformId": 13,
+      "gameId": 3051,
+      "name": "Fortune Gems",
+      "nApiID": 2,
+      "nOriginalID": 30109,
+      "game_key": "jili"
+    },
+    {
+      "platformId": 13,
+      "gameId": 3052,
+      "name": "Dragon Link-Happy&Prosperous",
+      "nApiID": 2,
+      "nOriginalID": 46003052,
+      "game_key": "jili"
+    },
+    {
+      "platformId": 200,
+      "gameId": 2000048,
+      "name": "Double Fortune",
+      "nApiID": 12,
+      "nOriginalID": 22000048,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 200,
+      "gameId": 2000057,
+      "name": "Dragon Hatch",
+      "nApiID": 12,
+      "nOriginalID": 22000057,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 200,
+      "gameId": 2000068,
+      "name": "Fortune Mouse",
+      "nApiID": 12,
+      "nOriginalID": 22000068,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 200,
+      "gameId": 2000071,
+      "name": "Caishen Wins",
+      "nApiID": 12,
+      "nOriginalID": 22000071,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 200,
+      "gameId": 2000075,
+      "name": "Ganesha Fortune",
+      "nApiID": 12,
+      "nOriginalID": 22000075,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 200,
+      "gameId": 2000087,
+      "name": "Treasures of Aztec",
+      "nApiID": 12,
+      "nOriginalID": 22000087,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 200,
+      "gameId": 2000089,
+      "name": "Lucky Neko",
+      "nApiID": 12,
+      "nOriginalID": 22000089,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 200,
+      "gameId": 2000093,
+      "name": "Opera Dynasty",
+      "nApiID": 12,
+      "nOriginalID": 22000093,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 200,
+      "gameId": 2000098,
+      "name": "Fortune Ox",
+      "nApiID": 12,
+      "nOriginalID": 22000098,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 200,
+      "gameId": 2000104,
+      "name": "Wild Bandito",
+      "nApiID": 12,
+      "nOriginalID": 22000104,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 200,
+      "gameId": 2000117,
+      "name": "Cocktail Nights",
+      "nApiID": 12,
+      "nOriginalID": 22000117,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 200,
+      "gameId": 2000126,
+      "name": "Fortune Tiger",
+      "nApiID": 12,
+      "nOriginalID": 22000126,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 200,
+      "gameId": 2000135,
+      "name": "Wild Bounty Showdown",
+      "nApiID": 12,
+      "nOriginalID": 22000135,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 200,
+      "gameId": 2001006,
+      "name": "Midas Fortune",
+      "nApiID": 12,
+      "nOriginalID": 23402846,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 200,
+      "gameId": 2001007,
+      "name": "Fortune Rabbit",
+      "nApiID": 12,
+      "nOriginalID": 23543462,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 200,
+      "gameId": 2001026,
+      "name": "Dragon Hatch 2",
+      "nApiID": 12,
+      "nOriginalID": 23451122,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 200,
+      "gameId": 2001027,
+      "name": "Fortune Dragon",
+      "nApiID": 12,
+      "nOriginalID": 23695365,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 200,
+      "gameId": 2001030,
+      "name": "Wild Ape #3258",
+      "nApiID": 12,
+      "nOriginalID": 23508783,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 200,
+      "gameId": 2001031,
+      "name": "Pinata Wins",
+      "nApiID": 12,
+      "nOriginalID": 23492288,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 200,
+      "gameId": 2001039,
+      "name": "Wings of Iguazu",
+      "nApiID": 12,
+      "nOriginalID": 23747549,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 200,
+      "gameId": 2001044,
+      "name": "Chocolate Deluxe",
+      "nApiID": 12,
+      "nOriginalID": 23666445,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 200,
+      "gameId": 2001046,
+      "name": "Fortune Snake",
+      "nApiID": 12,
+      "nOriginalID": 23879752,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 200,
+      "gameId": 2001048,
+      "name": "Mr. Treasure’s Fortune"
+    },
+    {
+      "platformId": 200,
+      "gameId": 2001066,
+      "name": "Fortune Horse",
+      "nApiID": 12,
+      "nOriginalID": 46003060,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 301,
+      "gameId": 3010084,
+      "name": "Gates of Olympus",
+      "nApiID": 12,
+      "nOriginalID": 1805284987,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 301,
+      "gameId": 3010506,
+      "name": "Tigre Sortudo",
+      "nApiID": 12,
+      "nOriginalID": 1894422608,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 301,
+      "gameId": 3010530,
+      "name": "Roda de 3 eixos Crazy Bass",
+      "nApiID": 12,
+      "nOriginalID": 96200117,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 302,
+      "gameId": 302540,
+      "name": "Fortune Gems 500",
+      "nApiID": 12,
+      "nOriginalID": 46003051,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 302,
+      "gameId": 302593,
+      "name": "Devil Fire Twins",
+      "nApiID": 12,
+      "nOriginalID": 30193,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 302,
+      "gameId": 302594,
+      "name": "Fortune Hook Boom"
+    },
+    {
+      "platformId": 302,
+      "gameId": 3020051,
+      "name": "Money Coming",
+      "nApiID": 12,
+      "nOriginalID": 30051,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 302,
+      "gameId": 3020109,
+      "name": "Fortune Gems",
+      "nApiID": 12,
+      "nOriginalID": 46003051,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 302,
+      "gameId": 3020223,
+      "name": "Fortune Gems 2",
+      "nApiID": 12,
+      "nOriginalID": 30223,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 302,
+      "gameId": 3020300,
+      "name": "Fortune Gems 3",
+      "nApiID": 12,
+      "nOriginalID": 30300,
+      "game_key": "pgofficial"
+    },
+    {
+      "platformId": 310,
+      "gameId": 3100096,
+      "name": "Treasure Bowl X-Huge",
+      "nApiID": 5,
+      "nOriginalID": 20000052,
+      "game_key": "pp"
+    },
+    {
+      "platformId": 310,
+      "gameId": 3100177,
+      "name": "Piggy Bank",
+      "nApiID": 5,
+      "nOriginalID": 40014091,
+      "game_key": "pp"
+    },
+    {
+      "platformId": 358,
+      "gameId": 3580050,
+      "name": "Tiger's Grace",
+      "nApiID": 12,
+      "nOriginalID": 96200117,
+      "game_key": "pgofficial"
+    }
+  ]
+}

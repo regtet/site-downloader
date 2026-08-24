@@ -70,6 +70,13 @@ function loadOssGameList(siteDir) {
     return cache;
   }
 
+  const bundled = tryParse(path.join(__dirname, 'data', 'oss-game-list-default.json'));
+  if (bundled) {
+    cache = bundled;
+    cacheKey = key;
+    return cache;
+  }
+
   return [];
 }
 
@@ -156,7 +163,39 @@ function buildOssGameListForSite(siteDir) {
   let games = extractOssGameListFromHar(siteId);
   if (!games.length && siteId !== '679win') games = extractOssGameListFromHar('679win');
   if (!games.length) games = extractOssGameListFromOssSnapshot(siteDir);
+  if (!games.length) {
+    const bundled = readJsonSafe(path.join(__dirname, 'data', 'oss-game-list-default.json'));
+    if (bundled && Array.isArray(bundled.games)) games = bundled.games;
+  }
   return games;
+}
+
+function loadBundledOssGames() {
+  const j = readJsonSafe(path.join(__dirname, 'data', 'oss-game-list-default.json'));
+  return j && Array.isArray(j.games) ? j.games : [];
+}
+
+function mergeOssRow(primary, fallback) {
+  if (!primary) return fallback || null;
+  if (!fallback) return primary;
+  return Object.assign({}, fallback, primary, {
+    name: primary.name || fallback.name,
+    nOriginalID: primary.nOriginalID || fallback.nOriginalID,
+    nApiID: primary.nApiID || fallback.nApiID,
+    game_key: primary.game_key || fallback.game_key
+  });
+}
+
+function findOssGameInList(list, platformId, gameId) {
+  const pid = Number(platformId);
+  const gid = Number(gameId);
+  if (!gid || !Array.isArray(list)) return null;
+  for (const row of list) {
+    if (Number(row.gameId) !== gid) continue;
+    if (pid && Number(row.platformId) !== pid) continue;
+    return row;
+  }
+  return null;
 }
 
 function isOssCatalogGameId(gameId) {
@@ -165,22 +204,24 @@ function isOssCatalogGameId(gameId) {
 }
 
 function resolveOssGameName(platformId, gameId, siteDir) {
-  const pid = Number(platformId);
+  const row = resolveOssGameRow(platformId, gameId, siteDir);
+  return row ? String(row.name || '').trim() : '';
+}
+
+/** 完整 OSS 行（含预置 nOriginalID，不依赖 wgame_web） */
+function resolveOssGameRow(platformId, gameId, siteDir) {
   const gid = Number(gameId);
-  if (!gid) return '';
-  const list = loadOssGameList(siteDir);
-  for (const row of list) {
-    if (Number(row.gameId) === gid && (pid == null || !pid || Number(row.platformId) === pid)) {
-      return String(row.name || '').trim();
-    }
-  }
-  return '';
+  if (!gid) return null;
+  const fromList = findOssGameInList(loadOssGameList(siteDir), platformId, gameId);
+  const fromBundled = findOssGameInList(loadBundledOssGames(), platformId, gameId);
+  return mergeOssRow(fromList, fromBundled);
 }
 
 module.exports = {
   loadOssGameList,
   isOssCatalogGameId,
   resolveOssGameName,
+  resolveOssGameRow,
   extractOssGameListFromHar,
   extractOssGameListFromOssSnapshot,
   buildOssGameListForSite

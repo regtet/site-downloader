@@ -217,6 +217,12 @@ function testMap() {
     path.join(__dirname, '..', 'output', '679win')
   );
   assert(cuRabbit.nOriginalID === 23543462 && cuRabbit.gameid === 1543462, 'OSS catalog id → name → wgame createuser');
+  const cuBundled = resolveCreateUserTarget(
+    { platfromid: '200', gameid: 2001007 },
+    { platformMap: { '200': { nApiID: 12, pg_new_way_login: 1 } } },
+    null
+  );
+  assert(cuBundled.nOriginalID === 23543462, 'bundled oss-game-list works without siteDir/HAR');
   const webRoot = resolveWgameWebRoot();
   if (webRoot) {
     const { loadWgameConfig } = require('../src/adapter/providers/wgame/config');

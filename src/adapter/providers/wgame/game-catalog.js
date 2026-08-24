@@ -5,7 +5,7 @@
 const fs = require('fs');
 const path = require('path');
 const { resolveWgameWebRoot } = require('./wgame-web-config');
-const { isOssCatalogGameId, resolveOssGameName } = require('./oss-game-catalog');
+const { isOssCatalogGameId, resolveOssGameName, resolveOssGameRow } = require('./oss-game-catalog');
 
 function parseGameInfoFromBody(body) {
   if (!body || typeof body !== 'object') return {};
@@ -226,6 +226,15 @@ function resolveCreateUserTarget(body, cfg, siteDir) {
 
   let nApiID = plat.nApiID != null ? Number(plat.nApiID) : 12;
   let nOriginalID = plat.nOriginalID != null ? Number(plat.nOriginalID) : 0;
+  let ossRow = null;
+
+  if (ossGameId) {
+    ossRow = resolveOssGameRow(platformId, ossGameId, siteDir);
+    if (ossRow) {
+      if (!gameName && ossRow.name) gameName = String(ossRow.name);
+      if (ossRow.nOriginalID && !nOriginalID) nOriginalID = Number(ossRow.nOriginalID);
+    }
+  }
 
   const mappings = Array.isArray(cfg.mappings) ? cfg.mappings : [];
   for (const row of mappings) {
@@ -247,7 +256,7 @@ function resolveCreateUserTarget(body, cfg, siteDir) {
   }
 
   const meta = apiMeta(nApiID);
-  const game_key = plat.game_key || meta.gameKey;
+  const game_key = plat.game_key || (ossRow && ossRow.game_key) || meta.gameKey;
   const gameid = nOriginalID ? computeCreateGameId(nApiID, nOriginalID) : 0;
 
   return {
