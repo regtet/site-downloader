@@ -149,8 +149,24 @@ function createStaticServer(siteDir, options = {}) {
     upstreamOrigin: apiUpstreamOrigin || '',
     ossHosts: [],
     lobbyGameUrl: '',
+    authEpoch: '',
     adapterEnabled
   };
+  try {
+    const hostsPath = path.join(root, 'adapter-hosts.json');
+    if (fs.existsSync(hostsPath)) {
+      const hosts = JSON.parse(fs.readFileSync(hostsPath, 'utf8'));
+      const ww = hosts && hosts.wgameWeb;
+      if (ww && (ww.snapshottedAt || ww.configMtime)) {
+        bootCfg.authEpoch = String(ww.snapshottedAt || ww.configMtime);
+      }
+    }
+    const manPath = path.join(root, 'migration-manifest.json');
+    if (!bootCfg.authEpoch && fs.existsSync(manPath)) {
+      const man = JSON.parse(fs.readFileSync(manPath, 'utf8'));
+      if (man && man.generatedAt) bootCfg.authEpoch = String(man.generatedAt);
+    }
+  } catch (_) { /* ignore */ }
   try {
     const { loadGameConfig } = require('./adapter/providers/wgame/game-config');
     const po = (adapterCfg && adapterCfg.providerOptions) || {};

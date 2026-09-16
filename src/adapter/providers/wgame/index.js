@@ -601,7 +601,7 @@ async function execute(op, ctx) {
     const row = findSession(body, headers);
     const routePath = String((ctx && ctx.routePath) || '');
     // vip 等级表可未登录
-    const needList = /allVipLevel|vipInfoUnLogin/i.test(routePath) || op === OP.USER_VIP;
+    const needList = /allVipLevel|vipInfoUnLogin/i.test(routePath);
     if (needList) {
       try {
         const { httpVipList, sessionHttpToken } = require('./http-api');
@@ -619,7 +619,18 @@ async function execute(op, ctx) {
       }
     }
     if (!row || !row.user) return fail(401, 'not logged in');
-    return ok(row.user, 'ok');
+    try {
+      const { httpVipList, sessionHttpToken } = require('./http-api');
+      const token = sessionHttpToken(row.user);
+      const vipRes = await httpVipList({ token, cfg, timeoutMs: cfg.timeoutMs });
+      const mapped = require('./http-maps').mapVipDetail(vipRes);
+      row.user.vip_level = mapped.vip_level;
+      rememberSession(row.user, cfg);
+      return ok(Object.assign({}, row.user, mapped), 'ok');
+    } catch (err) {
+      console.warn('[provider:wgame] vipList (authed) failed:', (err && err.message) || err);
+      return ok(row.user, 'ok');
+    }
   }
 
   if (op === OP.WALLET_GOLD) {

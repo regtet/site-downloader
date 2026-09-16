@@ -908,8 +908,11 @@ async function startPreview(dir, options = {}) {
       return;
     }
     updatePreviewStatus({ previews: data.previews || [data], running: true });
+    const task = getTask(selectedTaskId);
     const openUrl = data.url + (data.url.indexOf('?') >= 0 ? '&' : '?')
-      + '_sd_preview=' + mode + '&_sd_t=' + Date.now();
+      + '_sd_preview=' + mode + '&_sd_t=' + Date.now()
+      + (task && task.needAuthReset ? '&_sd_reset=1' : '');
+    if (task && task.needAuthReset) task.needAuthReset = false;
     window.open(openUrl, '_blank');
   } catch (err) {
     if (selectedTaskId) appendTaskLog(selectedTaskId, err.message, true);
@@ -1047,6 +1050,8 @@ previewOursBtn.addEventListener('click', async () => {
     ? task.migratedPath
     : previewDirForTask(task);
   if (!dir) return;
+  // 每次点「预览我们的」都强制清一次前端余额/登录持久化，避免 417.xxx 幽灵余额
+  if (task) task.needAuthReset = true;
   if (!(task && task.interfaceReplaced)) {
     appendTaskLog(
       task.id,
@@ -1093,6 +1098,7 @@ async function runMigrate() {
     const oldMigrated = task.migratedPath || task.historyMeta?.migratedPath || '';
     task.migratedPath = data.outputDir;
     task.interfaceReplaced = true;
+    task.needAuthReset = true;
     task.migrateWgameWeb = data.wgameWeb || null;
     task.historyMeta = {
       ...(task.historyMeta || {}),

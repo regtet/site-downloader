@@ -110,6 +110,8 @@ function normalizeBootCfg(adapterHostsOrCfg) {
       ossHosts: [],
       ossOrigin: '',
       upstreamOrigin: '',
+      lobbyGameUrl: '',
+      authEpoch: '',
       adapterEnabled: true
     };
   }
@@ -129,6 +131,7 @@ function normalizeBootCfg(adapterHostsOrCfg) {
     ossOrigin: c.ossOrigin ? String(c.ossOrigin) : '',
     upstreamOrigin: c.upstreamOrigin ? String(c.upstreamOrigin) : '',
     lobbyGameUrl: c.lobbyGameUrl ? String(c.lobbyGameUrl) : '',
+    authEpoch: c.authEpoch ? String(c.authEpoch) : '',
     adapterEnabled: c.adapterEnabled !== false
   };
 }
@@ -143,6 +146,7 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
   const ossHostsJson = JSON.stringify(cfg.ossHosts || []);
   const lobbyGameUrlJson = JSON.stringify(cfg.lobbyGameUrl || '');
   const adapterEnabledJson = cfg.adapterEnabled === false ? 'false' : 'true';
+  const authEpochJson = JSON.stringify(cfg.authEpoch || '');
   return `/*! site-downloader preview proxy boot */
 (function () {
   var SOURCE_ORIGIN = ${origin};
@@ -153,6 +157,7 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
   var OSS_HOSTS = ${ossHostsJson};
   var LOBBY_GAME_URL = ${lobbyGameUrlJson};
   var ADAPTER_ENABLED = ${adapterEnabledJson};
+  var AUTH_EPOCH = ${authEpochJson};
   if (!SOURCE_ORIGIN) return;
   if (window.__SD_PROXY_BOOT__) return;
   window.__SD_PROXY_BOOT__ = true;
@@ -160,6 +165,81 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
   // dist: platform 200 等在 http 预览下 isExternalLink=true → window.open 新窗口；
   // 适配层强制同页内嵌（走 EmbeddedGame 路由 + iframe）
   if (ADAPTER_ENABLED) window.lobbyOpenGame = false;
+
+  // 替换接口 / 换服后：清浏览器残留（localStorage / cookie / IndexedDB）
+  // 官方余额在 web__lobby__persisted__user.userInfos.game_gold，不是服务端缓存
+  (function clearStaleLobbyAuth() {
+    if (!ADAPTER_ENABLED) return;
+    var epochKey = 'sd_auth_epoch';
+    var force = false;
+    try { force = /(?:^|[?&])_sd_reset=1(?:&|$)/.test(String(location.search || '')); } catch (e0) {}
+    try {
+      var prev = String(localStorage.getItem(epochKey) || '');
+      if (!force) {
+        if (!AUTH_EPOCH) return;
+        if (prev === String(AUTH_EPOCH)) return;
+      }
+
+      // 1) localStorage：优先清 lobby 持久化；换 epoch 时整仓清空更稳
+      try {
+        var lsKeys = [];
+        for (var i = 0; i < localStorage.length; i++) {
+          var k = localStorage.key(i);
+          if (k) lsKeys.push(k);
+        }
+        for (var j = 0; j < lsKeys.length; j++) {
+          var kk = lsKeys[j];
+          if (kk === epochKey) continue;
+          if (
+            force
+            || /web__lobby__persisted|lobby@|session|token|userkey|jwt|login|member|userInfo|user_info|auth|persist|password|account|game_gold|totalGold|gold|money|wallet|vip|fingerprint/i.test(kk)
+          ) {
+            try { localStorage.removeItem(kk); } catch (e1) {}
+          }
+        }
+        if (force) {
+          try { localStorage.clear(); } catch (e1b) {}
+        }
+      } catch (eLs) {}
+
+      // 2) sessionStorage
+      try { sessionStorage.clear(); } catch (e2) {}
+
+      // 3) cookies（用户怀疑的余额来源）
+      try {
+        var raw = String(document.cookie || '');
+        if (raw) {
+          var parts = raw.split(';');
+          for (var c = 0; c < parts.length; c++) {
+            var name = parts[c].split('=')[0].trim();
+            if (!name) continue;
+            document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
+            document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=' + location.hostname;
+          }
+        }
+      } catch (eCk) {}
+
+      // 4) IndexedDB（部分大厅状态会落这里）
+      try {
+        if (indexedDB && indexedDB.databases) {
+          indexedDB.databases().then(function (dbs) {
+            (dbs || []).forEach(function (db) {
+              if (db && db.name) {
+                try { indexedDB.deleteDatabase(db.name); } catch (eDb) {}
+              }
+            });
+          }).catch(function () {});
+        }
+      } catch (eIdb) {}
+
+      if (AUTH_EPOCH) {
+        try { localStorage.setItem(epochKey, String(AUTH_EPOCH)); } catch (eEp) {}
+      }
+      try {
+        console.info('[sd-preview] cleared lobby persist (ls/cookie/idb), epoch=' + AUTH_EPOCH + (force ? ' force' : ''));
+      } catch (e3) {}
+    } catch (e) {}
+  })();
 
   var LOCAL_ORIGIN = location.origin;
   var ADAPTER_HOST_SET = {};
@@ -709,7 +789,7 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
   }
 
   if (navigator.serviceWorker) {
-    var swVer = ADAPTER_ENABLED ? '11a' : '11d';
+    var swVer = ADAPTER_ENABLED ? '12a' : '12d';
     var swUrl = ${JSON.stringify(SW_PATH)} + '?v=' + swVer + '&adapter=' + (ADAPTER_ENABLED ? '1' : '0');
     navigator.serviceWorker.getRegistrations().then(function (regs) {
       return Promise.all((regs || []).map(function (r) { return r.unregister(); }));
