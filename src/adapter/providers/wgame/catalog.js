@@ -38,14 +38,14 @@ const CATALOG = [
   },
   {
     op: OP.USER_INFO,
-    transport: 'local',
-    steps: ['session.profile'],
+    transport: 'http',
+    steps: ['/api/user/base', '/api/user/money'],
     out: ['profile']
   },
   {
     op: OP.USER_VIP,
-    transport: 'local',
-    steps: ['session.vip_level'],
+    transport: 'http',
+    steps: ['/api/user|guest/vipList'],
     out: ['vip_level']
   },
   {
@@ -56,8 +56,8 @@ const CATALOG = [
   },
   {
     op: OP.WALLET_GOLD,
-    transport: 'local',
-    steps: ['session.gold'],
+    transport: 'http',
+    steps: ['/api/user/money'],
     out: ['game_gold', 'totalGold']
   },
   {

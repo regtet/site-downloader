@@ -297,20 +297,32 @@ function buildDefaultVipSettings() {
 function adaptVipInfoV2(providerResult) {
   if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
   const user = providerResult.data || {};
-  const level = Number(user.vip_level != null ? user.vip_level : 0);
-  const settings = buildDefaultVipSettings();
-  const cur = settings.find((row) => row.vip === level) || settings[0];
-  const next = settings.find((row) => row.vip === level + 1) || cur;
+  const level = Number(user.vip_level != null ? user.vip_level : (user.vip != null ? user.vip : 0));
+  const settings = Array.isArray(user.VipSettings) && user.VipSettings.length
+    ? user.VipSettings
+    : buildDefaultVipSettings();
+  const cur = settings.find((row) => Number(row.vip) === level) || settings[0];
+  const next = settings.find((row) => Number(row.vip) === level + 1) || cur;
   const nickname = (user.nickname != null && String(user.nickname).trim())
     ? String(user.nickname)
     : (user.account ? String(user.account) : '');
+  const needDeposit = Math.max(
+    0,
+    Number(next && next.level_up_deposit != null ? next.level_up_deposit : 0)
+      - Number(user.curPoint != null ? user.curPoint : 0)
+  );
+  const needBet = Math.max(
+    0,
+    Number(next && next.level_up_bet != null ? next.level_up_bet : 0)
+      - Number(user.curWater != null ? user.curWater : 0)
+  );
   return envelope({
     vip: level,
-    next_vip: next.vip,
-    need_deposit: 0,
-    need_validbet: 0,
-    next_vip_deposit: Number(next.level_up_deposit || 0),
-    next_vip_validbet: Number(next.level_up_bet || 0),
+    next_vip: next ? Number(next.vip) : level,
+    need_deposit: needDeposit,
+    need_validbet: needBet,
+    next_vip_deposit: Number(next && next.level_up_deposit || 0),
+    next_vip_validbet: Number(next && next.level_up_bet || 0),
     vip_status: 1,
     birthday: '',
     realname: nickname
@@ -319,10 +331,11 @@ function adaptVipInfoV2(providerResult) {
 
 /** /api/active/allVipLevel、/api/member/vipInfoUnLogin */
 function adaptVipLevelList(providerResult) {
-  const settings = buildDefaultVipSettings();
-  const level = (providerResult && providerResult.ok && providerResult.data)
-    ? Number(providerResult.data.vip_level || 0)
-    : 0;
+  const data = (providerResult && providerResult.ok && providerResult.data) || {};
+  const settings = Array.isArray(data.VipSettings) && data.VipSettings.length
+    ? data.VipSettings
+    : buildDefaultVipSettings();
+  const level = Number(data.vip_level != null ? data.vip_level : (data.vip != null ? data.vip : 0));
   return envelope({
     VipSettings: settings,
     vip_icon_show_type: 2,
@@ -484,8 +497,12 @@ function adaptAgentBlob(providerResult) {
 }
 
 function adaptWithdrawPending(providerResult) {
+  if (providerResult && providerResult.ok) {
+    const d = providerResult.data;
+    return envelope(d && typeof d === 'object' ? d : {});
+  }
   const msg = (providerResult && providerResult.msg)
-    || 'withdraw adapter pending: wgame has no withdraw channel';
+    || 'withdraw adapter pending';
   const code = (providerResult && providerResult.code != null) ? providerResult.code : 10060;
   return {
     code: code === OK ? 10060 : code,
@@ -519,14 +536,16 @@ function adaptLobbyOk(providerResult) {
 function adaptEmptyRecords(providerResult) {
   if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
   const d = providerResult.data || {};
-  return envelope({
-    list: Array.isArray(d.list) ? d.list : [],
-    total: d.total != null ? Number(d.total) : 0,
-    records: Array.isArray(d.records) ? d.records : [],
-    rows: Array.isArray(d.rows) ? d.rows : [],
-    page: 1,
-    pageSize: 20
+  const list = Array.isArray(d.list) ? d.list : [];
+  const out = Object.assign({}, d, {
+    list,
+    total: d.total != null ? Number(d.total) : list.length,
+    records: Array.isArray(d.records) ? d.records : list,
+    rows: Array.isArray(d.rows) ? d.rows : list,
+    page: d.page != null ? d.page : 1,
+    pageSize: d.pageSize != null ? d.pageSize : 20
   });
+  return envelope(out);
 }
 
 /**

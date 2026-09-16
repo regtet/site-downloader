@@ -74,19 +74,19 @@ const CORE_MAP = {
   '/api/finance/payplatformlistV3': { op: OP.PAY_CHANNELS, adapter: 'payChannels' },
   '/api/finance/payplatformlistV4': { op: OP.PAY_CHANNELS, adapter: 'payChannels' },
 
-  // —— 提现能力：无渠道 → pending；流水 → 空列表 ——
-  '/api/finance/certify/withdrawSetting': { op: OP.WITHDRAW_PENDING, adapter: 'withdrawPending', note: 'no-wgame-withdraw' },
-  '/api/finance/certify/withdrawSettingV2': { op: OP.WITHDRAW_PENDING, adapter: 'withdrawPending', note: 'no-wgame-withdraw' },
-  '/api/finance/certify/withdrawSettingV3': { op: OP.WITHDRAW_PENDING, adapter: 'withdrawPending', note: 'no-wgame-withdraw' },
-  '/api/finance/certify/withdraw': { op: OP.WITHDRAW_PENDING, adapter: 'withdrawPending', note: 'no-wgame-withdraw' },
-  '/api/finance/certify/withdrawV2': { op: OP.WITHDRAW_PENDING, adapter: 'withdrawPending', note: 'no-wgame-withdraw' },
-  '/api/finance/certify/withdrawRecord': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no records' },
-  '/api/finance/certify/withdrawRecords': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no records' },
-  '/api/finance/certify/getWithdrawAccount': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no accounts' },
-  '/api/finance/certify/withdrawAccountList': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no accounts' },
+  // —— 提现：HTTP enableWithdraw / drawBackMoney / paywayList / withdrawRecord ——
+  '/api/finance/certify/withdrawSetting': { op: OP.WITHDRAW_PENDING, adapter: 'withdrawPending', note: 'http enableWithdraw' },
+  '/api/finance/certify/withdrawSettingV2': { op: OP.WITHDRAW_PENDING, adapter: 'withdrawPending', note: 'http enableWithdraw' },
+  '/api/finance/certify/withdrawSettingV3': { op: OP.WITHDRAW_PENDING, adapter: 'withdrawPending', note: 'http enableWithdraw' },
+  '/api/finance/certify/withdraw': { op: OP.WITHDRAW_PENDING, adapter: 'withdrawPending', note: 'http drawBackMoney' },
+  '/api/finance/certify/withdrawV2': { op: OP.WITHDRAW_PENDING, adapter: 'withdrawPending', note: 'http drawBackMoney' },
+  '/api/finance/certify/withdrawRecord': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'http withdrawRecord' },
+  '/api/finance/certify/withdrawRecords': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'http withdrawRecord' },
+  '/api/finance/certify/getWithdrawAccount': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'http paywayList' },
+  '/api/finance/certify/withdrawAccountList': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'http paywayList' },
 
   // —— 充值订单流水 ——
-  '/api/finance/pay/orderListV3': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no pay orders' },
+  '/api/finance/pay/orderListV3': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'http chargeRecord' },
   '/api/finance/claim/userInfo': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no claim engine' },
   '/api/finance/maxChargeRate': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'OSS json preferred' },
   '/api/finance/pay/payTypeSetting': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'pay page HOT/amount UI' },
@@ -185,6 +185,9 @@ const CORE_MAP = {
 
   // —— 代理：配置驱动（providerOptions.agent）；默认零态可打开页面 ——
   '/api/agent/promote/config/agentMode': { op: OP.AGENT_MODE, adapter: 'agentBlob', note: 'providerOptions.agent' },
+  '/api/agent/promote/userAgentMode': { op: OP.AGENT_MODE, adapter: 'agentBlob', note: 'http/local agent mode' },
+  '/api/agent/promote/agentBasic': { op: OP.AGENT_INDEX, adapter: 'agentBlob', note: 'http proxyStatistics' },
+  '/api/agent/promote/index/settleTime': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'http proxySubBetConfig' },
   '/api/agent/promote/config/index': { op: OP.UPSTREAM, adapter: 'agentBlob', note: 'upstream promote config' },
   '/api/agent/promote/config/getAgentConfig': { op: OP.UPSTREAM, adapter: 'agentBlob', note: 'upstream agent config' },
   '/api/agent/promote/report/agentPromotion': { op: OP.AGENT_PROMOTION, adapter: 'agentBlob', note: 'providerOptions.agent' },

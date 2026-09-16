@@ -569,11 +569,55 @@ async function execute(op, ctx) {
   if (op === OP.USER_INFO) {
     const row = findSession(body, headers);
     if (!row || !row.user) return fail(401, 'not logged in');
+    const token = require('./http-api').sessionHttpToken(row.user);
+    if (token) {
+      try {
+        const { httpUserBase, httpMoney, toLongNumber } = require('./http-api');
+        const base = await httpUserBase({ token, cfg, timeoutMs: cfg.timeoutMs });
+        if (base) {
+          if (base.userName) row.user.nickname = String(base.userName);
+          if (base.secPhone) row.user.phone = String(base.secPhone);
+          if (base.mail) row.user.email = String(base.mail);
+          if (base.vipLevel != null) row.user.vip_level = Number(base.vipLevel) || 0;
+          if (base.faceId != null) row.user.face_id = String(base.faceId);
+          if (base.money != null) row.user.game_gold = toLongNumber(base.money, row.user.game_gold || 0);
+          if (base.gameScore != null) row.user.game_score = toLongNumber(base.gameScore, 0);
+          rememberSession(row.user, cfg);
+        }
+        try {
+          const moneyRes = await httpMoney({ token, cfg, timeoutMs: cfg.timeoutMs });
+          const gold = require('./http-maps').mapMoney(moneyRes);
+          row.user.game_gold = gold;
+          rememberSession(row.user, cfg);
+        } catch (_) { /* money optional */ }
+      } catch (err) {
+        console.warn('[provider:wgame] user.info refresh failed:', (err && err.message) || err);
+      }
+    }
     return ok(row.user, 'ok');
   }
 
   if (op === OP.USER_VIP || op === OP.USER_AVATARS) {
     const row = findSession(body, headers);
+    const routePath = String((ctx && ctx.routePath) || '');
+    // vip 等级表可未登录
+    const needList = /allVipLevel|vipInfoUnLogin/i.test(routePath) || op === OP.USER_VIP;
+    if (needList) {
+      try {
+        const { httpVipList, sessionHttpToken } = require('./http-api');
+        const token = (row && row.user) ? sessionHttpToken(row.user) : '';
+        const vipRes = await httpVipList({ token, cfg, timeoutMs: cfg.timeoutMs });
+        const mapped = require('./http-maps').mapVipDetail(vipRes);
+        if (row && row.user) {
+          row.user.vip_level = mapped.vip_level;
+          rememberSession(row.user, cfg);
+          return ok(Object.assign({}, row.user, mapped), 'ok');
+        }
+        return ok(mapped, 'ok');
+      } catch (err) {
+        console.warn('[provider:wgame] vipList failed:', (err && err.message) || err);
+      }
+    }
     if (!row || !row.user) return fail(401, 'not logged in');
     return ok(row.user, 'ok');
   }
@@ -581,6 +625,19 @@ async function execute(op, ctx) {
   if (op === OP.WALLET_GOLD) {
     const row = findSession(body, headers);
     if (!row || !row.user) return fail(401, 'not logged in');
+    const { sessionHttpToken, httpMoney } = require('./http-api');
+    const token = sessionHttpToken(row.user);
+    if (token) {
+      try {
+        const moneyRes = await httpMoney({ token, cfg, timeoutMs: cfg.timeoutMs });
+        const gold = require('./http-maps').mapMoney(moneyRes);
+        row.user.game_gold = gold;
+        rememberSession(row.user, cfg);
+        return ok({ game_gold: gold }, 'ok');
+      } catch (err) {
+        console.warn('[provider:wgame] money failed:', (err && err.message) || err);
+      }
+    }
     const gold = Number(row.user.game_gold || 0);
     return ok({ game_gold: gold }, 'ok');
   }
@@ -928,6 +985,23 @@ async function execute(op, ctx) {
       return fail(10060, 'agent disabled in providerOptions.agent');
     }
 
+    // 优先 wgame HTTP 代理统计（对齐 proxyStatistics）
+    if (op === OP.AGENT_INDEX || op === OP.AGENT_TOTAL || op === OP.AGENT_PERIOD || op === OP.AGENT_COMMISSION) {
+      const row = findSession(body, headers);
+      const { sessionHttpToken, httpProxyStatistics } = require('./http-api');
+      const token = row && row.user ? sessionHttpToken(row.user) : '';
+      if (token) {
+        try {
+          const res = await httpProxyStatistics({ token, body, cfg, timeoutMs: cfg.timeoutMs });
+          const mapped = require('./http-maps').mapProxyStatistics(res);
+          console.info('[provider:wgame] agent via http proxyStatistics');
+          return ok(mapped, 'ok');
+        } catch (err) {
+          console.warn('[provider:wgame] proxyStatistics failed:', (err && err.message) || err);
+        }
+      }
+    }
+
     const keyByOp = {
       [OP.AGENT_MODE]: 'agentMode',
       [OP.AGENT_CONFIG]: 'promoteConfig',
@@ -1071,7 +1145,116 @@ async function execute(op, ctx) {
   }
 
   if (op === OP.WITHDRAW_PENDING) {
-    return fail(10060, 'withdraw adapter pending: wgame has no withdraw channel');
+    const routePath = String((ctx && ctx.routePath) || '');
+    const row = findSession(body, headers);
+    const { sessionHttpToken } = require('./http-api');
+    const token = row && row.user ? sessionHttpToken(row.user) : '';
+    const maps = require('./http-maps');
+
+    // 提现设置 / 可提金额
+    if (/withdrawSetting/i.test(routePath) || /getWithdrawFee|WithdrawAccountRules/i.test(routePath)) {
+      if (!token) return fail(401, 'not logged in');
+      try {
+        const {
+          httpEnableWithdraw,
+          httpDrawChannelCode,
+          httpVipList
+        } = require('./http-api');
+        const [enableRes, chRes, vipRes] = await Promise.all([
+          httpEnableWithdraw({ token, cfg, timeoutMs: cfg.timeoutMs }),
+          httpDrawChannelCode({ token, cfg, timeoutMs: cfg.timeoutMs }).catch(() => null),
+          httpVipList({ token, cfg, timeoutMs: cfg.timeoutMs }).catch(() => null)
+        ]);
+        const setting = maps.mapEnableWithdraw(enableRes);
+        const channels = maps.mapDrawChannels(chRes);
+        const vip = vipRes ? maps.mapVipDetail(vipRes) : null;
+        if (vip && vip.VipSettings && vip.VipSettings.length) {
+          const cur = vip.VipSettings.find((x) => x.vip === vip.vip_level) || vip.VipSettings[0];
+          if (cur) {
+            if (cur.minWithdrawMoney) setting.minAmount = cur.minWithdrawMoney;
+            if (cur.maxWithdrawMoney) setting.maxAmount = cur.maxWithdrawMoney;
+            if (cur.withdrawFee != null) setting.feeRate = cur.withdrawFee;
+            setting.withdrawTimes = cur.withdrawTimes;
+          }
+        }
+        setting.channels = channels;
+        setting.list = channels;
+        return ok(setting, 'ok');
+      } catch (err) {
+        console.warn('[provider:wgame] withdrawSetting http failed:', (err && err.message) || err);
+        return fail(10061, 'withdraw setting failed: ' + ((err && err.message) || err));
+      }
+    }
+
+    // 发起提现
+    if (/\/withdrawV?\d*$/i.test(routePath) || /\/cashV3$/i.test(routePath)) {
+      if (!token) return fail(401, 'not logged in');
+      try {
+        const { httpDrawBackMoney } = require('./http-api');
+        const money = body && (body.money != null ? body.money : (body.amount != null ? body.amount : body.gold));
+        const payWay = body && (body.payWay != null ? body.payWay : (body.pay_way != null ? body.pay_way : body.type));
+        const id = body && (body.id != null ? body.id : (body.payWayId != null ? body.payWayId : body.accountId));
+        const res = await httpDrawBackMoney({
+          token,
+          money,
+          payWay,
+          id,
+          cfg,
+          timeoutMs: cfg.timeoutMs
+        });
+        if (res && Number(res.ret) !== 0) {
+          return fail(10064, 'withdraw ret=' + res.ret);
+        }
+        return ok({ success: true, ret: 0 }, 'ok');
+      } catch (err) {
+        console.warn('[provider:wgame] drawBackMoney failed:', (err && err.message) || err);
+        return fail(10061, 'withdraw failed: ' + ((err && err.message) || err));
+      }
+    }
+
+    // 绑定收款方式
+    if (/bindWithdrawAccount|bindcard|bindCrypto|setPayWay/i.test(routePath)) {
+      if (!token) return fail(401, 'not logged in');
+      try {
+        const { httpSetPayWay } = require('./http-api');
+        const res = await httpSetPayWay({ token, payload: body, cfg, timeoutMs: cfg.timeoutMs });
+        if (res && Number(res.res) !== 0) {
+          return fail(10064, 'setPayWay res=' + res.res);
+        }
+        return ok({ success: true, payWay: res && res.payWay }, 'ok');
+      } catch (err) {
+        console.warn('[provider:wgame] setPayWay failed:', (err && err.message) || err);
+        return fail(10061, 'bind withdraw account failed: ' + ((err && err.message) || err));
+      }
+    }
+
+    // 其余提现动作（删卡/密码等）尽量走 HTTP；未知则明确失败
+    if (/setWithdrawPwd|verifyWithdrawPwd|withdrawPwd/i.test(routePath)) {
+      if (!token) return fail(401, 'not logged in');
+      try {
+        const { httpSetWithdrawPwd, httpVerifyWithdrawPwd } = require('./http-api');
+        const pwd = body && (body.password || body.pwd || body.withdrawPwd);
+        if (/verify/i.test(routePath)) {
+          const res = await httpVerifyWithdrawPwd({ token, password: pwd, cfg, timeoutMs: cfg.timeoutMs });
+          if (res && Number(res.res) !== 0) return fail(10064, 'verifyWithdrawPwd res=' + res.res);
+          return ok({ success: true }, 'ok');
+        }
+        const res = await httpSetWithdrawPwd({
+          token,
+          password: pwd,
+          checkType: body && body.checkType,
+          checkCode: body && (body.checkCode || body.loginPassword),
+          cfg,
+          timeoutMs: cfg.timeoutMs
+        });
+        if (res && Number(res.res) !== 0) return fail(10064, 'setWithdrawPwd res=' + res.res);
+        return ok({ success: true }, 'ok');
+      } catch (err) {
+        return fail(10061, 'withdraw pwd failed: ' + ((err && err.message) || err));
+      }
+    }
+
+    return fail(10060, 'withdraw route not mapped: ' + routePath);
   }
 
   if (op === OP.GAME_LAUNCH) {
@@ -1118,8 +1301,67 @@ async function execute(op, ctx) {
   }
 
   if (op === OP.EMPTY_RECORDS) {
-    const routePath = ctx && ctx.routePath;
-    if (routePath && /\/agent\/promote\//i.test(routePath)) {
+    const routePath = String((ctx && ctx.routePath) || '');
+    const row = findSession(body, headers);
+    const { sessionHttpToken } = require('./http-api');
+    const token = row && row.user ? sessionHttpToken(row.user) : '';
+    const maps = require('./http-maps');
+
+    // 充值/提现流水 → HTTP
+    if (token && /pay\/orderList|chargeRecord|finance\/pay\/order/i.test(routePath)) {
+      try {
+        const { httpChargeRecord } = require('./http-api');
+        const res = await httpChargeRecord({ token, body, cfg, timeoutMs: cfg.timeoutMs });
+        return ok(maps.mapChargeRecords(res), 'ok');
+      } catch (err) {
+        console.warn('[provider:wgame] chargeRecord failed:', (err && err.message) || err);
+      }
+    }
+    if (token && /withdrawRecord|withdrawRecords|claim\/withdrawRecord/i.test(routePath)) {
+      try {
+        const { httpWithdrawRecord } = require('./http-api');
+        const res = await httpWithdrawRecord({ token, body, cfg, timeoutMs: cfg.timeoutMs });
+        return ok(maps.mapWithdrawRecords(res), 'ok');
+      } catch (err) {
+        console.warn('[provider:wgame] withdrawRecord failed:', (err && err.message) || err);
+      }
+    }
+    if (token && /getWithdrawAccount|withdrawAccountList|getUserBankCardList/i.test(routePath)) {
+      try {
+        const { httpPaywayList } = require('./http-api');
+        const res = await httpPaywayList({ token, cfg, timeoutMs: cfg.timeoutMs });
+        const list = maps.mapPayways(res);
+        return ok({ list, records: list, rows: list, total: list.length }, 'ok');
+      } catch (err) {
+        console.warn('[provider:wgame] paywayList failed:', (err && err.message) || err);
+      }
+    }
+
+    // 代理统计/下级列表 → HTTP
+    if (token && /\/agent\/promote\//i.test(routePath)) {
+      try {
+        if (/indexInfo|myTotalData|myPeriodData|agentBasic|agentInfo|indexDirect/i.test(routePath)) {
+          const { httpProxyStatistics } = require('./http-api');
+          const res = await httpProxyStatistics({ token, body, cfg, timeoutMs: cfg.timeoutMs });
+          return ok(maps.mapProxyStatistics(res), 'ok');
+        }
+        if (/memberInfo|directReport|teamData|userAgentMode/i.test(routePath)) {
+          const { httpProxyUserList } = require('./http-api');
+          const res = await httpProxyUserList({ token, cfg, timeoutMs: cfg.timeoutMs });
+          const list = (res && (res.item || res.items)) || [];
+          const rows = Array.isArray(list) ? list : [];
+          return ok({ list: rows, records: rows, rows, total: rows.length }, 'ok');
+        }
+        if (/settleTime|proxySubBetConfig|myCommission/i.test(routePath)) {
+          const { httpProxySubBetConfig } = require('./http-api');
+          const res = await httpProxySubBetConfig({ token, cfg, timeoutMs: cfg.timeoutMs });
+          const list = (res && (res.item || res.items)) || [];
+          return ok({ list: Array.isArray(list) ? list : [], total: 0, settleTime: Date.now() }, 'ok');
+        }
+      } catch (err) {
+        console.warn('[provider:wgame] agent http failed:', (err && err.message) || err);
+      }
+
       const {
         loadAgentConfig,
         resolveAgentExtraRoute,

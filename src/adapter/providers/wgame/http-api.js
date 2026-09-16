@@ -298,6 +298,234 @@ async function httpGuestShopItemList({ packageId, cfg, timeoutMs }) {
   }, TypeRes, { cfg, timeoutMs });
 }
 
+function protoType(name) {
+  const cache = loadProtoRoot();
+  const key = String(name || '').replace(/^cmd_http\./, '');
+  if (!cache.cmd_http[key]) {
+    cache.cmd_http[key] = cache._root.lookupType('cmd_http.' + key);
+  }
+  return cache.cmd_http[key];
+}
+
+async function postProtoEmpty(urlPath, TypeRes, opts) {
+  const base = resolveLoginHttpBase(opts && opts.cfg);
+  if (!base) throw new Error('login HTTP base missing (derive from wssUrl → login.*)');
+  const secret = resolveHttpSignSecret(opts && opts.cfg);
+  const body = Buffer.alloc(0);
+  const timestamp = Date.now().toString();
+  const nonce = randomNonce(16);
+  const signature = md5Hex(Buffer.concat([
+    Buffer.from(timestamp),
+    Buffer.from(nonce),
+    body,
+    Buffer.from(secret)
+  ]));
+  const headers = {
+    'Content-Type': 'application/x-protobuf',
+    Accept: 'application/x-protobuf',
+    'X-Timestamp': timestamp,
+    'X-Nonce': nonce,
+    'X-Signature': signature
+  };
+  const token = opts && opts.token;
+  if (token) {
+    headers.Authorization = /^Bearer\s+/i.test(token) ? token : ('Bearer ' + token);
+  }
+  const res = await axios.post(base + urlPath, body, {
+    headers,
+    timeout: (opts && opts.timeoutMs) || 30000,
+    responseType: 'arraybuffer',
+    validateStatus: () => true
+  });
+  if (res.status >= 400) {
+    const err = new Error('HTTP ' + res.status + ' ' + urlPath);
+    err.httpStatus = res.status;
+    throw err;
+  }
+  return decodeAny(decodeCommon(res.data), TypeRes);
+}
+
+function userOrGuestPath(token, leaf) {
+  return (token ? '/api/user/' : '/api/guest/') + leaf;
+}
+
+function sessionHttpToken(user) {
+  if (!user) return '';
+  return String(user.httpToken || (user.authTransport === 'http' ? user.session : '') || '');
+}
+
+async function httpMoney({ token, cfg, timeoutMs }) {
+  return postProtoEmpty('/api/user/money', protoType('TCmd_Money'), { cfg, token, timeoutMs });
+}
+
+async function httpVipList({ token, cfg, timeoutMs }) {
+  return postProtoEmpty(
+    userOrGuestPath(token, 'vipList'),
+    protoType('TCmd_VipWelfareDetail'),
+    { cfg, token, timeoutMs }
+  );
+}
+
+async function httpPaywayList({ token, cfg, timeoutMs }) {
+  return postProtoEmpty('/api/user/paywayList', protoType('TCmd_PaywayItemList'), {
+    cfg, token, timeoutMs
+  });
+}
+
+async function httpEnableWithdraw({ token, cfg, timeoutMs }) {
+  return postProtoEmpty('/api/user/enableWithdraw', protoType('TCmd_EnableWithdraw'), {
+    cfg, token, timeoutMs
+  });
+}
+
+async function httpDrawChannelCode({ token, cfg, timeoutMs }) {
+  return postProtoEmpty(
+    userOrGuestPath(token, 'drawChannelCode'),
+    protoType('TCmd_DrawChannelCodeList'),
+    { cfg, token, timeoutMs }
+  );
+}
+
+async function httpDrawBackMoney({ token, money, payWay, id, cfg, timeoutMs }) {
+  return postProto(
+    '/api/user/drawBackMoney',
+    protoType('TCmd_DrawBackMoneyReq'),
+    {
+      money: Number(money) || 0,
+      payWay: Number(payWay) || 0,
+      id: Number(id) || 0
+    },
+    protoType('TCmd_DrawBackMoneyRes'),
+    { cfg, token, timeoutMs }
+  );
+}
+
+async function httpSetPayWay({ token, payload, cfg, timeoutMs }) {
+  const p = payload || {};
+  return postProto(
+    '/api/user/setPayWay',
+    protoType('TCmd_SetPayWayReq'),
+    {
+      userName: String(p.userName || p.user_name || p.realName || ''),
+      bankCardNo: String(p.bankCardNo || p.bank_card_no || p.cardNo || p.account || ''),
+      bankName: String(p.bankName || p.bank_name || ''),
+      ifscCode: String(p.ifscCode || p.ifsc_code || p.phone || p.mobile || ''),
+      mail: String(p.mail || p.email || ''),
+      payWayType: Number(p.payWayType != null ? p.payWayType : (p.pay_way_type != null ? p.pay_way_type : p.type)) || 0,
+      checkCode: Number(p.checkCode || p.check_code) || 0,
+      id: Number(p.id) || 0,
+      idCard: String(p.idCard || p.id_card || p.idcard || '')
+    },
+    protoType('TCmd_SetPayWayRes'),
+    { cfg, token, timeoutMs }
+  );
+}
+
+async function httpSetWithdrawPwd({ token, password, checkType, checkCode, cfg, timeoutMs }) {
+  return postProto(
+    '/api/user/setWithdrawPwd',
+    protoType('TCmd_SetWithdrawPasswordReq'),
+    {
+      password: passwordMd5(password),
+      checkType: Number(checkType) || 0,
+      checkCode: checkCode ? passwordMd5(checkCode) : ''
+    },
+    protoType('TCmd_SetWithdrawPasswordRes'),
+    { cfg, token, timeoutMs }
+  );
+}
+
+async function httpVerifyWithdrawPwd({ token, password, cfg, timeoutMs }) {
+  return postProto(
+    '/api/user/verifyWithdrawPwd',
+    protoType('TCmd_VerifyWithdrawPasswordReq'),
+    { password: passwordMd5(password) },
+    protoType('TCmd_VerifyWithdrawPasswordRes'),
+    { cfg, token, timeoutMs }
+  );
+}
+
+function recordQueryPayload(body) {
+  const b = body || {};
+  return {
+    beginTime: Number(b.beginTime || b.begin_time || 0) || 0,
+    endTime: Number(b.endTime || b.end_time || 0) || 0,
+    pageNum: Number(b.pageNum || b.page_num || b.page || 1) || 1,
+    pageSize: Number(b.pageSize || b.page_size || b.pageSize || 15) || 15,
+    queryType: Number(b.queryType != null ? b.queryType : (b.query_type != null ? b.query_type : 0)) || 0
+  };
+}
+
+async function httpChargeRecord({ token, body, cfg, timeoutMs }) {
+  return postProto(
+    '/api/user/chargeRecord',
+    protoType('TCmd_ChargeRecordReq'),
+    recordQueryPayload(body),
+    protoType('TCmd_ChargeRecordList'),
+    { cfg, token, timeoutMs }
+  );
+}
+
+async function httpWithdrawRecord({ token, body, cfg, timeoutMs }) {
+  return postProto(
+    '/api/user/withdrawRecord',
+    protoType('TCmd_WithdrawRecordReq'),
+    recordQueryPayload(body),
+    protoType('TCmd_WithdrawRecordItemList'),
+    { cfg, token, timeoutMs }
+  );
+}
+
+async function httpChargeWithdrawList({ token, body, cfg, timeoutMs }) {
+  return postProto(
+    '/api/user/chargeWithdrawList',
+    protoType('TCmd_ChargeWithdrawRecordReq'),
+    recordQueryPayload(body),
+    protoType('TCmd_ChargeWithdrawRecordItemList'),
+    { cfg, token, timeoutMs }
+  );
+}
+
+async function httpProxyStatistics({ token, body, cfg, timeoutMs }) {
+  const b = body || {};
+  return postProto(
+    '/api/user/proxyStatistics',
+    protoType('TCmd_ProxyStatisticsReq'),
+    {
+      queryType: Number(b.queryType != null ? b.queryType : b.query_type) || 0,
+      beginTime: Number(b.beginTime || b.begin_time) || 0,
+      endTime: Number(b.endTime || b.end_time) || 0,
+      showThree: Number(b.showThree != null ? b.showThree : 1) || 0
+    },
+    protoType('TCmd_ProxyStatisticsRes'),
+    { cfg, token, timeoutMs }
+  );
+}
+
+async function httpProxyUserList({ token, cfg, timeoutMs }) {
+  return postProtoEmpty('/api/user/proxyUserList', protoType('TCmd_ProxySubUserItemList'), {
+    cfg, token, timeoutMs
+  });
+}
+
+async function httpProxySubBetConfig({ token, cfg, timeoutMs }) {
+  return postProtoEmpty(
+    userOrGuestPath(token, 'proxySubBetConfig'),
+    protoType('TCmd_ProxySubBetConfig'),
+    { cfg, token, timeoutMs }
+  );
+}
+
+async function httpProxyAchieveConfig({ token, packageId, cfg, timeoutMs }) {
+  return postProto(
+    userOrGuestPath(token, 'proxyAchieveConfig'),
+    protoType('TCmd_InviteTreasureChestInfoReq'),
+    { packageId: Number(packageId) || 0 },
+    protoType('TCmd_InviteTreasureChestInfo'),
+    { cfg, token, timeoutMs }
+  );
+}
+
 function toLongNumber(v, fallback = 0) {
   if (v == null || v === '') return fallback;
   if (typeof v === 'object' && typeof v.toNumber === 'function') {
@@ -305,6 +533,12 @@ function toLongNumber(v, fallback = 0) {
   }
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function protoList(res, key) {
+  if (!res) return [];
+  const list = res[key] || res.item || res.items;
+  return Array.isArray(list) ? list : [];
 }
 
 module.exports = {
@@ -315,11 +549,29 @@ module.exports = {
   resolveLoginHttpBase,
   resolveHttpSignSecret,
   defaultDeviceId,
+  sessionHttpToken,
   httpLogin,
   httpRegister,
   httpUserBase,
   httpGameForward,
   httpShopItemList,
   httpGuestShopItemList,
-  toLongNumber
+  httpMoney,
+  httpVipList,
+  httpPaywayList,
+  httpEnableWithdraw,
+  httpDrawChannelCode,
+  httpDrawBackMoney,
+  httpSetPayWay,
+  httpSetWithdrawPwd,
+  httpVerifyWithdrawPwd,
+  httpChargeRecord,
+  httpWithdrawRecord,
+  httpChargeWithdrawList,
+  httpProxyStatistics,
+  httpProxyUserList,
+  httpProxySubBetConfig,
+  httpProxyAchieveConfig,
+  toLongNumber,
+  protoList
 };
