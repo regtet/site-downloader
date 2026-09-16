@@ -16,7 +16,8 @@ const statFailed = $('#statFailed');
 const statMissing = $('#statMissing');
 const statUnresolved = $('#statUnresolved');
 const statBroken = $('#statBroken');
-const previewBtn = $('#previewBtn');
+const previewOfficialBtn = $('#previewOfficialBtn');
+const previewOursBtn = $('#previewOursBtn');
 const migrateBtn = $('#migrateBtn');
 const migrateStatus = $('#migrateStatus');
 const stopPreviewBtn = $('#stopPreviewBtn');
@@ -292,7 +293,7 @@ function previewDirForTask(task) {
   return task.outputDir || task.summary?.outputDir || '';
 }
 
-function previewForTask(task) {
+function previewForTask(task, mode) {
   if (!task) return null;
   const dirs = [
     task.interfaceReplaced && task.migratedPath,
@@ -300,7 +301,23 @@ function previewForTask(task) {
     task.summary?.outputDir
   ].filter(Boolean).map((d) => String(d).replace(/\\/g, '/'));
   if (!dirs.length) return null;
-  return activePreviews.find((p) => dirs.includes((p.path || '').replace(/\\/g, '/'))) || null;
+  const hits = activePreviews.filter((p) => dirs.includes((p.path || '').replace(/\\/g, '/')));
+  if (!hits.length) return null;
+  if (mode === 'ours' || mode === 'official') {
+    return hits.find((p) => p.mode === mode) || null;
+  }
+  return hits[0] || null;
+}
+
+function previewsForTask(task) {
+  if (!task) return [];
+  const dirs = [
+    task.interfaceReplaced && task.migratedPath,
+    task.outputDir,
+    task.summary?.outputDir
+  ].filter(Boolean).map((d) => String(d).replace(/\\/g, '/'));
+  if (!dirs.length) return [];
+  return activePreviews.filter((p) => dirs.includes((p.path || '').replace(/\\/g, '/')));
 }
 
 function renderTaskList() {
@@ -321,6 +338,9 @@ function renderTaskList() {
     const preview = previewForTask(task);
     const runs = task.runCount > 1 ? `<span class="run-count">${task.runCount} 次</span>` : '';
     const migrated = !!task.interfaceReplaced;
+    const previewModes = previewsForTask(task)
+      .map((p) => (p.mode === 'ours' ? '我们的' : '官方') + ':' + p.port)
+      .join(' · ');
 
     return `
       <button type="button" class="task-item${task.id === selectedTaskId ? ' active' : ''}" data-task-id="${encodeURIComponent(task.id)}">
@@ -328,7 +348,7 @@ function renderTaskList() {
           <span class="task-status-badge status-${status}">${statusLabels[status] || status}</span>
           <span class="task-host">${escapeHtml(host)}</span>
           ${migrated ? '<span class="migrate-badge">已替换</span>' : ''}
-          ${preview ? `<span class="preview-badge">:${preview.port}</span>` : ''}
+          ${previewModes ? `<span class="preview-badge">${escapeHtml(previewModes)}</span>` : ''}
         </div>
         <div class="task-url" title="${escapeHtml(task.url || '')}">${escapeHtml(task.url || task.outputDir || '未知')}</div>
         <div class="task-meta">
@@ -479,7 +499,7 @@ function showResultForTask(task) {
   if (task.interfaceReplaced && task.migratedPath) {
     pathText += `\n部署包: ${task.migratedPath}`;
   } else if (task.historyMeta?.migratedPath) {
-    pathText += `\n（磁盘上有旧部署包，需重新点「替换接口」）`;
+    pathText += `\n（磁盘上有旧部署包，需重新点「替换接口」按当前 wgame_web 重写）`;
   }
   if (summary?.manifestStats?.listed) {
     pathText += `\n皮肤清单: ${summary.manifestStats.success}/${summary.manifestStats.listed} 成功`;
@@ -517,16 +537,20 @@ function showResultForTask(task) {
       migrateStatus.textContent = task.migrateError;
       migrateStatus.classList.remove('hidden');
     } else if (migratedPath) {
+      const ww = task.migrateWgameWeb;
+      const wwTip = ww
+        ? ` · wgame_web ${ww.branch || '?'} → ${ww.loginHttpBase || ww.wssUrl || '?'}`
+        : '';
       migrateStatus.className = 'migrate-status is-ok';
-      migrateStatus.textContent = `接口已替换 → ${migratedPath}`;
+      migrateStatus.textContent = `接口已按当前 wgame_web 重写 → ${migratedPath}${wwTip}`;
       migrateStatus.classList.remove('hidden');
     } else if (dir && task.historyMeta?.migratedPath) {
       migrateStatus.className = 'migrate-status';
-      migrateStatus.textContent = 'dist 已就绪；请手动点「替换接口」生成部署包（不会自动执行）';
+      migrateStatus.textContent = 'dist 已就绪；旧部署包不可复用，请点「替换接口」按当前 wgame_web 重新生成';
       migrateStatus.classList.remove('hidden');
     } else if (dir) {
       migrateStatus.className = 'migrate-status';
-      migrateStatus.textContent = 'dist 已就绪；请点「替换接口」后再预览部署包';
+      migrateStatus.textContent = 'dist 已就绪；请点「替换接口」（按当前 wgame_web 生成部署包）';
       migrateStatus.classList.remove('hidden');
     } else {
       migrateStatus.className = 'migrate-status hidden';
@@ -534,14 +558,14 @@ function showResultForTask(task) {
     }
   }
 
-  previewBtn.disabled = !dir;
-  const preview = previewForTask(task);
-  stopPreviewBtn.classList.toggle('hidden', !preview);
-  if (preview) {
-    previewBtn.textContent = `打开预览 :${preview.port}`;
-  } else {
-    previewBtn.textContent = migratedPath ? '预览部署包' : '预览原始 dist';
-  }
+  previewOfficialBtn.disabled = !dir;
+  previewOursBtn.disabled = !dir;
+  const previews = previewsForTask(task);
+  stopPreviewBtn.classList.toggle('hidden', !previews.length);
+  const off = previewForTask(task, 'official');
+  const ours = previewForTask(task, 'ours');
+  previewOfficialBtn.textContent = off ? `官方 :${off.port}` : '预览官方';
+  previewOursBtn.textContent = ours ? `我们的 :${ours.port}` : '预览我们的';
 
   if (summary) renderErrors(summary.errors, summary);
   else if (meta) {
@@ -844,15 +868,15 @@ function updatePreviewStatus(info) {
     <span class="preview-label">预览中</span>
     ${activePreviews.map((p) => `
       <span class="preview-pill">
-        <a href="${escapeHtml(p.url)}" target="_blank">${escapeHtml(p.name)}:${p.port}</a>
-        <button type="button" class="preview-close" data-path="${escapeHtml(p.path)}" title="关闭并释放端口">×</button>
+        <a href="${escapeHtml(p.url)}" target="_blank">${escapeHtml(p.label || (p.mode === 'ours' ? '我们的' : '官方'))} · ${escapeHtml(p.name)}:${p.port}</a>
+        <button type="button" class="preview-close" data-path="${escapeHtml(p.path)}" data-mode="${escapeHtml(p.mode || '')}" title="关闭并释放端口">×</button>
       </span>
     `).join('')}
     <button type="button" class="btn btn-ghost btn-sm" id="stopAllPreviewBtn">全部关闭</button>
   `;
 
   previewStatus.querySelectorAll('.preview-close').forEach((btn) => {
-    btn.addEventListener('click', () => stopPreview(btn.dataset.path));
+    btn.addEventListener('click', () => stopPreview(btn.dataset.path, btn.dataset.mode || undefined));
   });
   const stopAll = $('#stopAllPreviewBtn');
   if (stopAll) stopAll.addEventListener('click', () => stopPreview(null));
@@ -865,40 +889,48 @@ function updatePreviewStatus(info) {
 }
 
 async function startPreview(dir, options = {}) {
+  const mode = options.enableAdapter ? 'ours' : 'official';
+  const btns = [previewOfficialBtn, previewOursBtn];
   try {
-    previewBtn.disabled = true;
+    btns.forEach((b) => { if (b) b.disabled = true; });
     const res = await fetch('/api/preview/start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         path: dir,
+        mode,
         enableAdapter: options.enableAdapter === true
       })
     });
     const data = await res.json();
     if (!res.ok) {
       if (selectedTaskId) appendTaskLog(selectedTaskId, data.error || '预览启动失败', true);
-      previewBtn.disabled = false;
       return;
     }
     updatePreviewStatus({ previews: data.previews || [data], running: true });
-    const mode = options.enableAdapter ? 'migrated' : 'dist';
     const openUrl = data.url + (data.url.indexOf('?') >= 0 ? '&' : '?')
       + '_sd_preview=' + mode + '&_sd_t=' + Date.now();
     window.open(openUrl, '_blank');
-    previewBtn.disabled = false;
   } catch (err) {
     if (selectedTaskId) appendTaskLog(selectedTaskId, err.message, true);
-    previewBtn.disabled = false;
+  } finally {
+    if (selectedTaskId) {
+      const t = getTask(selectedTaskId);
+      if (t) showResultForTask(t);
+    } else {
+      btns.forEach((b) => { if (b) b.disabled = false; });
+    }
   }
 }
 
-async function stopPreview(dir) {
+async function stopPreview(dir, mode) {
   try {
+    const body = dir ? { path: dir } : {};
+    if (dir && (mode === 'ours' || mode === 'official')) body.mode = mode;
     const res = await fetch('/api/preview/stop', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(dir ? { path: dir } : {})
+      body: JSON.stringify(body)
     });
     const data = await res.json();
     updatePreviewStatus({ previews: data.previews || [], running: (data.previews || []).length > 0 });
@@ -996,16 +1028,38 @@ downloadForm.addEventListener('submit', (e) => {
   if (url) startDownload(url);
 });
 
-previewBtn.addEventListener('click', async () => {
+previewOfficialBtn.addEventListener('click', async () => {
   const task = getTask(selectedTaskId);
   const dir = previewDirForTask(task);
   if (!dir) return;
-  const existing = previewForTask(task);
+  const existing = previewForTask(task, 'official');
   if (existing) {
     window.open(existing.url, '_blank');
     return;
   }
-  await startPreview(dir, { enableAdapter: !!task.interfaceReplaced });
+  await startPreview(dir, { enableAdapter: false });
+});
+
+previewOursBtn.addEventListener('click', async () => {
+  const task = getTask(selectedTaskId);
+  // 「我们的」优先部署包（有 adapter-hosts）；没有则退回 dist，但兼容层可能不生效
+  const dir = (task && task.interfaceReplaced && task.migratedPath)
+    ? task.migratedPath
+    : previewDirForTask(task);
+  if (!dir) return;
+  if (!(task && task.interfaceReplaced)) {
+    appendTaskLog(
+      task.id,
+      '提示：尚未「替换接口」。预览我们的仍会开兼容层开关；若目录无 adapter-hosts，行为接近静态壳。',
+      false
+    );
+  }
+  const existing = previewForTask(task, 'ours');
+  if (existing) {
+    window.open(existing.url, '_blank');
+    return;
+  }
+  await startPreview(dir, { enableAdapter: true });
 });
 
 stopPreviewBtn.addEventListener('click', () => {
@@ -1021,7 +1075,7 @@ async function runMigrate() {
   task.migrating = true;
   task.migrateError = '';
   refreshTaskPanel();
-  appendTaskLog(task.id, '开始替换接口…', false);
+  appendTaskLog(task.id, '开始替换接口（整包重写，按当前 wgame_web）…', false);
   try {
     const res = await fetch('/api/migrate', {
       method: 'POST',
@@ -1036,18 +1090,32 @@ async function runMigrate() {
       refreshTaskPanel();
       return;
     }
+    const oldMigrated = task.migratedPath || task.historyMeta?.migratedPath || '';
     task.migratedPath = data.outputDir;
     task.interfaceReplaced = true;
+    task.migrateWgameWeb = data.wgameWeb || null;
     task.historyMeta = {
       ...(task.historyMeta || {}),
       migrated: true,
       migratedPath: data.outputDir,
       siteId: data.siteId,
-      migratedAt: new Date().toISOString()
+      migratedAt: new Date().toISOString(),
+      wgameWeb: data.wgameWeb || null
     };
-    appendTaskLog(task.id, `接口已替换 → ${data.outputDir}`, false);
-    const prevDir = task.outputDir || task.summary?.outputDir;
-    if (prevDir) await stopPreview(prevDir);
+    const ww = data.wgameWeb;
+    const wwLine = ww
+      ? `wgame_web=${ww.branch || '?'} login=${ww.loginHttpBase || ''} packageId=${ww.packageId != null ? ww.packageId : ''}`
+      : 'wgame_web=unknown';
+    appendTaskLog(task.id, `接口已重写 → ${data.outputDir}（${wwLine}）`, false);
+    // 旧 dist / 旧部署包预览一律停掉，必须重新点「预览我们的」
+    const stopDirs = [
+      distDir,
+      oldMigrated,
+      data.outputDir
+    ].filter(Boolean);
+    for (const d of [...new Set(stopDirs)]) {
+      await stopPreview(d);
+    }
     refreshTaskPanel();
     renderTaskList();
   } catch (err) {

@@ -1,7 +1,7 @@
 /**
- * 两步流程的第二步：归档原始包 + 生成接口适配部署包
- *   input/<siteId>/  ← 原始（UI 点「替换接口」时从 dist 同步）
- *   output/<siteId>/ ← 可反复覆盖生成
+ * 两步流程的第二步：归档原始包 + 按当前 wgame_web 生成接口适配部署包
+ *   input/<siteId>/  ← 从当前 dist 强制同步（官方 UI 壳）
+ *   output/<siteId>/ ← 每次整目录重写，不复用旧部署包的 lobby/oss/会话
  */
 const fs = require('fs');
 const path = require('path');
@@ -62,18 +62,22 @@ function exportMigrated(siteId) {
     throw err;
   }
 
+  const { loadWgameWebConfig } = require('./adapter/providers/wgame/wgame-web-config');
+  const wgameWeb = loadWgameWebConfig();
+  if (!wgameWeb) {
+    const err = new Error(
+      '找不到 wgame_web（期望 ../wgame_web 或 WGAME_WEB_PATH）。替换接口必须按当前 wgame_web 配置生成。'
+    );
+    err.code = 'ENOENT';
+    throw err;
+  }
+
+  // 仅保留非 localhost 的 pay/agent 生产钩子；lobby/游戏映射不从旧包回灌
   let preservedHosts = null;
-  let preservedOssGameList = null;
   const prevHostsPath = path.join(out, 'adapter-hosts.json');
-  const prevOssListPath = path.join(out, 'oss-game-list.json');
   if (fs.existsSync(prevHostsPath)) {
     try {
       preservedHosts = JSON.parse(fs.readFileSync(prevHostsPath, 'utf8'));
-    } catch (_) { /* ignore */ }
-  }
-  if (fs.existsSync(prevOssListPath)) {
-    try {
-      preservedOssGameList = fs.readFileSync(prevOssListPath, 'utf8');
     } catch (_) { /* ignore */ }
   }
 
@@ -157,6 +161,7 @@ function exportMigrated(siteId) {
         enabled: true,
         launchMode: 'createuser',
         clientPath: 'gogamesac/clientv3/index.html',
+        // 运行时以当前 wgame_web.proxyShareUrlList 为准；此处只留空占位
         lobbyGameUrl: '',
         fallbackToDefault: true,
         fallbackToClient: false,
@@ -181,27 +186,45 @@ function exportMigrated(siteId) {
     upstreamOrigin: inferred.upstreamOrigin || '',
     ossOrigin: inferred.ossOrigin || '',
     siteCode: siteCode || '',
-    mapSize: Object.keys(MIGRATION_MAP).length
+    mapSize: Object.keys(MIGRATION_MAP).length,
+    wgameWeb: {
+      root: wgameWeb.webRoot,
+      branch: wgameWeb.branch,
+      debug: wgameWeb.debug,
+      serverMode: wgameWeb.serverMode,
+      wssUrl: wgameWeb.wssUrl,
+      loginHttpBase: wgameWeb.loginHttpBase,
+      packageId: wgameWeb.packageId,
+      lobbyGameUrl: wgameWeb.lobbyGameUrl || '',
+      configMtime: wgameWeb.mtime,
+      snapshottedAt: new Date().toISOString()
+    }
   };
   const { mergePreservedProductionHooks } = require('./production-hooks');
   mergePreservedProductionHooks(adapterHosts, preservedHosts);
   fs.writeFileSync(path.join(out, 'adapter-hosts.json'), JSON.stringify(adapterHosts, null, 2), 'utf8');
 
-  if (preservedOssGameList) {
-    fs.writeFileSync(path.join(out, 'oss-game-list.json'), preservedOssGameList, 'utf8');
-  } else {
-    try {
-      const { buildOssGameListForSite } = require('./adapter/providers/wgame/oss-game-catalog');
-      const games = buildOssGameListForSite(out);
-      if (games && games.length) {
-        fs.writeFileSync(
-          path.join(out, 'oss-game-list.json'),
-          JSON.stringify({ source: 'hotListV2', games }, null, 2),
-          'utf8'
-        );
-      }
-    } catch (_) { /* ignore */ }
-  }
+  // 每次重建 oss 列表，禁止复用旧 output 里的 oss-game-list.json
+  try {
+    const {
+      buildOssGameListForSite,
+      clearOssGameListCache
+    } = require('./adapter/providers/wgame/oss-game-catalog');
+    clearOssGameListCache();
+    const games = buildOssGameListForSite(out);
+    if (games && games.length) {
+      fs.writeFileSync(
+        path.join(out, 'oss-game-list.json'),
+        JSON.stringify({
+          source: 'hotListV2',
+          rebuiltAt: new Date().toISOString(),
+          wgameWebBranch: wgameWeb.branch,
+          games
+        }, null, 2),
+        'utf8'
+      );
+    }
+  } catch (_) { /* ignore */ }
 
   const manifest = {
     generatedAt: new Date().toISOString(),
@@ -209,6 +232,7 @@ function exportMigrated(siteId) {
     sourceInput: src,
     output: out,
     phase: 'P0',
+    wgameWeb: adapterHosts.wgameWeb,
     ops: [
       'auth.login',
       'auth.register',
@@ -231,6 +255,7 @@ function exportMigrated(siteId) {
     inputDir: src,
     outputDir: out,
     adapterHosts,
+    wgameWeb: adapterHosts.wgameWeb,
     phase: 'P0',
     ops: manifest.ops
   };

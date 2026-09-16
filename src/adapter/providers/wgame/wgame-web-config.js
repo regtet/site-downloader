@@ -101,10 +101,20 @@ function parseWgameWebConfigText(text) {
   const mockUrl = String(extractScalar(text, 'mockUrl') || '');
   const otherGameApiKey = String(extractScalar(text, 'otherGameApiKey') || '');
   const apiKey = String(extractScalar(text, 'apiKey') || '');
+  const httpSignSecret = String(extractScalar(text, 'httpSignSecret') || '');
   const proxyShareUrlList = extractStringArray(text, 'proxyShareUrlList');
   const httpBase = debug && mockUrl ? mockUrl : (baseUrl || mockUrl);
   const wssUrl = debug && mockWssUrl ? mockWssUrl : (baseWssUrl || mockWssUrl || '');
   const lobbyGameUrl = deriveLobbyGameUrlFromProxyList(proxyShareUrlList);
+  // 对齐 server.GetLoginServer：wss://server.x → https://login.x
+  let loginHttpBase = '';
+  try {
+    const u = new URL(String(wssUrl).replace(/^ws/i, 'http'));
+    let host = u.hostname;
+    if (/^server\./i.test(host)) host = host.replace(/^server\./i, 'login.');
+    else if (!/^login\./i.test(host)) host = 'login.' + host;
+    loginHttpBase = `https://${host}`;
+  } catch (_) { /* ignore */ }
   return {
     debug,
     baseWssUrl,
@@ -114,6 +124,8 @@ function parseWgameWebConfigText(text) {
     baseUrl,
     mockUrl,
     httpBase,
+    loginHttpBase,
+    httpSignSecret,
     otherGameApiKey,
     apiKey,
     proxyShareUrlList,

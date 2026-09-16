@@ -15,6 +15,52 @@ const http = require('http');
 const users = new Map();
 const sessions = new Map();
 const SESSION_STORE = path.join(os.tmpdir(), 'site-downloader-wgame-sessions.json');
+/** 当前生效的登录域（loginHttpBase|packageId|wssUrl）；切换后清空本地缓存，避免「空服仍能登录」 */
+let activeAuthRealm = '';
+
+function authRealmOf(cfg) {
+  const c = cfg || {};
+  return [
+    String(c.loginHttpBase || '').replace(/\/$/, ''),
+    String(c.packageId != null ? c.packageId : ''),
+    String(c.wssUrl || '')
+  ].join('|');
+}
+
+function clearAllLocalAuth(reason) {
+  users.clear();
+  sessions.clear();
+  try {
+    if (fs.existsSync(SESSION_STORE)) fs.unlinkSync(SESSION_STORE);
+  } catch (_) { /* ignore */ }
+  try {
+    console.info('[provider:wgame] cleared local auth cache:', reason || 'manual');
+  } catch (_) { /* ignore */ }
+}
+
+function ensureAuthRealm(cfg) {
+  const realm = authRealmOf(cfg);
+  if (activeAuthRealm && realm && activeAuthRealm !== realm) {
+    clearAllLocalAuth(activeAuthRealm + ' → ' + realm);
+  }
+  activeAuthRealm = realm;
+  // 丢掉与当前域不一致的旧持久化会话（含无 realm 的历史条目）
+  let dropped = 0;
+  for (const [k, row] of [...sessions.entries()]) {
+    const r = row && row.user && row.user.authRealm;
+    if (!r || r !== realm) {
+      sessions.delete(k);
+      dropped += 1;
+    }
+  }
+  if (dropped) {
+    persistSessions();
+    try {
+      console.info('[provider:wgame] dropped stale sessions:', dropped, 'realm=', realm);
+    } catch (_) { /* ignore */ }
+  }
+  return realm;
+}
 
 function httpJson(urlStr, method, body) {
   return new Promise((resolve, reject) => {
@@ -69,8 +115,16 @@ function validHallUserId(userId) {
 }
 
 function canReuseLocalSession(user) {
-  return !!(user && user.session && validHallUserId(user.userId)
-    && user.hall_server_id != null && user.hall_branch_id != null);
+  if (!user || !validHallUserId(user.userId)) return false;
+  // 配置域变了：旧 token 一律作废
+  if (activeAuthRealm && user.authRealm && user.authRealm !== activeAuthRealm) return false;
+  // HTTP 登录：有 httpToken 即可开游戏（不再依赖大厅 WS resume）
+  if (user.httpToken) return true;
+  return !!(user.session && user.hall_server_id != null && user.hall_branch_id != null);
+}
+
+function canLaunchGame(user) {
+  return canReuseLocalSession(user);
 }
 
 function extractSessionKey(body, headers) {
@@ -212,7 +266,9 @@ function toCanonicalUser(account, password, res) {
   return out;
 }
 
-function rememberSession(user) {
+function rememberSession(user, cfg) {
+  if (user && cfg) user.authRealm = authRealmOf(cfg);
+  else if (user && activeAuthRealm && !user.authRealm) user.authRealm = activeAuthRealm;
   const row = { user, at: Date.now() };
   if (user.account) sessions.set(user.account, row);
   if (user.userId) sessions.set('uid:' + user.userId, row);
@@ -226,6 +282,7 @@ function findSession(body, headers, opts) {
 
   const tryRow = (row) => {
     if (!row || !row.user) return null;
+    if (activeAuthRealm && row.user.authRealm && row.user.authRealm !== activeAuthRealm) return null;
     if (opts && opts.requireHallResume && !canReuseLocalSession(row.user)) return null;
     return row;
   };
@@ -249,22 +306,9 @@ function findSession(body, headers, opts) {
         if (hit) return hit;
       }
     }
-    if (opts && opts.requireHallResume) return null;
   }
-
-  if (opts && opts.requireHallResume) return null;
-
-  let latest = null;
-  let latestResumable = null;
-  for (const [k, row] of sessions.entries()) {
-    if (String(k).startsWith('uid:') || String(k).startsWith('sk:')) continue;
-    if (!row || !row.user) continue;
-    if (canReuseLocalSession(row.user)) {
-      if (!latestResumable || (row.at || 0) > (latestResumable.at || 0)) latestResumable = row;
-    }
-    if (!latest || (row.at || 0) > (latest.at || 0)) latest = row;
-  }
-  return latestResumable || latest;
+  // 无 session key 时不再回落到「最近一次登录」——否则换服/未登录也会被当成已登录
+  return null;
 }
 
 /** 转发自有 HTTP 收银台/代理 API 时附带会话字段 */
@@ -330,15 +374,21 @@ function isMockSession(headersOrToken) {
 }
 
 function mapError(err) {
-  const code = err && err.code != null ? Number(err.code) : 1005;
+  let code = err && err.code != null ? Number(err.code) : 1005;
+  const msgFromHttp = err && err.response && err.response.message;
+  const message = msgFromHttp || (err && err.message) || ('error ' + code);
+  // HTTP 业务码 → dist 常见码
+  if (code === 1000 || /password|incorrect|密码/i.test(String(message))) code = 139;
+  if (/already exists|已注册|exist/i.test(String(message))) code = 145;
   const known = {
     145: 'Account already exists',
     167: 'Mobile phone number already exists',
     170: 'Account registration with the same IP exceeds the limit',
     46: 'Login failed',
-    139: 'Password error'
+    139: 'Password error',
+    1000: 'Password error'
   };
-  return fail(code, known[code] || (err && err.message) || ('error ' + code));
+  return fail(code, known[code] || message);
 }
 
 function mockUser(account, password) {
@@ -369,10 +419,75 @@ async function callGateway(action, data, cfg) {
   if (!account || !password) {
     return fail(1004, 'account/password required');
   }
+  const transport = String(cfg.authTransport || 'http').toLowerCase();
   try {
     const existing = users.get(account);
     const stableDevice = (existing && existing.user && existing.user.device_id)
       || defaultDeviceId(account);
+
+    if (transport !== 'ws') {
+      const {
+        httpLogin,
+        httpRegister,
+        httpUserBase,
+        toLongNumber
+      } = require('./http-api');
+      const authFn = action === 'register' ? httpRegister : httpLogin;
+      const authRes = await authFn({
+        account,
+        password,
+        packageId: cfg.packageId,
+        deviceId: stableDevice,
+        inviteCode: pickInvite(data),
+        mobile: data.phone || data.mobile || '',
+        cfg,
+        timeoutMs: cfg.timeoutMs
+      });
+      const token = String(authRes.token || '');
+      const userId = String(authRes.userId != null ? authRes.userId : '');
+      if (!token || !userId) {
+        return fail(1005, 'http auth missing token/userId');
+      }
+      let base = null;
+      try {
+        base = await httpUserBase({ token, cfg, timeoutMs: cfg.timeoutMs });
+      } catch (e) {
+        console.warn('[provider:wgame] /api/user/base failed:', (e && e.message) || e);
+      }
+      const user = {
+        account,
+        password: password || '',
+        session: token,
+        httpToken: token,
+        authTransport: 'http',
+        userId,
+        game_gold: base ? toLongNumber(base.money, 0) : 0,
+        nickname: (base && base.userName) || '',
+        phone: (base && base.secPhone) || '',
+        email: (base && base.mail) || '',
+        vip_level: base && base.vipLevel != null ? Number(base.vipLevel) : 0,
+        face_id: base && base.faceId != null ? String(base.faceId) : '',
+        device_id: stableDevice,
+        account_type: base && base.accountType != null ? Number(base.accountType) : undefined,
+        game_score: base ? toLongNumber(base.gameScore, 0) : undefined,
+        first_login: base && base.firstLogin,
+        has_recharge: base && base.hasRecharge
+      };
+      rememberSession(user, cfg);
+      users.set(account, { password, user });
+      try {
+        console.info(
+          '[provider:wgame]',
+          action,
+          'via http',
+          'base=' + (cfg.loginHttpBase || ''),
+          'packageId=' + (cfg.packageId != null ? cfg.packageId : ''),
+          'userId=' + userId
+        );
+      } catch (_) { /* ignore */ }
+      return ok(user, 'ok');
+    }
+
     const res = await wgameAuth({
       action,
       wssUrl: cfg.wssUrl,
@@ -387,7 +502,8 @@ async function callGateway(action, data, cfg) {
     });
     const user = toCanonicalUser(account, password, res);
     mergePassportIntoUser(user, res);
-    rememberSession(user);
+    user.authTransport = 'ws';
+    rememberSession(user, cfg);
     return ok(user, 'ok');
   } catch (err) {
     console.warn('[provider:wgame]', action, 'failed:', (err && err.message) || err);
@@ -398,7 +514,7 @@ async function callGateway(action, data, cfg) {
       && !!cfg.fallbackMockOnIpLimit;
     if (cfg.fallbackMock || allowIpFallback) {
       const user = mockUser(account, password);
-      rememberSession(user);
+      rememberSession(user, cfg);
       users.set(account, { password, user });
       return ok(user, allowIpFallback ? 'ok (ip-limit fallback)' : 'ok');
     }
@@ -418,6 +534,7 @@ async function execute(op, ctx) {
     loadWgameConfig(ctx && ctx.siteDir),
     (ctx && ctx.providerOptions) || {}
   );
+  ensureAuthRealm(cfg);
 
   if (op === OP.AUTH_REGISTER) {
     if (cfg.mode === 'mock') {
@@ -426,7 +543,7 @@ async function execute(op, ctx) {
       if (users.has(account) && !body._encrypted) return fail(1001, 'account already exists');
       const user = mockUser(account, password);
       users.set(account, { password, user });
-      rememberSession(user);
+      rememberSession(user, cfg);
       return ok(user, 'ok');
     }
     return callGateway('register', body, cfg);
@@ -437,24 +554,16 @@ async function execute(op, ctx) {
       const account = pickAccount(body) || 'mock_user';
       const password = pickPassword(body);
       const user = mockUser(account, password);
-      rememberSession(user);
+      rememberSession(user, cfg);
       return ok(user, 'ok');
     }
-    const account = pickAccount(body);
-    const password = pickPassword(body);
-    const local = account && users.get(account);
-    if (local && local.user && String(local.password || '') === String(password || '')
-      && canReuseLocalSession(local.user)) {
-      rememberSession(local.user);
-      return ok(local.user, 'ok (local session)');
-    }
+    // 必须打远端登录服：禁止用本地 users/SESSION_STORE 冒充成功
     return callGateway('login', body, cfg);
   }
 
   if (op === OP.AUTH_CHECK_REGISTER) {
-    const account = pickAccount(body);
-    if (!account || body._encrypted) return ok({ exists: false }, 'ok');
-    return ok({ exists: users.has(account) || sessions.has(account) }, 'ok');
+    // 远端是否已注册只有登录服知道；本地 Map 不能当真
+    return ok({ exists: false }, 'ok');
   }
 
   if (op === OP.USER_INFO) {
@@ -492,6 +601,7 @@ async function execute(op, ctx) {
       loadPayConfig,
       buildQrDataUrl,
       mapWgameChannelsToPack,
+      mapHttpShopToPack,
       finalizePayChannelPack,
       loadHarPaySnapshot,
       resolvePayTypeMeta,
@@ -508,6 +618,45 @@ async function execute(op, ctx) {
     const sessionUser = sessionRow && sessionRow.user;
 
     async function wgamePayChannels() {
+      const siteDir = ctx && ctx.siteDir;
+      const har = loadHarPaySnapshot(siteDir);
+      const token = sessionUser && (sessionUser.httpToken || (
+        sessionUser.authTransport === 'http' ? sessionUser.session : ''
+      ));
+      // 优先 HTTP shopItemList（对齐 wgame_web）；无 token 时走 guest
+      try {
+        const {
+          httpShopItemList,
+          httpGuestShopItemList
+        } = require('./http-api');
+        const shop = token
+          ? await httpShopItemList({
+            token,
+            packageId: cfg.packageId,
+            cfg,
+            timeoutMs: Math.max(Number(cfg.timeoutMs) || 20000, 25000)
+          })
+          : await httpGuestShopItemList({
+            packageId: cfg.packageId,
+            cfg,
+            timeoutMs: Math.max(Number(cfg.timeoutMs) || 20000, 25000)
+          });
+        const pack = mapHttpShopToPack(shop, pay, har, siteDir);
+        if (pack && pack.list && pack.list.length) {
+          try {
+            console.info(
+              '[provider:wgame] payChannels via http',
+              'channels=' + pack.list.length,
+              'shopItems=' + (pack._shopItemCount || 0),
+              token ? 'authed' : 'guest'
+            );
+          } catch (_) { /* ignore */ }
+          return pack;
+        }
+      } catch (err) {
+        console.warn('[provider:wgame] payChannels http failed:', (err && err.message) || err);
+      }
+      // 仅在无 HTTP 能力时回退旧 WS（大厅）
       if (!sessionUser || !sessionUser.account || !sessionUser.password) return null;
       const res = await wgameAuth({
         action: 'login',
@@ -523,8 +672,8 @@ async function execute(op, ctx) {
       return mapWgameChannelsToPack(
         res && res.payChannels,
         pay,
-        loadHarPaySnapshot(ctx && ctx.siteDir),
-        ctx && ctx.siteDir
+        har,
+        siteDir
       );
     }
 
@@ -561,10 +710,18 @@ async function execute(op, ctx) {
         try {
           const pack = await wgamePayChannels();
           if (pack && pack.list && pack.list.length) {
-            return ok({ payKind: { list: buildPayTypeList(payMeta) } }, 'ok');
+            // 有真实渠道时，用渠道名补 pay_type 展示名
+            const firstName = pack.list[0] && (pack.list[0].channlName || pack.list[0].merch_desc);
+            const meta = firstName
+              ? Object.assign({}, payMeta, { payTypeName: firstName })
+              : payMeta;
+            return ok({ payKind: { list: buildPayTypeList(meta) } }, 'ok');
           }
         } catch (err) {
           console.warn('[provider:wgame] payType via channels failed:', (err && err.message) || err);
+        }
+        if (!pay.allowPlaceholderFallback) {
+          return fail(10061, 'wgame pay type unavailable (shopItemList failed)');
         }
       }
       const fallback = (harSnap && Array.isArray(harSnap.types) && harSnap.types.length)
@@ -586,10 +743,6 @@ async function execute(op, ctx) {
       const configPack = pay.channelsByPayKind[key]
         || pay.channelsByPayKind['100']
         || { list: [], min: '0', max: '0' };
-      const harPack = finalizePayChannelPack(
-        Object.assign({ list: [] }, configPack),
-        ctx && ctx.siteDir
-      );
       if (source === 'wgame') {
         try {
           const pack = await wgamePayChannels();
@@ -599,7 +752,14 @@ async function execute(op, ctx) {
         } catch (err) {
           console.warn('[provider:wgame] payChannels failed:', (err && err.message) || err);
         }
+        if (!pay.allowPlaceholderFallback) {
+          return fail(10061, 'wgame pay channels unavailable (shopItemList failed)');
+        }
       }
+      const harPack = finalizePayChannelPack(
+        Object.assign({ list: [] }, configPack),
+        ctx && ctx.siteDir
+      );
       return ok(harPack, 'ok');
     }
     if (op === OP.PAY_INFOS) {
@@ -922,7 +1082,7 @@ async function execute(op, ctx) {
     }
     const sessionRow = findSession(body, headers, { requireHallResume: true });
     const sessionUser = sessionRow && sessionRow.user;
-    if (!sessionUser) {
+    if (!sessionUser || !canLaunchGame(sessionUser)) {
       return fail(10061, 'session expired for game launch, please logout and login again');
     }
     try {
@@ -1000,6 +1160,7 @@ function clearSession(body, headers) {
   const row = findSession(body, headers);
   if (!row || !row.user) return;
   const u = row.user;
+  if (u.account) users.delete(u.account);
   const keys = [];
   if (u.account) keys.push(u.account);
   if (u.userId) keys.push('uid:' + u.userId);
@@ -1015,6 +1176,7 @@ module.exports = {
   users,
   normalizeBody,
   loadWgameConfig,
+  clearLocalAuth: clearAllLocalAuth,
   isOurSession,
   isMockSession,
   CATALOG: require('./catalog').CATALOG

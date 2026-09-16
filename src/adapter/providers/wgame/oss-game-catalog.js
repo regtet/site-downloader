@@ -8,6 +8,11 @@ const path = require('path');
 let cache = null;
 let cacheKey = '';
 
+function clearOssGameListCache() {
+  cache = null;
+  cacheKey = '';
+}
+
 function readJsonSafe(p) {
   try {
     if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf8'));
@@ -219,6 +224,7 @@ function resolveOssGameRow(platformId, gameId, siteDir) {
 
 module.exports = {
   loadOssGameList,
+  clearOssGameListCache,
   isOssCatalogGameId,
   resolveOssGameName,
   resolveOssGameRow,

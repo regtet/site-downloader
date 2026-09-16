@@ -1,11 +1,9 @@
 /**
- * 对齐 wgame_web：经大厅 WebSocket HTTP 代理 POST /index/createuser。
- * wgame_web 走 HallKernel.httpProxy，由服务端补 sign/time/language 并转发。
+ * 对齐 wgame_web：优先 POST /api/game/forward（createuser）；
+ * 无 httpToken 时回退旧大厅 WS httpProxy。
  */
 const crypto = require('crypto');
-const axios = require('axios');
 const { wgameAuth } = require('./client');
-const { loadWgameWebConfig } = require('./wgame-web-config');
 const { applySystemProxy } = require('../../../system-proxy');
 
 applySystemProxy({ log: false });
@@ -64,35 +62,13 @@ function parseCreateUserResponse(res) {
   return parseCreateUserResult(res && res.json);
 }
 
-async function httpPostJson(urlStr, body, timeoutMs) {
-  applySystemProxy({ log: false });
-  const res = await axios.post(urlStr, body || {}, {
-    timeout: timeoutMs || 30000,
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json'
-    },
-    validateStatus: () => true
-  });
-  const json = res.data && typeof res.data === 'object' ? res.data : null;
-  const raw = json ? JSON.stringify(json) : String(res.data || '');
-  return { status: res.status, json, raw };
-}
-
-function resolveHttpBase(web) {
-  if (!web) return '';
-  if (process.env.WGAME_HTTP_BASE) return String(process.env.WGAME_HTTP_BASE).replace(/\/$/, '');
-  const base = web.debug ? (web.mockUrl || web.baseUrl) : (web.baseUrl || web.mockUrl);
-  return String(base || '').replace(/\/$/, '');
-}
-
 function canResumeHallSession(sessionUser) {
-  const loginID = Number(sessionUser && sessionUser.userId);
-  return !!(sessionUser
-    && sessionUser.session
-    && Number.isFinite(loginID) && loginID > 0
-    && sessionUser.hall_server_id != null
-    && sessionUser.hall_branch_id != null);
+  if (!sessionUser) return false;
+  if (!sessionUser.session) return false;
+  const loginID = Number(sessionUser.userId);
+  if (!Number.isFinite(loginID) || loginID <= 0) return false;
+  if (sessionUser.hall_server_id == null || sessionUser.hall_branch_id == null) return false;
+  return true;
 }
 
 function buildResumeSession(sessionUser) {
@@ -104,6 +80,54 @@ function buildResumeSession(sessionUser) {
     deviceId: sessionUser.device_id || undefined,
     nServerId: Number(sessionUser.hall_server_id),
     nBranchId: Number(sessionUser.hall_branch_id)
+  };
+}
+
+async function createUserViaHttpForward(sessionUser, target, wgameCfg, opts) {
+  const { httpGameForward } = require('./http-api');
+  const postData = buildCreateUserPostData(sessionUser, target);
+  if (!postData.roleid) return { ok: false, msg: 'wgame userId missing for createuser' };
+  const token = sessionUser.httpToken || sessionUser.session;
+  if (!token) return { ok: false, msg: 'httpToken missing for game/forward' };
+
+  try {
+    console.info('[wgame] createuser via http /api/game/forward userId=' + postData.roleid);
+  } catch (_) { /* ignore */ }
+
+  const fwd = await httpGameForward({
+    token,
+    url: 3,
+    uri: '/index/createuser',
+    data: postData,
+    cfg: wgameCfg,
+    timeoutMs: (opts && opts.timeoutMs) || 35000
+  });
+  const parsed = parseCreateUserResult(fwd.res);
+  if (!parsed.ok) {
+    try {
+      console.warn('[wgame] createuser failed', {
+        code: parsed.code,
+        msg: parsed.msg,
+        target: {
+          nApiID: target.nApiID,
+          gameid: target.gameid,
+          nOriginalID: target.nOriginalID,
+          game_key: target.game_key
+        },
+        postData
+      });
+    } catch (_) { /* ignore */ }
+    return parsed;
+  }
+  const gameUrl = parsed.isHtml ? parsed.html : parsed.game_url;
+  return {
+    ok: true,
+    game_url: gameUrl,
+    html: parsed.html,
+    isHtml: !!parsed.isHtml,
+    code: 0,
+    target,
+    via: 'http-forward'
   };
 }
 
@@ -126,13 +150,6 @@ async function createUserViaHallProxy(sessionUser, target, wgameCfg, opts) {
 
   const resume = buildResumeSession(sessionUser);
   if (!resume) {
-    try {
-      console.warn('[wgame] createuser blocked: user', sessionUser && sessionUser.userId, 'missing hall fields', {
-        session: !!(sessionUser && sessionUser.session),
-        hall_server_id: sessionUser && sessionUser.hall_server_id,
-        hall_branch_id: sessionUser && sessionUser.hall_branch_id
-      });
-    } catch (_) { /* ignore */ }
     return {
       ok: false,
       msg: 'session expired for game launch, please logout and login again'
@@ -184,60 +201,23 @@ async function createUserViaHallProxy(sessionUser, target, wgameCfg, opts) {
   };
 }
 
-async function createUserViaDirectHttp(sessionUser, target, opts) {
-  const web = loadWgameWebConfig();
-  const httpBase = resolveHttpBase(web);
-  if (!httpBase) {
-    return { ok: false, msg: 'wgame_web http base missing (baseUrl/mockUrl)' };
-  }
-  const roleid = sessionUser && (sessionUser.userId || sessionUser.userid);
-  if (!roleid) return { ok: false, msg: 'wgame userId missing for createuser' };
-
-  const otherGameApiKey = (web && web.otherGameApiKey)
-    || process.env.WGAME_OTHER_GAME_API_KEY
-    || '';
-  const time = Math.floor(Date.now() / 1000).toString();
-  const language = (opts && opts.language) || process.env.WGAME_GAME_LANGUAGE || 'EN';
-
-  const payload = buildCreateUserPostData(sessionUser, target);
-  payload.time = time;
-  payload.language = language;
-  payload.sign = signCreateUser(payload, otherGameApiKey);
-
-  const url = httpBase + '/index/createuser';
-  const res = await httpPostJson(url, payload, (opts && opts.timeoutMs) || 30000);
-  const parsed = parseCreateUserResponse(res);
-  if (!parsed.ok) {
-    parsed.raw = res.raw;
-    parsed.status = res.status;
-    return parsed;
-  }
-  const gameUrl = parsed.isHtml ? parsed.html : parsed.game_url;
-  return {
-    ok: true,
-    game_url: gameUrl,
-    html: parsed.html,
-    isHtml: !!parsed.isHtml,
-    code: 0,
-    target,
-    via: 'http'
-  };
-}
-
 /**
- * @param {{ userId: string, account?: string, password?: string }} sessionUser
+ * @param {{ userId: string, account?: string, password?: string, httpToken?: string }} sessionUser
  * @param {object} target from resolveCreateUserTarget
  * @param {{ wgameConfig?: object }} opts
  */
 async function createUserGameLaunch(sessionUser, target, opts) {
   const wgameCfg = (opts && opts.wgameConfig) || {};
-  if (!wgameCfg.wssUrl) {
-    return { ok: false, msg: 'wgame wssUrl missing' };
-  }
   try {
+    if (sessionUser && (sessionUser.httpToken || sessionUser.authTransport === 'http')) {
+      return await createUserViaHttpForward(sessionUser, target, wgameCfg, opts);
+    }
+    if (!wgameCfg.wssUrl) {
+      return { ok: false, msg: 'wgame wssUrl missing' };
+    }
     return await createUserViaHallProxy(sessionUser, target, wgameCfg, opts);
   } catch (err) {
-    return { ok: false, msg: (err && err.message) || 'createuser hall proxy failed' };
+    return { ok: false, msg: (err && err.message) || 'createuser failed' };
   }
 }
 
@@ -250,7 +230,6 @@ module.exports = {
   parseCreateUserResult,
   createUserGameLaunch,
   createUserViaHallProxy,
-  createUserViaDirectHttp,
-  resolveHttpBase,
+  createUserViaHttpForward,
   parseCreateUserResponse
 };

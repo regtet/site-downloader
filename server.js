@@ -13,6 +13,24 @@ const {
   isAllowedSiteDir,
   toSiteId
 } = require('./src/migrate');
+
+/** 替换接口后清进程内会话/proto/OSS 缓存，避免旧部署包状态串到新配置 */
+function invalidateAfterMigrate(reason) {
+  try {
+    const wgame = require('./src/adapter/providers/wgame');
+    if (typeof wgame.clearLocalAuth === 'function') {
+      wgame.clearLocalAuth(reason || 'migrate');
+    }
+  } catch (_) { /* ignore */ }
+  try {
+    const { clearProtoCache } = require('./src/adapter/providers/wgame/http-api');
+    if (typeof clearProtoCache === 'function') clearProtoCache();
+  } catch (_) { /* ignore */ }
+  try {
+    const { clearOssGameListCache } = require('./src/adapter/providers/wgame/oss-game-catalog');
+    if (typeof clearOssGameListCache === 'function') clearOssGameListCache();
+  } catch (_) { /* ignore */ }
+}
 const { runPostLoginAnalysis } = require('./src/post-login-deps');
 const {
   startManualCapture,
@@ -267,6 +285,7 @@ async function handleApi(req, res, pathname) {
         }
         try {
             const result = migrateFromDist(distDir, { siteId: body.siteId });
+            invalidateAfterMigrate('migrate:' + result.siteId);
             sendJson(res, 200, {
                 ok: true,
                 siteId: result.siteId,
@@ -274,7 +293,8 @@ async function handleApi(req, res, pathname) {
                 inputDir: result.inputDir,
                 outputDir: result.outputDir,
                 phase: result.phase,
-                ops: result.ops
+                ops: result.ops,
+                wgameWeb: result.wgameWeb || null
             });
         } catch (err) {
             sendJson(res, 500, { error: err.message });
@@ -512,11 +532,15 @@ async function handleApi(req, res, pathname) {
             return;
         }
         try {
-            const info = await previewServer.start(siteDir, {
-              enableAdapter: body.enableAdapter === true
-                ? true
-                : (body.enableAdapter === false ? false : undefined)
-            });
+            // mode: official | ours；或 enableAdapter true/false
+            let enableAdapter;
+            if (body.mode === 'ours') enableAdapter = true;
+            else if (body.mode === 'official') enableAdapter = false;
+            else if (body.enableAdapter === true) enableAdapter = true;
+            else if (body.enableAdapter === false) enableAdapter = false;
+            else enableAdapter = false;
+
+            const info = await previewServer.start(siteDir, { enableAdapter });
             sendJson(res, 200, { ...info, previews: previewServer.list() });
         } catch (err) {
             sendJson(res, 500, { error: err.message });
@@ -532,7 +556,7 @@ async function handleApi(req, res, pathname) {
             return;
         }
         const result = siteDir
-            ? await previewServer.stop(siteDir)
+            ? await previewServer.stop(siteDir, { mode: body.mode })
             : await previewServer.stopAll();
         sendJson(res, 200, result);
         return;

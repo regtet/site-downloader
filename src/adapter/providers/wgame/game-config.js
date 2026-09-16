@@ -54,10 +54,13 @@ function deriveLobbyGameUrlFromWss(wssUrl) {
 }
 
 function resolveLobbyGameUrl(cfg, siteDir) {
-  if (cfg.lobbyGameUrl) return String(cfg.lobbyGameUrl).replace(/\/?$/, '/');
-  if (process.env.GAME_LOBBY_URL) return String(process.env.GAME_LOBBY_URL).replace(/\/?$/, '/');
+  // 优先级：显式 env → 当前 wgame_web → adapter-hosts → 由 wss 推导
+  if (process.env.GAME_LOBBY_URL) {
+    return String(process.env.GAME_LOBBY_URL).replace(/\/?$/, '/');
+  }
   const web = loadWgameWebConfig();
   if (web && web.lobbyGameUrl) return String(web.lobbyGameUrl).replace(/\/?$/, '/');
+  if (cfg && cfg.lobbyGameUrl) return String(cfg.lobbyGameUrl).replace(/\/?$/, '/');
   const wg = loadWgameConfig(siteDir);
   if (wg && wg.wgameWeb && wg.wgameWeb.lobbyGameUrl) {
     return String(wg.wgameWeb.lobbyGameUrl).replace(/\/?$/, '/');

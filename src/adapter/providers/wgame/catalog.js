@@ -75,15 +75,15 @@ const CATALOG = [
   },
   {
     op: OP.PAY_TYPE,
-    transport: 'local',
-    steps: ['providerOptions.pay.types'],
+    transport: 'http',
+    steps: ['/api/user/shopItemList → channels → payKind'],
     out: ['payKind.list']
   },
   {
     op: OP.PAY_CHANNELS,
-    transport: 'local',
-    steps: ['providerOptions.pay.channelsByPayKind'],
-    out: ['list', 'min', 'max']
+    transport: 'http',
+    steps: ['/api/user/shopItemList (channelItem + item amounts)'],
+    out: ['list', 'min', 'max', 'recommendList']
   },
   {
     op: OP.PAY_INFOS,
@@ -93,8 +93,8 @@ const CATALOG = [
   },
   {
     op: OP.PAY_CREATE,
-    transport: 'local',
-    steps: ['providerOptions.pay.createOrder'],
+    transport: 'wss',
+    steps: ['hall SUB_GP_CHARGE (尚无 HTTP 下单)'],
     out: ['orderNo', 'qrCode', 'url']
   },
   {

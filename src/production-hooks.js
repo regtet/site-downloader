@@ -43,10 +43,8 @@ function mergePreservedProductionHooks(next, preserved) {
   if (!preserved || !preserved.providerOptions) return applyProductionHooks(next);
   const pPay = preserved.providerOptions.pay || {};
   const pAgent = preserved.providerOptions.agent || {};
-  const pGame = preserved.providerOptions.game || {};
   const nPay = next.providerOptions.pay || {};
   const nAgent = next.providerOptions.agent || {};
-  const nGame = next.providerOptions.game || (next.providerOptions.game = {});
   const pUrl = pPay.createOrder && pPay.createOrder.httpUrl;
   const pBase = pAgent.httpBase;
 
@@ -61,13 +59,7 @@ function mergePreservedProductionHooks(next, preserved) {
     nAgent.httpBase = pBase;
     nAgent.useBuiltinMock = false;
   }
-  const pLobby = pGame.lobbyGameUrl;
-  if (pLobby && !isLocalDevUrl(pLobby) && !process.env.GAME_LOBBY_URL) {
-    nGame.lobbyGameUrl = pLobby;
-  }
-  if (Array.isArray(pGame.mappings) && pGame.mappings.length && !Array.isArray(nGame.mappings)) {
-    nGame.mappings = pGame.mappings.slice();
-  }
+  // game.lobbyGameUrl / mappings 一律按当前 wgame_web 运行时解析，不从旧 output 回灌
   return applyProductionHooks(next);
 }
 

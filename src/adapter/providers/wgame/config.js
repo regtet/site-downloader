@@ -4,7 +4,11 @@ const { loadWgameWebConfig } = require('./wgame-web-config');
 
 const DEFAULTS = {
   mode: 'wgame', // wgame | mock
+  /** auth: http（对齐 wgame_web）| ws（旧网关，仅回退） */
+  authTransport: 'http',
   wssUrl: 'wss://server.679win2.com',
+  loginHttpBase: '',
+  httpSignSecret: '',
   packageId: 46,
   timeoutMs: 20000,
   nGmType: 7,
@@ -26,6 +30,9 @@ function applyBlock(out, w, opts) {
   if (w.nGmType != null) out.nGmType = Number(w.nGmType) || out.nGmType;
   if (w.fallbackMock != null) out.fallbackMock = !!w.fallbackMock;
   if (w.fallbackMockOnIpLimit != null) out.fallbackMockOnIpLimit = !!w.fallbackMockOnIpLimit;
+  if (w.authTransport) out.authTransport = String(w.authTransport);
+  if (!skipConn && w.loginHttpBase) out.loginHttpBase = String(w.loginHttpBase);
+  if (w.httpSignSecret) out.httpSignSecret = String(w.httpSignSecret);
 }
 
 function loadWgameConfig(siteDir) {
@@ -36,7 +43,9 @@ function loadWgameConfig(siteDir) {
   if (web) {
     applyBlock(out, {
       wssUrl: web.wssUrl,
-      packageId: web.packageId
+      packageId: web.packageId,
+      loginHttpBase: web.loginHttpBase,
+      httpSignSecret: web.httpSignSecret
     });
     out.wgameWeb = {
       root: web.webRoot,
@@ -46,6 +55,7 @@ function loadWgameConfig(siteDir) {
       serverMode: web.serverMode,
       baseWssUrl: web.baseWssUrl,
       mockWssUrl: web.mockWssUrl,
+      loginHttpBase: web.loginHttpBase,
       lobbyGameUrl: web.lobbyGameUrl,
       mtime: web.mtime
     };
@@ -66,7 +76,10 @@ function loadWgameConfig(siteDir) {
 
   // ③ 环境变量（CI/临时覆盖，优先级最高）
   if (process.env.ADAPTER_AUTH_MODE) out.mode = String(process.env.ADAPTER_AUTH_MODE);
+  if (process.env.WGAME_AUTH_TRANSPORT) out.authTransport = String(process.env.WGAME_AUTH_TRANSPORT);
   if (process.env.WGAME_WSS_URL) out.wssUrl = String(process.env.WGAME_WSS_URL);
+  if (process.env.WGAME_LOGIN_HTTP_BASE) out.loginHttpBase = String(process.env.WGAME_LOGIN_HTTP_BASE);
+  if (process.env.WGAME_HTTP_SIGN_SECRET) out.httpSignSecret = String(process.env.WGAME_HTTP_SIGN_SECRET);
   if (process.env.WGAME_PACKAGE_ID != null && process.env.WGAME_PACKAGE_ID !== '') {
     const pid = Number(process.env.WGAME_PACKAGE_ID);
     if (Number.isFinite(pid)) out.packageId = pid;

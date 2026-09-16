@@ -212,7 +212,48 @@ function buildPayTypeList(meta) {
   }];
 }
 
-function mapWgameChannelsToPack(list, pay, har, siteDir) {
+function shopItemsToRecommendList(shopItems, min, max, pay) {
+  const lo = Number(min) || 0;
+  const hi = Number(max) || Number.MAX_SAFE_INTEGER;
+  if (!Array.isArray(shopItems) || !shopItems.length) {
+    return defaultRecommendAmounts(pay).filter((row) => {
+      const n = Number(row.amount);
+      return n >= lo && n <= hi;
+    });
+  }
+  const seen = new Set();
+  const out = [];
+  for (const it of shopItems) {
+    if (!it) continue;
+    const n = Number(
+      it.realMoney != null ? it.realMoney
+        : (it.nRealMoney != null ? it.nRealMoney
+          : (it.baseGoodsValue != null ? it.baseGoodsValue : it.nBaseGoodsValue))
+    );
+    if (!Number.isFinite(n) || n <= 0) continue;
+    if (n < lo || n > hi) continue;
+    const amount = String(n);
+    if (seen.has(amount)) continue;
+    seen.add(amount);
+    const extra = Number(it.extraAward != null ? it.extraAward : it.nExtraAward) || 0;
+    const first = Number(
+      it.firstChargeAward != null ? it.firstChargeAward : it.nFirstChargeAward
+    ) || 0;
+    const row = { amount };
+    if (extra > 0) row.give = String(extra);
+    if (first > 0) row.firstChargeAward = String(first);
+    out.push(row);
+  }
+  if (!out.length) {
+    return defaultRecommendAmounts(pay).filter((row) => {
+      const n = Number(row.amount);
+      return n >= lo && n <= hi;
+    });
+  }
+  return normalizeRecommendList(out);
+}
+
+function mapWgameChannelsToPack(list, pay, har, siteDir, shopItems) {
   const meta = resolvePayTypeMeta(pay, har, siteDir);
   const paymentId = meta.paymentId;
   const open = (Array.isArray(list) ? list : []).filter((c) => {
@@ -240,10 +281,7 @@ function mapWgameChannelsToPack(list, pay, har, siteDir) {
       currencySign: (pay && pay.currencySign) || 'R$',
       min_recharge_limit: min,
       max_recharge_limit: max,
-      recommendList: defaultRecommendAmounts(pay).filter((row) => {
-        const n = Number(row.amount);
-        return n >= Number(min) && n <= Number(max);
-      }),
+      recommendList: shopItemsToRecommendList(shopItems, min, max, pay),
       iconUrl: meta.iconUrl || '',
       channelTooltip: 'HOT',
       payicon: '9',
@@ -264,15 +302,49 @@ function mapWgameChannelsToPack(list, pay, har, siteDir) {
   }
   const rec = mapped.length && mapped[0].recommendList && mapped[0].recommendList.length
     ? mapped[0].recommendList
-    : defaultRecommendAmounts(pay);
+    : shopItemsToRecommendList(shopItems, min, max, pay);
   return {
     list: mapped,
     min,
     max,
     url: '',
     realInfoRule: 0,
-    recommendList: rec
+    recommendList: rec,
+    vipAddRate: 0,
+    _shopItemCount: Array.isArray(shopItems) ? shopItems.length : 0
   };
+}
+
+/**
+ * HTTP /api/user/shopItemList → 官方充值页 channels + 金额档
+ */
+function mapHttpShopToPack(shop, pay, har, siteDir) {
+  const toNum = (v) => {
+    if (v == null || v === '') return 0;
+    if (typeof v === 'object' && typeof v.toNumber === 'function') {
+      try { return v.toNumber(); } catch (_) { return 0; }
+    }
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  };
+  const channels = (shop && (shop.channelItem || shop.channel_item)) || [];
+  const items = (shop && shop.item) || [];
+  const list = channels
+    .filter((c) => c && Number(c.status) === 1)
+    .map((c) => ({
+      nChannelId: toNum(c.channelId),
+      szChannelName: String(c.channelName || ''),
+      szUrl: String(c.url || ''),
+      llMinMoney: toNum(c.minMoney),
+      llMaxMoney: toNum(c.maxMoney),
+      nStatus: toNum(c.status),
+      nAwardRate: toNum(c.awardRate),
+      nChannelType: toNum(c.channelType),
+      kycFlag: toNum(c.kycFlag)
+    }));
+  const pack = mapWgameChannelsToPack(list, pay, har, siteDir, items);
+  pack.vipAddRate = toNum(shop && shop.vipAddRate);
+  return pack;
 }
 
 function normalizePayChannelPack(pack) {
@@ -404,9 +476,11 @@ module.exports = {
   buildQrDataUrl,
   normalizeRecommendList,
   defaultRecommendAmounts,
+  shopItemsToRecommendList,
   resolvePayTypeMeta,
   buildPayTypeList,
   mapWgameChannelsToPack,
+  mapHttpShopToPack,
   loadHarPaySnapshot,
   applyHarPaySnapshot,
   enrichPayChannelPack,
