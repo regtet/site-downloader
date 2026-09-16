@@ -461,7 +461,7 @@ async function callGateway(action, data, cfg) {
         httpToken: token,
         authTransport: 'http',
         userId,
-        game_gold: base ? toLongNumber(base.money, 0) : 0,
+        game_gold: base ? require('./http-maps').happyToDisplay(base.money) : 0,
         nickname: (base && base.userName) || '',
         phone: (base && base.secPhone) || '',
         email: (base && base.mail) || '',
@@ -580,7 +580,7 @@ async function execute(op, ctx) {
           if (base.mail) row.user.email = String(base.mail);
           if (base.vipLevel != null) row.user.vip_level = Number(base.vipLevel) || 0;
           if (base.faceId != null) row.user.face_id = String(base.faceId);
-          if (base.money != null) row.user.game_gold = toLongNumber(base.money, row.user.game_gold || 0);
+          if (base.money != null) row.user.game_gold = require('./http-maps').happyToDisplay(base.money);
           if (base.gameScore != null) row.user.game_score = toLongNumber(base.gameScore, 0);
           rememberSession(row.user, cfg);
         }

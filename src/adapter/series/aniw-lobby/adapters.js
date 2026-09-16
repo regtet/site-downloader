@@ -224,6 +224,31 @@ function adaptEmptyList(providerResult) {
   return envelope([]);
 }
 
+/**
+ * 注册成功弹窗 registerPopupDlgInfo：必须是对象（content + buttons），
+ * 若回 []，前端仍会打开弹窗但只剩标题（缺正文与 Baixar APP / Deposite agora）。
+ */
+function adaptRegisterPopup(providerResult) {
+  if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
+  const { defaultRegisterPopupPayload } = require('../../providers/wgame/popup-config');
+  const raw = providerResult.data;
+  if (raw && typeof raw === 'object' && !Array.isArray(raw) && (raw.content || raw.buttons)) {
+    return envelope(raw);
+  }
+  return envelope(defaultRegisterPopupPayload());
+}
+
+/** 注册弹窗 Download 按钮依赖的 APP 下载配置 */
+function adaptAppDownload(providerResult) {
+  if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
+  const { defaultAppDownloadPayload } = require('../../providers/wgame/popup-config');
+  const raw = providerResult.data;
+  if (raw && typeof raw === 'object' && Array.isArray(raw.downloadList) && raw.downloadList.length) {
+    return envelope(raw);
+  }
+  return envelope(defaultAppDownloadPayload());
+}
+
 function adaptCheckRegister(providerResult) {
   if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
   const exists = !!(providerResult.data && providerResult.data.exists);
@@ -642,6 +667,8 @@ const ADAPTERS = {
   platformPayload: adaptPlatformPayload,
   emptyRecords: adaptEmptyRecords,
   emptyList: adaptEmptyList,
+  registerPopup: adaptRegisterPopup,
+  appDownload: adaptAppDownload,
   redDotEmpty: adaptRedDotEmpty,
   fingerprint: adaptFingerprint,
   listAccount: adaptListAccount,
@@ -670,6 +697,8 @@ module.exports = {
   adaptMemberProfile,
   adaptRegisterProfile,
   adaptEmptyList,
+  adaptRegisterPopup,
+  adaptAppDownload,
   adaptWalletGold,
   adaptVipSummary,
   adaptVipDetails,

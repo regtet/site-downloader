@@ -221,8 +221,9 @@ const CORE_MAP = {
   '/api/game/hall/getTgPreparedInlineMessage': { op: OP.LOBBY_OK, adapter: 'lobbyOk' },
 
   // —— 注册弹窗 / 心跳 / 埋点 ——
-  '/api/member/user/registerPopupDlgInfo': { op: OP.UPSTREAM, adapter: 'emptyList', note: 'upstream register success popup' },
-  '/api/member/registerPopupDlgInfo': { op: OP.UPSTREAM, adapter: 'emptyList', note: 'alias without /user/' },
+  '/api/member/user/registerPopupDlgInfo': { op: OP.LOBBY_OK, adapter: 'registerPopup', note: 'register success content+buttons' },
+  '/api/member/registerPopupDlgInfo': { op: OP.LOBBY_OK, adapter: 'registerPopup', note: 'alias without /user/' },
+  '/api/lobby/config/getAppDownloadInfo': { op: OP.LOBBY_OK, adapter: 'appDownload', note: 'feed register Download button list' },
   '/api/member/user/registerRetentionDlgInfo': { op: OP.EMPTY_RECORDS, adapter: 'emptyList', note: 'no retention dlg' },
   '/api/member/user/rechargePopupDlgInfo': { op: OP.EMPTY_RECORDS, adapter: 'emptyList', note: 'no recharge popup payload' },
   '/api/gohal/heartbeat': { op: OP.LOBBY_OK, adapter: 'lobbyOk' },

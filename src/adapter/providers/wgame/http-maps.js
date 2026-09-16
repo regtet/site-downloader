@@ -1,10 +1,17 @@
 /**
  * 将 wgame HTTP protobuf 结果映射成官方大厅 UI 可用的结构（最小可用字段）。
+ * 货币约定：wgame 内部金额（happyMoney / gameMoney）÷ 1000 = 大厅展示 game_gold。
  */
 const { toLongNumber, protoList } = require('./http-api');
+const { COIN_RATE } = require('./protocol');
+
+function happyToDisplay(v) {
+  const n = toLongNumber(v, 0);
+  return n / (COIN_RATE || 1000);
+}
 
 function mapMoney(res) {
-  return toLongNumber(res && res.gameMoney, 0);
+  return happyToDisplay(res && res.gameMoney);
 }
 
 function mapVipDetail(res) {
@@ -12,24 +19,24 @@ function mapVipDetail(res) {
   const items = protoList(res, 'item').map((it) => ({
     vip: Number(it.vipLevel) || 0,
     name: 'VIP ' + (Number(it.vipLevel) || 0),
-    level_up_deposit: toLongNumber(it.needPoint, 0),
-    level_up_bet: toLongNumber(it.needWater, 0),
-    total_deposit: toLongNumber(it.needPoint, 0),
-    total_bet: toLongNumber(it.needWater, 0),
-    upLevelAward: Number(it.upLevelAward) || 0,
-    monthAward: Number(it.monthAward) || 0,
-    weekAward: Number(it.weekAward) || 0,
+    level_up_deposit: happyToDisplay(it.needPoint),
+    level_up_bet: happyToDisplay(it.needWater),
+    total_deposit: happyToDisplay(it.needPoint),
+    total_bet: happyToDisplay(it.needWater),
+    upLevelAward: happyToDisplay(it.upLevelAward),
+    monthAward: happyToDisplay(it.monthAward),
+    weekAward: happyToDisplay(it.weekAward),
     withdrawFee: Number(it.withdrawFee) || 0,
     withdrawTimes: Number(it.withdrawTimes) || 0,
-    minWithdrawMoney: toLongNumber(it.minWithdrawMoney, 0),
-    maxWithdrawMoney: toLongNumber(it.maxWithdrawMoney, 0),
-    dayMaxWithdrawMoney: toLongNumber(it.dayMaxWithdrawMoney, 0)
+    minWithdrawMoney: happyToDisplay(it.minWithdrawMoney),
+    maxWithdrawMoney: happyToDisplay(it.maxWithdrawMoney),
+    dayMaxWithdrawMoney: happyToDisplay(it.dayMaxWithdrawMoney)
   }));
   return {
     vip_level: level,
     vip: level,
-    curPoint: toLongNumber(res && res.curPoint, 0),
-    curWater: toLongNumber(res && res.curWater, 0),
+    curPoint: happyToDisplay(res && res.curPoint),
+    curWater: happyToDisplay(res && res.curWater),
     VipSettings: items,
     vipList: items,
     raw: res
@@ -54,18 +61,18 @@ function mapPayways(res) {
 }
 
 function mapEnableWithdraw(res) {
-  const enable = toLongNumber(res && res.enableWithdraw, 0);
+  const enable = happyToDisplay(res && res.enableWithdraw);
   return {
     enableWithdraw: enable,
     withdrawable: enable,
     available: enable,
-    lockGiveMoney: toLongNumber(res && res.lockGiveMoney, 0),
-    curWageRequired: toLongNumber(res && res.curWageRequired, 0),
-    needWageRequired: toLongNumber(res && res.needWageRequired, 0),
-    minRunning: toLongNumber(res && res.minRunning, 0),
-    totalRunning: toLongNumber(res && res.totalRunning, 0),
-    // 官方 withdrawSetting 常见字段
-    minAmount: toLongNumber(res && res.minRunning, 0) || 10,
+    lockGiveMoney: happyToDisplay(res && res.lockGiveMoney),
+    curWageRequired: happyToDisplay(res && res.curWageRequired),
+    needWageRequired: happyToDisplay(res && res.needWageRequired),
+    minRunning: happyToDisplay(res && res.minRunning),
+    totalRunning: happyToDisplay(res && res.totalRunning),
+    // 官方 withdrawSetting 常见字段（展示币）
+    minAmount: happyToDisplay(res && res.minRunning) || 10,
     maxAmount: enable || 0,
     fee: 0,
     feeRate: 0
@@ -173,6 +180,7 @@ function mapProxyStatistics(res) {
 }
 
 module.exports = {
+  happyToDisplay,
   mapMoney,
   mapVipDetail,
   mapPayways,

@@ -127,13 +127,19 @@ async function main() {
     const pop = await post(preview.port, '/api/member/user/registerPopupDlgInfo', {}, token);
     result.steps.registerPopup = {
       code: pop.json && pop.json.code,
-      ok: pop.json && pop.json.code === 1 && Array.isArray(pop.json.data)
+      ok: !!(pop.json && pop.json.code === 1
+        && pop.json.data
+        && typeof pop.json.data.content === 'string'
+        && Array.isArray(pop.json.data.buttons)
+        && pop.json.data.buttons.length >= 2)
     };
 
     const popAlias = await post(preview.port, '/api/member/registerPopupDlgInfo', {}, token);
     result.steps.registerPopupAlias = {
       code: popAlias.json && popAlias.json.code,
-      ok: popAlias.json && popAlias.json.code === 1 && Array.isArray(popAlias.json.data)
+      ok: !!(popAlias.json && popAlias.json.code === 1
+        && popAlias.json.data
+        && Array.isArray(popAlias.json.data.buttons))
     };
 
     const newcomer = await post(preview.port, '/api/active/tasks/newcomer_benefit_pop', {}, token);

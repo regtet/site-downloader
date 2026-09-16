@@ -387,11 +387,15 @@ async function httpDrawChannelCode({ token, cfg, timeoutMs }) {
 }
 
 async function httpDrawBackMoney({ token, money, payWay, id, cfg, timeoutMs }) {
+  const { COIN_RATE } = require('./protocol');
+  // 大厅展示币 → wgame 内部金额（×1000）
+  const display = Number(money) || 0;
+  const internal = Math.round(display * (COIN_RATE || 1000));
   return postProto(
     '/api/user/drawBackMoney',
     protoType('TCmd_DrawBackMoneyReq'),
     {
-      money: Number(money) || 0,
+      money: internal,
       payWay: Number(payWay) || 0,
       id: Number(id) || 0
     },

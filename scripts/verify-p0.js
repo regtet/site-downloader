@@ -112,12 +112,13 @@ function testMap() {
   assert(series.matchRoute('/hall/api/member/login').op === 'auth.login', 'login map');
   assert(series.matchRoute('/api/member/register').adapter === 'registerProfile', 'register wraps userInfos');
   assert(series.matchRoute('/api/active/tasks/newcomer_benefit_pop').adapter === 'emptyList', 'newcomer pop empty list');
-  assert(series.matchRoute('/api/member/user/registerPopupDlgInfo').adapter === 'emptyList', 'register popup empty list');
+  assert(series.matchRoute('/api/member/user/registerPopupDlgInfo').adapter === 'registerPopup', 'register popup structured');
   assert(series.matchRoute('/api/member/getFastLogin').op === 'user.info', 'getFastLogin → session');
 
   const {
     adaptRegisterProfile,
-    adaptEmptyList
+    adaptEmptyList,
+    adaptRegisterPopup
   } = require('../src/adapter/series/aniw-lobby/adapters');
   const reg = adaptRegisterProfile({
     ok: true,
@@ -130,6 +131,15 @@ function testMap() {
   assert(reg.data.needApprove === false, 'register needApprove false');
   const el = adaptEmptyList({ ok: true, data: {} });
   assert(el.code === 1 && Array.isArray(el.data) && el.data.length === 0, 'emptyList is []');
+  const rp = adaptRegisterPopup({ ok: true, data: {} });
+  assert(
+    rp.code === 1
+      && rp.data
+      && typeof rp.data.content === 'string'
+      && Array.isArray(rp.data.buttons)
+      && rp.data.buttons.length >= 2,
+    'registerPopup has content+buttons'
+  );
 
   assert(series.matchRoute('/api/member/user/info').adapter === 'memberProfile', 'user.info');
   assert(series.matchRoute('/api/gameCenter/gold').op === 'wallet.gold', 'gold');
@@ -472,16 +482,24 @@ async function testLive() {
         headers: { token: flowToken }
       });
       assert(
-        regPop.json && regPop.json.code === 1 && Array.isArray(regPop.json.data),
-        'registerPopupDlgInfo empty array'
+        regPop.json
+          && regPop.json.code === 1
+          && regPop.json.data
+          && typeof regPop.json.data.content === 'string'
+          && Array.isArray(regPop.json.data.buttons)
+          && regPop.json.data.buttons.length >= 2,
+        'registerPopupDlgInfo content+buttons'
       );
       const regPopAlias = await httpRequest(port, 'POST', '/api/member/registerPopupDlgInfo', {
         body: {},
         headers: { token: flowToken }
       });
       assert(
-        regPopAlias.json && regPopAlias.json.code === 1 && Array.isArray(regPopAlias.json.data),
-        'registerPopupDlgInfo alias empty array'
+        regPopAlias.json
+          && regPopAlias.json.code === 1
+          && regPopAlias.json.data
+          && Array.isArray(regPopAlias.json.data.buttons),
+        'registerPopupDlgInfo alias content+buttons'
       );
       const newcomerPop = await httpRequest(port, 'POST', '/api/active/tasks/newcomer_benefit_pop', {
         body: {},
