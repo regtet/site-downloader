@@ -218,7 +218,11 @@ async function tryHandleAdapter(req, res, options = {}) {
   });
 
   // ② 数据适配
-  const result = series.mapResponse(matched.op, providerResult, { adapter: matched.adapter });
+  const result = series.mapResponse(matched.op, providerResult, {
+    adapter: matched.adapter,
+    body,
+    routePath: matched.path
+  });
 
   console.log(
     '[bridge]',

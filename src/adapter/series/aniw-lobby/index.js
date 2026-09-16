@@ -71,7 +71,7 @@ function mapResponse(op, providerResult, meta) {
                         : op === OP.FEATURE_PENDING
                           ? 'featurePending'
                           : null);
-  return applyAdapter(adapterName, providerResult);
+  return applyAdapter(adapterName, providerResult, meta);
 }
 
 module.exports = {

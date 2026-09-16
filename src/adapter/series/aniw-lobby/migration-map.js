@@ -101,7 +101,7 @@ const CORE_MAP = {
   '/api/active/popRegressActive': { op: OP.EMPTY_RECORDS, adapter: 'emptyList', note: 'no regress popup' },
   '/api/active/recharge/financeGiveReward': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no give reward' },
   '/api/active/redPackIndex': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no redpack' },
-  '/api/active/tasks/task': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no tasks' },
+  '/api/active/tasks/task': { op: OP.LOBBY_OK, adapter: 'taskDetail', note: 'evoke dist taskSeries (Diário)' },
   '/api/active/tasks/newcomer_benefit_pop': { op: OP.EMPTY_RECORDS, adapter: 'emptyList', note: 'no newcomer popup engine' },
 
   // —— 游戏启动：OSS 列表仅展示，点击走 wgame 映射 ——

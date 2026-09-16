@@ -65,6 +65,64 @@ function defaultAppDownloadPayload() {
   };
 }
 
+/**
+ * /api/active/tasks/task —— 喂给 dist 已有 taskSeries（Diário）弹窗。
+ * template: newBenefits=1 taskDaily=2 taskWeekly=3 taskMystery=4
+ * afterLoginPopType: never=0 onceDay=1 constantly=2
+ * status: Goto=0（列表过滤只保留 Goto/Pending*）
+ * 日任务 icon → task_czdm_${icon}；10 = inviteWithfirstCharge
+ */
+function defaultTaskPayload(body) {
+  const template = Number((body && (body.template != null ? body.template : body.taskType)) || 2);
+  const taskId = Number((body && body.taskId) || template || 2);
+  const userLevel =
+    '1,2,3,4,5,6,7,8,9,10,11,10006,10008,10009,10010,10011,10005,10013,10001';
+
+  if (template !== 2) {
+    return {
+      template,
+      taskId,
+      taskName: '',
+      afterLoginPopType: 0,
+      beforeLoginPopType: 0,
+      userLevel,
+      rules: []
+    };
+  }
+
+  const levels = [
+    { max: 5, brisk: 50 },
+    { max: 4, brisk: 40 },
+    { max: 3, brisk: 30 },
+    { max: 2, brisk: 20 }
+  ];
+
+  return {
+    template: 2,
+    taskId,
+    taskName: 'Diário',
+    afterLoginPopType: 1,
+    beforeLoginPopType: 0,
+    userLevel,
+    // 倒计时：active-receive 读 reset 相关字段时有则展示
+    seconds: 9 * 3600 + 19 * 60 + 9,
+    rules: levels.map((lv, idx) => ({
+      ruleid: idx + 1,
+      icon: 10,
+      progress: 0,
+      max: lv.max,
+      brisk: lv.brisk,
+      prize: 0,
+      awardType: 0,
+      status: 0,
+      receiveLogId: 0,
+      extraReceiveLogId: 0,
+      extraStatus: 0,
+      nameExt: 'Concluir primeiro depósito'
+    }))
+  };
+}
+
 function readJsonSafe(p) {
   try {
     if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf8'));
@@ -121,5 +179,6 @@ module.exports = {
   getPopupBody,
   snapshotCandidates,
   defaultRegisterPopupPayload,
-  defaultAppDownloadPayload
+  defaultAppDownloadPayload,
+  defaultTaskPayload
 };

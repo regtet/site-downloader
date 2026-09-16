@@ -249,6 +249,21 @@ function adaptAppDownload(providerResult) {
   return envelope(defaultAppDownloadPayload());
 }
 
+/**
+ * /api/active/tasks/task：必须是带 rules 的任务对象。
+ * emptyRecords 会变成 {list:[]}，dist 的 taskSeries 队列 beforeOpen 直接 false，Diário 弹不起来。
+ */
+function adaptTaskDetail(providerResult, ctx) {
+  if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
+  const { defaultTaskPayload } = require('../../providers/wgame/popup-config');
+  const raw = providerResult.data;
+  if (raw && typeof raw === 'object' && !Array.isArray(raw) && Array.isArray(raw.rules) && raw.rules.length) {
+    return envelope(raw);
+  }
+  const body = (ctx && ctx.body) || {};
+  return envelope(defaultTaskPayload(body));
+}
+
 function adaptCheckRegister(providerResult) {
   if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
   const exists = !!(providerResult.data && providerResult.data.exists);
@@ -669,13 +684,14 @@ const ADAPTERS = {
   emptyList: adaptEmptyList,
   registerPopup: adaptRegisterPopup,
   appDownload: adaptAppDownload,
+  taskDetail: adaptTaskDetail,
   redDotEmpty: adaptRedDotEmpty,
   fingerprint: adaptFingerprint,
   listAccount: adaptListAccount,
   featurePending: adaptFeaturePending
 };
 
-function applyAdapter(adapterName, providerResult) {
+function applyAdapter(adapterName, providerResult, meta) {
   const fn = ADAPTERS[adapterName];
   if (!fn) {
     return failEnvelope({
@@ -684,7 +700,7 @@ function applyAdapter(adapterName, providerResult) {
       msg: 'adapter pending: ' + String(adapterName || '')
     });
   }
-  return fn(providerResult);
+  return fn(providerResult, meta);
 }
 
 module.exports = {
@@ -699,6 +715,7 @@ module.exports = {
   adaptEmptyList,
   adaptRegisterPopup,
   adaptAppDownload,
+  adaptTaskDetail,
   adaptWalletGold,
   adaptVipSummary,
   adaptVipDetails,
