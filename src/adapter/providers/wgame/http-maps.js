@@ -88,6 +88,124 @@ function mapDrawChannels(res) {
   }));
 }
 
+/** 大厅 typeId：PIX=5；无通道时默认 CPF(wayId=3) 以便 Conta 页可绑 */
+const LOBBY_TYPE_PIX = 5;
+const DEFAULT_PIX_CHANNELS = [{ wayId: 3, wayCode: 'CPF', id: 3, code: 'CPF' }];
+
+/**
+ * withdrawInfoV2/V3：enableWithdraw + drawChannelCode + paywayList → 大厅 Conta/提现结构
+ */
+function mapWithdrawInfo({ enableRes, chRes, paywayRes, vipRes } = {}) {
+  const setting = mapEnableWithdraw(enableRes);
+  let channels = mapDrawChannels(chRes);
+  if (!channels.length) channels = DEFAULT_PIX_CHANNELS.slice();
+  const payways = mapPayways(paywayRes);
+
+  let minAmount = setting.minAmount || 10;
+  let maxAmount = setting.maxAmount || setting.enableWithdraw || 0;
+  if (vipRes) {
+    const vip = mapVipDetail(vipRes);
+    if (vip && vip.VipSettings && vip.VipSettings.length) {
+      const cur = vip.VipSettings.find((x) => x.vip === vip.vip_level) || vip.VipSettings[0];
+      if (cur) {
+        if (cur.minWithdrawMoney) minAmount = cur.minWithdrawMoney;
+        if (cur.maxWithdrawMoney) maxAmount = cur.maxWithdrawMoney;
+      }
+    }
+  }
+
+  const methods = channels.map((ch) => {
+    const code = String(ch.wayCode || ch.code || 'PIX');
+    const wayId = Number(ch.wayId || ch.id) || 0;
+    return {
+      typeId: LOBBY_TYPE_PIX,
+      withdrawType: wayId,
+      withdrawTypeName: code,
+      bindEnabled: true,
+      accountLimit: 1,
+      withdrawMax: maxAmount,
+      withdrawMin: minAmount,
+      normalWithdrawEnabled: true,
+      walletWithdrawEnabled: false,
+      deleteEnabled: true,
+      requiredSelectBank: false,
+      requiredIFSC: false,
+      subTypes: [code],
+      logo: '',
+      kindTips: '',
+      addAccountKindTips: '',
+      options: [],
+      withdrawMoneyRule: { formatAmounts: [], moneyType: 0 }
+    };
+  });
+
+  const withdrawType = {
+    typeId: LOBBY_TYPE_PIX,
+    typeName: 'PIX',
+    typeShowName: 'PIX',
+    addTypeName: 'PIX',
+    withdrawMax: maxAmount,
+    withdrawMin: minAmount,
+    logo: '',
+    subTypes: methods.map((m) => m.withdrawTypeName),
+    currencyCodes: [],
+    showKeyList: [],
+    withdrawMethod: methods,
+    withdrawMethods: methods
+  };
+
+  const channelById = new Map(channels.map((c) => [Number(c.wayId || c.id) || 0, c]));
+  const accounts = payways.map((pw) => {
+    const ch = channelById.get(Number(pw.payWayType) || 0) || {};
+    const code = String(ch.wayCode || ch.code || pw.bankName || 'PIX');
+    return {
+      id: pw.id,
+      typeId: LOBBY_TYPE_PIX,
+      accountType: Number(pw.payWayType) || 0,
+      withdrawTypeName: code,
+      channelName: code,
+      bankName: String(pw.bankName || code),
+      account: String(pw.account || pw.bankCardNo || ''),
+      decryptAccount: String(pw.account || pw.bankCardNo || ''),
+      realName: String(pw.realName || pw.userName || ''),
+      userName: String(pw.userName || ''),
+      mail: String(pw.mail || ''),
+      ifscCode: String(pw.ifscCode || ''),
+      logo: '',
+      default: 0,
+      stop: 0,
+      bankStop: 0
+    };
+  });
+
+  return {
+    accounts,
+    accountsV2: accounts,
+    cryptoList: [],
+    withdrawTypes: [withdrawType],
+    withdrawTypesV2: [withdrawType],
+    withdrawTaskInfo: { pendingCount: 0 },
+    auditCancelStatus: 0,
+    auditCancelMode: 0,
+    cancelAmount: '0',
+    checkCpfRule: 0,
+    pendingCount: 0,
+    isEnableChannel: true,
+    enableWithdraw: setting.enableWithdraw,
+    withdrawable: setting.withdrawable,
+    available: setting.available,
+    lockGiveMoney: setting.lockGiveMoney,
+    curWageRequired: setting.curWageRequired,
+    needWageRequired: setting.needWageRequired,
+    minAmount,
+    maxAmount,
+    fee: setting.fee || 0,
+    feeRate: setting.feeRate || 0,
+    channels,
+    list: channels
+  };
+}
+
 function mapChargeRecords(res) {
   const list = protoList(res, 'item').map((it) => ({
     orderNo: String(it.order || ''),
@@ -186,6 +304,7 @@ module.exports = {
   mapPayways,
   mapEnableWithdraw,
   mapDrawChannels,
+  mapWithdrawInfo,
   mapChargeRecords,
   mapWithdrawRecords,
   mapProxyStatistics

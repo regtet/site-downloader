@@ -104,21 +104,30 @@ function defaultTaskPayload(body) {
     afterLoginPopType: 1,
     beforeLoginPopType: 0,
     userLevel,
-    // 倒计时：active-receive 读 reset 相关字段时有则展示
     seconds: 9 * 3600 + 19 * 60 + 9,
     rules: levels.map((lv, idx) => ({
       ruleid: idx + 1,
+      // 日任务 icon→task_czdm_10 = inviteWithfirstCharge → 文案「Convidar amigos」
       icon: 10,
+      // desc 槽位读 rule.name 作为主标题
+      name: 'Convidar amigos',
+      nameExt: 'Concluir primeiro depósito',
       progress: 0,
       max: lv.max,
+      // 绿色闪电图标：award-info 用 bonusEnum=Activity(1) + brisk 数值
       brisk: lv.brisk,
-      prize: 0,
-      awardType: 0,
+      bonusEnum: 1,
+      bonusBigEnum: 0,
       status: 0,
+      btnStatus: 0,
+      logCategory: 0,
       receiveLogId: 0,
       extraReceiveLogId: 0,
       extraStatus: 0,
-      nameExt: 'Concluir primeiro depósito'
+      receiveDuration: 0,
+      periodTime: 0,
+      canReceiveTime: 0,
+      receiveTimeType: 0
     }))
   };
 }

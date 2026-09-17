@@ -61,7 +61,7 @@ function resolvePortraitUrl(faceId) {
 function buildPermissionOpt(user) {
   // 按会话真实绑定状态；未知提现相关一律 false（新号常见态）
   return {
-    hasWithdrawPasswd: false,
+    hasWithdrawPasswd: !!(user && (user.hasWithdrawPasswd || (user.permissionOpt && user.permissionOpt.hasWithdrawPasswd))),
     hasSecurityQuestion: false,
     hasWithdrawAccount: false,
     hasPassword: true,
@@ -405,6 +405,11 @@ function adaptAvatars(providerResult) {
 }
 
 function adaptPayPending(providerResult) {
+  if (providerResult && providerResult.ok) {
+    const d = providerResult.data;
+    if (Array.isArray(d)) return envelope(d);
+    return envelope(d && typeof d === 'object' ? d : {});
+  }
   const msg = (providerResult && providerResult.msg)
     || 'payment adapter pending: wgame has no pay channel';
   const code = (providerResult && providerResult.code != null) ? providerResult.code : 10060;
@@ -563,10 +568,13 @@ function adaptPlatformPayload(providerResult) {
   return envelope(providerResult.data && typeof providerResult.data === 'object' ? providerResult.data : {});
 }
 
-/** 心跳/埋点：无业务载荷 */
+/** 心跳/埋点/充值辅接口：有 data 则透传（calculateGift / fee 等） */
 function adaptLobbyOk(providerResult) {
   if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
-  return envelope({});
+  const d = providerResult.data;
+  if (d == null) return envelope({});
+  if (Array.isArray(d)) return envelope(d);
+  return envelope(typeof d === 'object' ? d : {});
 }
 
 /**

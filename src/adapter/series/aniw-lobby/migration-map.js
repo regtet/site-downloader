@@ -68,9 +68,16 @@ const CORE_MAP = {
   '/api/finance/pay/offlineOrderV4': { op: OP.PAY_CREATE, adapter: 'payCreate', note: 'staticQr or http' },
   '/api/finance/pay/orderInfo': { op: OP.PAY_ORDER_INFO, adapter: 'payOrderInfo', note: 'local order poll' },
   '/api/finance/pay/orderInfoV2': { op: OP.PAY_ORDER_INFO, adapter: 'payOrderInfo', note: 'local order poll' },
-  '/api/finance/pay/calculateGift': { op: OP.LOBBY_OK, adapter: 'lobbyOk', note: 'no gift calc yet' },
-  '/api/finance/pay/getPayOrderFee': { op: OP.LOBBY_OK, adapter: 'lobbyOk', note: 'no fee yet' },
-  '/api/finance/pay/getPayOrderFeeV2': { op: OP.LOBBY_OK, adapter: 'lobbyOk', note: 'no fee yet' },
+  '/api/finance/pay/calculateGift': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'gift empty-ok' },
+  '/api/finance/pay/getPayOrderFee': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'fee zero-ok' },
+  '/api/finance/pay/getPayOrderFeeV2': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'fee zero-ok' },
+  '/api/finance/pay/delPayInfo': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'delete saved pay info' },
+  '/api/finance/pay/refreshStatus': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'poll local order' },
+  '/api/finance/pay/transferConfirm': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'transfer confirm soft-ok' },
+  '/api/finance/pay/transferConfirmV2': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'transfer confirm soft-ok' },
+  '/api/finance/pay/transferCancel': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'transfer cancel soft-ok' },
+  '/api/finance/pay/transferCancelV2': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'transfer cancel soft-ok' },
+  '/api/finance/pay/wallet/no/buy': { op: OP.PAY_CREATE, adapter: 'payCreate', note: 'no-wallet buy → same create' },
   '/api/finance/payplatformlistV3': { op: OP.PAY_CHANNELS, adapter: 'payChannels' },
   '/api/finance/payplatformlistV4': { op: OP.PAY_CHANNELS, adapter: 'payChannels' },
 
@@ -78,6 +85,8 @@ const CORE_MAP = {
   '/api/finance/certify/withdrawSetting': { op: OP.WITHDRAW_PENDING, adapter: 'withdrawPending', note: 'http enableWithdraw' },
   '/api/finance/certify/withdrawSettingV2': { op: OP.WITHDRAW_PENDING, adapter: 'withdrawPending', note: 'http enableWithdraw' },
   '/api/finance/certify/withdrawSettingV3': { op: OP.WITHDRAW_PENDING, adapter: 'withdrawPending', note: 'http enableWithdraw' },
+  '/api/finance/certify/withdrawInfoV2': { op: OP.WITHDRAW_PENDING, adapter: 'withdrawPending', note: 'http enableWithdraw+paywayList+channels' },
+  '/api/finance/certify/withdrawInfoV3': { op: OP.WITHDRAW_PENDING, adapter: 'withdrawPending', note: 'http enableWithdraw+paywayList+channels' },
   '/api/finance/certify/withdraw': { op: OP.WITHDRAW_PENDING, adapter: 'withdrawPending', note: 'http drawBackMoney' },
   '/api/finance/certify/withdrawV2': { op: OP.WITHDRAW_PENDING, adapter: 'withdrawPending', note: 'http drawBackMoney' },
   '/api/finance/certify/withdrawRecord': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'http withdrawRecord' },
@@ -85,8 +94,18 @@ const CORE_MAP = {
   '/api/finance/certify/getWithdrawAccount': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'http paywayList' },
   '/api/finance/certify/withdrawAccountList': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'http paywayList' },
 
-  // —— 充值订单流水 ——
+  // —— 充值订单流水 / 辅配置 ——
   '/api/finance/pay/orderListV3': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'http chargeRecord' },
+  '/api/finance/pay/orderListV4': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'http chargeRecord' },
+  '/api/finance/pay/NOPayList': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no-pay list empty' },
+  '/api/finance/certify/uploadpay': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'upload voucher soft-ok' },
+  '/api/lobby/finance/getPayChooseBank': { op: OP.LOBBY_OK, adapter: 'lobbyOk', note: 'bank choose empty-ok' },
+  '/api/lobby/finance/getPayFieldOss': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'pay field OSS' },
+  '/api/active/recharge/queryOrderRewardDetail': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords' },
+  '/api/club/recharge/payBankInfo': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords' },
+  '/api/club/recharge/selfOrderInfo': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords' },
+  '/api/club/recharge/payCancel': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'club cancel soft-ok' },
+  '/api/club/recharge/payConfirm': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'club confirm soft-ok' },
   '/api/finance/claim/userInfo': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no claim engine' },
   '/api/finance/maxChargeRate': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'OSS json preferred' },
   '/api/finance/pay/payTypeSetting': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'pay page HOT/amount UI' },
@@ -149,6 +168,23 @@ const CORE_MAP = {
   '/api/finance/certify/bindCrypto': { op: OP.WITHDRAW_PENDING, adapter: 'withdrawPending' },
   '/api/finance/certify/cashV3': { op: OP.WITHDRAW_PENDING, adapter: 'withdrawPending' },
   '/api/finance/certify/deleteAccount': { op: OP.WITHDRAW_PENDING, adapter: 'withdrawPending' },
+
+  // —— 支付/提现密码（大厅 security → wgame setWithdrawPwd / verifyWithdrawPwd）——
+  '/api/member/user/security/verifyWithdrawPass': {
+    op: OP.WITHDRAW_PENDING,
+    adapter: 'withdrawPending',
+    note: 'http verifyWithdrawPwd'
+  },
+  '/api/member/user/security/modifyWithdrawPass': {
+    op: OP.WITHDRAW_PENDING,
+    adapter: 'withdrawPending',
+    note: 'http setWithdrawPwd'
+  },
+  '/api/finance/certify/verifyWithdrawalPasswordV2': {
+    op: OP.WITHDRAW_PENDING,
+    adapter: 'withdrawPending',
+    note: 'http verifyWithdrawPwd'
+  },
 
   // —— 活动：列表/公告空；领取类明确 pending ——
   '/api/active/announcement': { op: OP.UPSTREAM, adapter: 'lobbyOk' },
