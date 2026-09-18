@@ -13,6 +13,7 @@ function main() {
   try {
     const result = exportMigrated(siteId);
     console.log('Build →', result.outputDir);
+    if (result.deployDir) console.log('Deploy →', result.deployDir);
     console.log('Done.');
   } catch (err) {
     console.error(err.message);

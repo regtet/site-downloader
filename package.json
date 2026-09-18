@@ -11,6 +11,7 @@
     "postinstall": "node scripts/install-browsers.js",
     "promote-input": "node scripts/promote-input.js",
     "export-migrated": "node scripts/export-migrated.js",
+    "pack-deploy": "node scripts/pack-deploy.js",
     "verify-p0": "node scripts/verify-p0.js",
     "smoke-e2e": "node scripts/smoke-e2e-679win.js",
     "wgame-live-probe": "node scripts/wgame-live-probe.js",

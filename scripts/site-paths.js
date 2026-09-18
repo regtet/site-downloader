@@ -2,7 +2,8 @@
  * 站点目录约定（多站点、可反复生成）
  *
  *   input/<siteId>/    ← 原始 dist，永远不改
- *   output/<siteId>/   ← 接口适配后的部署包，可随时删掉重生成
+ *   output/<siteId>/   ← 接口适配后的静态壳 + adapter-hosts
+ *   deploy/<siteId>/   ← 可拷走部署：www + Node 桥（yarn pack-deploy）
  *
  * siteId 例: 679win、675win、example
  */

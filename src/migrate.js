@@ -250,6 +250,17 @@ function exportMigrated(siteId) {
   };
   fs.writeFileSync(path.join(out, 'migration-manifest.json'), JSON.stringify(manifest, null, 2), 'utf8');
 
+  let deployPack = null;
+  // 默认打出 deploy/<siteId>（静态 www + Node 桥）；设 SKIP_PACK_DEPLOY=1 可跳过
+  if (process.env.SKIP_PACK_DEPLOY !== '1') {
+    try {
+      const { packDeploy } = require('../scripts/pack-deploy');
+      deployPack = packDeploy(id);
+    } catch (err) {
+      console.warn('[exportMigrated] pack-deploy skipped:', (err && err.message) || err);
+    }
+  }
+
   return {
     siteId: id,
     inputDir: src,
@@ -257,7 +268,8 @@ function exportMigrated(siteId) {
     adapterHosts,
     wgameWeb: adapterHosts.wgameWeb,
     phase: 'P0',
-    ops: manifest.ops
+    ops: manifest.ops,
+    deployDir: deployPack && deployPack.deployDir
   };
 }
 

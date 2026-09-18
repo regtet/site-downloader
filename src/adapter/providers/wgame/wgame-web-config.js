@@ -82,8 +82,10 @@ function deriveLobbyGameUrlFromProxyList(list) {
 function resolveWgameWebRoot() {
   const candidates = [];
   if (process.env.WGAME_WEB_PATH) candidates.push(process.env.WGAME_WEB_PATH);
-  candidates.push(path.join(ROOT, '..', 'wgame_web'));
+  // 部署包：cwd/wgame_web 或与 server.js 同级
+  candidates.push(path.join(process.cwd(), 'wgame_web'));
   candidates.push(path.join(ROOT, 'wgame_web'));
+  candidates.push(path.join(ROOT, '..', 'wgame_web'));
   for (const c of candidates) {
     const resolved = path.resolve(c);
     const cfgPath = path.join(resolved, CONFIG_REL);
