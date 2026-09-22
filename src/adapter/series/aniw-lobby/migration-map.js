@@ -41,6 +41,8 @@ const CORE_MAP = {
 
   // —— VIP（会话 vip_level + 等级表）——
   '/api/member/user/vip': { op: OP.USER_VIP, adapter: 'vipSummary' },
+  '/api/member/user/security/status': { op: OP.LOBBY_OK, adapter: 'securityStatus' },
+  '/api/active/withdraw/getAllActive': { op: OP.LOBBY_OK, adapter: 'withdrawActiveList' },
   '/api/member/user/vipDetails': { op: OP.USER_VIP, adapter: 'vipDetails' },
   '/api/member/user/vipInfoV2': { op: OP.USER_VIP, adapter: 'vipInfoV2', note: 'session vip progress card' },
   '/api/member/vipInfoUnLogin': { op: OP.LOBBY_OK, adapter: 'vipLevelList', note: 'vip ladder before login' },
@@ -107,7 +109,7 @@ const CORE_MAP = {
   '/api/club/recharge/payCancel': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'club cancel soft-ok' },
   '/api/club/recharge/payConfirm': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'club confirm soft-ok' },
   '/api/finance/claim/userInfo': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no claim engine' },
-  '/api/finance/maxChargeRate': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'OSS json preferred' },
+  '/api/finance/maxChargeRate': { op: OP.LOBBY_OK, adapter: 'maxChargeRate' },
   '/api/finance/pay/payTypeSetting': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'pay page HOT/amount UI' },
   '/api/finance/payPopup/content': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'pay popup content OSS' },
   '/api/finance/payPopup/settingAndSlogans': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'pay popup slogans OSS' },
@@ -116,7 +118,10 @@ const CORE_MAP = {
   '/api/active/category': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'upstream activity categories' },
   '/api/active/getByTemplate': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'activity banners OSS/HAR' },
   '/api/active/getRedDotV2': { op: OP.EMPTY_RECORDS, adapter: 'redDotEmpty', note: 'zero red dots' },
-  '/api/active/pop_canReceiveReward': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no rewards' },
+  '/api/active/pop_canReceiveReward': { op: OP.LOBBY_OK, adapter: 'canReceivePop', note: 'no rewards' },
+  '/api/active/returnGold/summary/v3': { op: OP.LOBBY_OK, adapter: 'returnGoldSummary' },
+  '/api/yuebao/index': { op: OP.LOBBY_OK, adapter: 'yuebaoIndex' },
+  '/api/finance/claim/unreadMsgCnt': { op: OP.LOBBY_OK, adapter: 'unreadCount' },
   '/api/active/popRegressActive': { op: OP.EMPTY_RECORDS, adapter: 'emptyList', note: 'no regress popup' },
   '/api/active/recharge/financeGiveReward': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no give reward' },
   '/api/active/redPackIndex': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no redpack' },
@@ -189,9 +194,9 @@ const CORE_MAP = {
   // —— 活动：列表/公告空；领取类明确 pending ——
   '/api/active/announcement': { op: OP.UPSTREAM, adapter: 'lobbyOk' },
   '/api/active/categoryV2': { op: OP.UPSTREAM, adapter: 'lobbyOk' },
-  '/api/active/receivedAwardList': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords' },
-  '/api/active/unreceiveAwardList': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords' },
-  '/api/active/expireAwardList': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords' },
+  '/api/active/receivedAwardList': { op: OP.EMPTY_RECORDS, adapter: 'awardList' },
+  '/api/active/unreceiveAwardList': { op: OP.EMPTY_RECORDS, adapter: 'awardList' },
+  '/api/active/expireAwardList': { op: OP.EMPTY_RECORDS, adapter: 'awardList' },
   '/api/active/coupon/list': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords' },
   '/api/active/coupon/popList': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords' },
   '/api/active/afterRechargePop': { op: OP.LOBBY_OK, adapter: 'lobbyOk' },
@@ -217,13 +222,16 @@ const CORE_MAP = {
   '/api/bet-manager/recentreport/bet_report/personal/_query': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords' },
 
   // —— 充值优惠比例（OSS 快照）——
-  '/api/finance/maxChargeRate': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'charge rate from OSS' },
+  '/api/finance/maxChargeRate': { op: OP.LOBBY_OK, adapter: 'maxChargeRate' },
 
   // —— 代理：配置驱动（providerOptions.agent）；默认零态可打开页面 ——
   '/api/agent/promote/config/agentMode': { op: OP.AGENT_MODE, adapter: 'agentBlob', note: 'providerOptions.agent' },
   '/api/agent/promote/userAgentMode': { op: OP.AGENT_MODE, adapter: 'agentBlob', note: 'http/local agent mode' },
   '/api/agent/promote/agentBasic': { op: OP.AGENT_INDEX, adapter: 'agentBlob', note: 'http proxyStatistics' },
-  '/api/agent/promote/index/settleTime': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'http proxySubBetConfig' },
+  '/api/agent/promote/index/settleTime': { op: OP.LOBBY_OK, adapter: 'agentSettleTime' },
+  '/api/agent/promote/index/indexInfoV2': { op: OP.AGENT_INDEX, adapter: 'agentBlob' },
+  '/api/agent/promote/index/agentCommission': { op: OP.AGENT_COMMISSION, adapter: 'agentBlob' },
+  '/api/agent/promote/config/tutorial': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'official tutorial html' },
   '/api/agent/promote/config/index': { op: OP.UPSTREAM, adapter: 'agentBlob', note: 'upstream promote config' },
   '/api/agent/promote/config/getAgentConfig': { op: OP.UPSTREAM, adapter: 'agentBlob', note: 'upstream agent config' },
   '/api/agent/promote/report/agentPromotion': { op: OP.AGENT_PROMOTION, adapter: 'agentBlob', note: 'providerOptions.agent' },

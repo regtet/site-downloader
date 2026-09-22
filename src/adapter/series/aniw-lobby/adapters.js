@@ -278,111 +278,250 @@ function adaptWalletGold(providerResult) {
   }
   const gold = Number(d.game_gold != null ? d.game_gold : d.totalGold);
   return envelope({
+    code: 1,
     game_gold: gold,
+    bonus: '0',
     totalGold: String(gold),
-    availableMargin: gold,
-    bonus: '0'
+    bonusRequireBet: '0',
+    auditMode: 1
   });
 }
 
+function vipNum(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** wgame 等级行 → 官方 VipSettings 一项。没有的奖励、图标留 0 / 空字符串。 */
+function toOfficialVipSetting(it) {
+  const row = it || {};
+  const vip = vipNum(row.vip);
+  return {
+    vip,
+    name: row.name ? String(row.name) : ('VIP' + vip),
+    valid_bet: vipNum(row.valid_bet != null ? row.valid_bet : row.level_up_bet),
+    total_deposit: vipNum(row.total_deposit != null ? row.total_deposit : row.level_up_deposit),
+    vip_gift: vipNum(row.vip_gift != null ? row.vip_gift : row.upLevelAward),
+    birthday_gift: vipNum(row.birthday_gift),
+    day_bet: vipNum(row.day_bet),
+    day_bonus: vipNum(row.day_bonus),
+    week_bet: vipNum(row.week_bet),
+    week_bonus: vipNum(row.week_bonus != null ? row.week_bonus : row.weekAward),
+    month_bet: vipNum(row.month_bet),
+    month_bonus: vipNum(row.month_bonus != null ? row.month_bonus : row.monthAward),
+    icon_color: row.icon_color ? String(row.icon_color) : '',
+    icon_style: row.icon_style ? String(row.icon_style) : '',
+    day_deposit: vipNum(row.day_deposit),
+    week_deposit: vipNum(row.week_deposit),
+    month_deposit: vipNum(row.month_deposit),
+    level_up_bet: vipNum(row.level_up_bet),
+    level_up_deposit: vipNum(row.level_up_deposit),
+    last_month_deposit: 0,
+    last_month_bet: 0,
+    max_month_bonus: 0,
+    max_week_bonus: 0,
+    max_day_bonus: 0,
+    icon_card: '',
+    icon_final_image: '',
+    vip_gift_status: 0,
+    week_bonus_status: 0,
+    month_bonus_status: 0,
+    day_bonus_status: 0,
+    maximumDailyWithdrawalAmount: vipNum(row.maximumDailyWithdrawalAmount != null ? row.maximumDailyWithdrawalAmount : row.dayMaxWithdrawMoney),
+    maximumDailyWithdrawalFreeOfFee: 0,
+    maximumDailyWithdrawalNumber: vipNum(row.maximumDailyWithdrawalNumber != null ? row.maximumDailyWithdrawalNumber : row.withdrawTimes),
+    birthday_gift_status: 0,
+    birthday_gift_receive_duration: 0,
+    vip_gift_receive_duration: 0,
+    week_bonus_receive_duration: 0,
+    month_bonus_receive_duration: 0,
+    day_bonus_receive_duration: 0,
+    bCanReceiveTime: 0,
+    vCanReceiveTime: 0,
+    wCanReceiveTime: 0,
+    mCanReceiveTime: 0,
+    dCanReceiveTime: 0,
+    vTimeType: 0,
+    bTimeType: 0,
+    dTimeType: 0,
+    wTimeType: 0,
+    wTimeDay: 0,
+    mTimeType: 0,
+    mTimeDay: 0,
+    giftlogs: null,
+    weeklogs: null,
+    monthlogs: null,
+    daylogs: null,
+    birthdaylogs: null,
+    receivedgiftlogs: null,
+    vgRcedStatus: 0,
+    dbRcedStatus: 0,
+    wbRcedStatus: 0,
+    mbRcedStatus: 0,
+    bdRcedStatus: 0
+  };
+}
+
+function officialVipLadder(user) {
+  const raw = user && Array.isArray(user.VipSettings) ? user.VipSettings : [];
+  const settings = raw.map(toOfficialVipSetting);
+  const level = vipNum(user && (user.vip_level != null ? user.vip_level : user.vip));
+  const cur = settings.find((row) => row.vip === level) || null;
+  const next = settings.find((row) => row.vip === level + 1) || null;
+  const deposit = vipNum(user && user.curPoint);
+  const bet = vipNum(user && user.curWater);
+  const nextDep = next ? next.level_up_deposit : 0;
+  const nextBet = next ? next.level_up_bet : 0;
+  return {
+    settings,
+    level,
+    cur,
+    next,
+    deposit,
+    bet,
+    nextDep,
+    nextBet,
+    needDeposit: Math.max(0, nextDep - deposit),
+    needBet: Math.max(0, nextBet - bet)
+  };
+}
+
 /**
- * /api/member/user/vip —— 官方 vipInfos 常为 null；有数据时含等级进度
- * 无进度字段时只回 vip 等级
+ * /api/member/user/vip —— 个人中心进度卡
+ * 官方字段：vip / next_vip / need_deposit / need_validbet / user_deposit / user_validbet
  */
 function adaptVipSummary(providerResult) {
   if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
-  const level = Number((providerResult.data && providerResult.data.vip_level) || 0);
-  // 官方新号 vipInfos 可为 null；回最小可用对象避免前端整页崩
-  return envelope({
-    vip: level,
-    vip_level: level,
-    vip_status: 1
-  });
-}
-
-/**
- * 对齐官方 vipDetails：
- * { vip, icon_color_value, vip_status, icon_color, icon_style, current_style }
- */
-function adaptVipDetails(providerResult) {
-  if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
-  const level = Number((providerResult.data && providerResult.data.vip_level) || 0);
-  return envelope({
-    vip: level,
-    vip_status: 1,
-    icon_color_value: DEFAULT_VIP_ICON_COLOR_VALUE,
-    icon_color: DEFAULT_VIP_ICON_COLOR,
-    icon_style: DEFAULT_VIP_ICON_STYLE,
-    current_style: 2
-  });
-}
-
-/** 默认 VIP 等级表（allVipLevel / vipInfoUnLogin 无 OSS 快照时） */
-function buildDefaultVipSettings() {
-  const deposits = [0, 100, 500, 2000, 10000, 50000, 100000];
-  return deposits.map((dep, idx) => ({
-    vip: idx,
-    name: 'VIP ' + idx,
-    level_up_deposit: idx < deposits.length - 1 ? deposits[idx + 1] : dep,
-    level_up_bet: 0,
-    total_deposit: dep,
-    total_bet: 0
-  }));
-}
-
-/**
- * /api/member/user/vipInfoV2 —— 个人中心 VIP 进度卡
- * 前端读 vip/next_vip/need_deposit/need_validbet 等字段
- */
-function adaptVipInfoV2(providerResult) {
-  if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
   const user = providerResult.data || {};
-  const level = Number(user.vip_level != null ? user.vip_level : (user.vip != null ? user.vip : 0));
-  const settings = Array.isArray(user.VipSettings) && user.VipSettings.length
-    ? user.VipSettings
-    : buildDefaultVipSettings();
-  const cur = settings.find((row) => Number(row.vip) === level) || settings[0];
-  const next = settings.find((row) => Number(row.vip) === level + 1) || cur;
+  const p = officialVipLadder(user);
   const nickname = (user.nickname != null && String(user.nickname).trim())
     ? String(user.nickname)
-    : (user.account ? String(user.account) : '');
-  const needDeposit = Math.max(
-    0,
-    Number(next && next.level_up_deposit != null ? next.level_up_deposit : 0)
-      - Number(user.curPoint != null ? user.curPoint : 0)
-  );
-  const needBet = Math.max(
-    0,
-    Number(next && next.level_up_bet != null ? next.level_up_bet : 0)
-      - Number(user.curWater != null ? user.curWater : 0)
-  );
+    : '';
   return envelope({
-    vip: level,
-    next_vip: next ? Number(next.vip) : level,
-    need_deposit: needDeposit,
-    need_validbet: needBet,
-    next_vip_deposit: Number(next && next.level_up_deposit || 0),
-    next_vip_validbet: Number(next && next.level_up_bet || 0),
+    vip: p.level,
     vip_status: 1,
+    user_validbet: p.bet,
+    user_deposit: p.deposit,
+    next_vip: p.next ? p.next.vip : p.level,
+    next_vip_validbet: p.nextBet,
+    need_validbet: p.needBet,
+    next_vip_deposit: p.nextDep,
+    need_deposit: p.needDeposit,
+    username: user.userId != null ? String(user.userId) : '',
+    nickname,
+    useridx: vipNum(user.userId),
+    realname: '',
     birthday: '',
-    realname: nickname
+    weichat: '',
+    wechat: '',
+    whatsapp: '',
+    facebook: '',
+    telegram: '',
+    zalo: '',
+    line: '',
+    twitter: '',
+    threads: '',
+    instagram: '',
+    facebook_disable_edit: 0,
+    phone: user.phone ? String(user.phone) : '',
+    email: user.email ? String(user.email) : '',
+    show_deposit: true,
+    show_valid_bet: true,
+    icon_style: '',
+    icon_color: '',
+    icon_color_value: '',
+    next_icon_style: '',
+    next_icon_color: '',
+    next_icon_color_value: '',
+    registerTime: vipNum(user.register_time),
+    background_index: '',
+    current_style: '2',
+    vip_icon_show_type: '0',
+    icon_card: '',
+    icon_final_image: '',
+    nex_vip_gift: p.next ? p.next.vip_gift : 0
+  });
+}
+
+/** /api/member/user/vipDetails —— 当前等级的门槛和奖金 */
+function adaptVipDetails(providerResult) {
+  if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
+  const p = officialVipLadder(providerResult.data || {});
+  const cur = p.cur || toOfficialVipSetting({ vip: p.level });
+  return envelope({
+    vip: p.level,
+    name: cur.name,
+    vip_status: 1,
+    valid_bet: cur.valid_bet,
+    total_deposit: cur.total_deposit,
+    vip_gift: cur.vip_gift,
+    vip_bonus: 0,
+    vip_bonus_details: [],
+    month_bet: cur.month_bet,
+    month_deposit: cur.month_deposit,
+    month_bonus: cur.month_bonus,
+    week_bet: cur.week_bet,
+    week_deposit: cur.week_deposit,
+    week_bonus: cur.week_bonus,
+    day_bet: cur.day_bet,
+    day_deposit: cur.day_deposit,
+    day_bonus: cur.day_bonus,
+    keep_level_bet: 0,
+    keep_level_deposit: 0,
+    vip_gift_status: 0,
+    week_bonus_status: 0,
+    month_bonus_status: 0,
+    day_bonus_status: 0,
+    icon_style: '',
+    icon_color: '',
+    icon_color_value: '',
+    icon_card: '',
+    icon_final_image: '',
+    show_deposit: true,
+    show_valid_bet: true,
+    birthday_gift_status: 0,
+    birthday_gift_receive_duration: 0,
+    vip_gift_receive_duration: 0,
+    week_bonus_receive_duration: 0,
+    month_bonus_receive_duration: 0,
+    day_bonus_receive_duration: 0,
+    saveTime: 0
+  });
+}
+
+/** /api/member/user/vipInfoV2 —— 整张等级表，进度数字在 /vip */
+function adaptVipInfoV2(providerResult) {
+  if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
+  const p = officialVipLadder(providerResult.data || {});
+  return envelope({
+    VipSettings: p.settings,
+    VipRule: '',
+    ruleTextData: {},
+    ruleType: 0,
+    translateRuleText: '',
+    totalAmount: 0,
+    totalVipReward: 0,
+    weekReceiveDate: 0,
+    monthReceiveDate: 0,
+    keepLevelStatus: 0,
+    current_style: '2',
+    vip_icon_show_type: '0',
+    vipShowQuestionStatus: 0
   });
 }
 
 /** /api/active/allVipLevel、/api/member/vipInfoUnLogin */
 function adaptVipLevelList(providerResult) {
   const data = (providerResult && providerResult.ok && providerResult.data) || {};
-  const settings = Array.isArray(data.VipSettings) && data.VipSettings.length
-    ? data.VipSettings
-    : buildDefaultVipSettings();
-  const level = Number(data.vip_level != null ? data.vip_level : (data.vip != null ? data.vip : 0));
+  const p = officialVipLadder(data);
   return envelope({
-    VipSettings: settings,
-    vip_icon_show_type: 2,
-    icon_color_value: DEFAULT_VIP_ICON_COLOR_VALUE,
-    icon_style: DEFAULT_VIP_ICON_STYLE,
-    icon_color: DEFAULT_VIP_ICON_COLOR,
-    current_vip: level,
+    VipSettings: p.settings,
+    vip_icon_show_type: '0',
+    icon_color_value: '',
+    icon_style: '',
+    icon_color: '',
+    current_vip: p.level,
+    current_style: '2',
     serverTime: Math.floor(Date.now() / 1000)
   });
 }
@@ -424,10 +563,20 @@ function adaptPayPending(providerResult) {
 function adaptPayList(providerResult) {
   if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
   const d = providerResult.data || {};
-  return envelope({
-    list: Array.isArray(d.list) ? d.list : [],
-    cardIDTypeMap: d.cardIDTypeMap && typeof d.cardIDTypeMap === 'object' ? d.cardIDTypeMap : {}
-  });
+  return envelope(Object.assign({
+    cardIDTypeMap: {},
+    checkCpfRule: 0,
+    emailVerify: '',
+    mobileVerify: '',
+    list: [],
+    pageChannelMode: 0,
+    pageReduceMode: 0,
+    pageRenderMode: 0,
+    payTabConfig: '',
+    sign_key: ''
+  }, d, {
+    list: Array.isArray(d.list) ? d.list : []
+  }));
 }
 
 /** payTypeV4：data.payKind.list */
@@ -533,12 +682,78 @@ function adaptGameLaunch(providerResult) {
   });
 }
 
-/** 代理配置/报表：透传 providerOptions.agent 形状 */
-function adaptAgentBlob(providerResult) {
+/** 代理配置/报表：透传 provider 数据，首页和佣金子页补成官方字段 */
+function adaptAgentBlob(providerResult, meta) {
   if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
   const d = providerResult.data;
+  const route = String((meta && meta.routePath) || '');
+  if (/indexInfoV2|agentBasic$/.test(route)) {
+    const src = d && typeof d === 'object' ? d : {};
+    const lv1 = Number(src.lv1PersonCount) || 0;
+    const other = (Number(src.lv2PersonCount) || 0) + (Number(src.lv3PersonCount) || 0);
+    return envelope({
+      directMembers: src.directMembers != null ? src.directMembers : (src.directCount != null ? src.directCount : lv1),
+      otherMembers: src.otherMembers != null ? src.otherMembers : other,
+      activeJson: typeof src.activeJson === 'string' ? src.activeJson : '[]',
+      directPerformanceYet: src.directPerformanceYet != null ? src.directPerformanceYet : (Number(src.lv1Running) || 0),
+      isAgent: !!src.isAgent,
+      parentUserIdx: Number(src.parentUserIdx) || 0,
+      parentUsername: src.parentUsername || '',
+      promoteLevelId: Number(src.promoteLevelId) || 0,
+      promoteLevelName: src.promoteLevelName || '',
+      isProAgent: !!src.isProAgent,
+      proAgentStatus: src.proAgentStatus != null ? src.proAgentStatus : 0
+    });
+  }
+  if (/agentCommission|myCommission/i.test(route)) {
+    const src = d && typeof d === 'object' ? d : {};
+    const direct = Number(src.totalDirectCommission != null ? src.totalDirectCommission : src.lv1Bonus) || 0;
+    const other = Number(src.totalOtherCommission != null ? src.totalOtherCommission : ((Number(src.lv2Bonus) || 0) + (Number(src.lv3Bonus) || 0))) || 0;
+    const total = Number(src.totalCommission != null ? src.totalCommission : (direct + other)) || 0;
+    return envelope({
+      canTakeCommission: Number(src.canTakeCommission != null ? src.canTakeCommission : total) || 0,
+      takenCommission: Number(src.takenCommission) || 0,
+      totalCommission: total,
+      totalDirectCommission: direct,
+      totalOtherCommission: other,
+      directPerformance: Number(src.directPerformanceYet != null ? src.directPerformanceYet : src.lv1Running) || 0,
+      parentUserIdx: Number(src.parentUserIdx) || 0,
+      parentUsername: src.parentUsername || '',
+      agentLevel: Number(src.agentLevel) || 0,
+      agentLevelName: src.agentLevelName || '',
+      currency: src.currency || 'BRL',
+      maxCommissionRateList: Array.isArray(src.maxCommissionRateList) ? src.maxCommissionRateList : []
+    });
+  }
   if (Array.isArray(d)) return envelope(d);
   return envelope(d && typeof d === 'object' ? d : {});
+}
+
+function adaptAgentSettleTime(providerResult) {
+  if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
+  const d = providerResult.data || {};
+  return envelope({
+    nextSettleTime: Number(d.nextSettleTime) || 0,
+    settleDeadLine: Number(d.settleDeadLine) || 0,
+    nextInterval: Number(d.nextInterval) || 0
+  });
+}
+
+function adaptMaxChargeRate(providerResult) {
+  if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
+  return envelope({
+    charge_rate: 0,
+    chargeRate: '0',
+    chargeGiftColor: '',
+    maxGiftScore: '',
+    chargeConfig: { chargeRate: '', giftColor: '', targetAmount: '0' },
+    customerRate: '0',
+    customerMode: 0,
+    customerColor: '',
+    agentRate: '0',
+    agentMode: 0,
+    paymentMode: 0
+  });
 }
 
 function adaptWithdrawPending(providerResult) {
@@ -588,6 +803,7 @@ function adaptEmptyRecords(providerResult) {
   const out = Object.assign({}, d, {
     list,
     total: d.total != null ? Number(d.total) : list.length,
+    count: d.count != null ? Number(d.count) : list.length,
     records: Array.isArray(d.records) ? d.records : list,
     rows: Array.isArray(d.rows) ? d.rows : list,
     page: d.page != null ? d.page : 1,
@@ -654,6 +870,125 @@ function adaptListAccount(providerResult) {
   });
 }
 
+/**
+ * 官方待领取/已领取/已过期列表。
+ * 分页用 data.count 判断是否结束；缺 count 时客户端会一直翻下一页。
+ */
+function adaptAwardList(providerResult) {
+  if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
+  const d = providerResult.data || {};
+  const list = Array.isArray(d.list) ? d.list : [];
+  return envelope({
+    totalReward: Number(d.totalReward) || 0,
+    totalActivity: Number(d.totalActivity) || 0,
+    count: d.count != null ? Number(d.count) : list.length,
+    list,
+    redDotCount: d.redDotCount != null ? Number(d.redDotCount) : 0,
+    redDotAmount: d.redDotAmount != null ? Number(d.redDotAmount) : 0
+  });
+}
+
+/** 官方可领取弹窗零态。没有奖励时列表为空，不写活动文案。 */
+function adaptCanReceivePop(providerResult) {
+  if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
+  return envelope({
+    list: null,
+    surpriseReward: {
+      type: '',
+      rewardList: [],
+      setting: { switch: 'close', taskCondition: '{}' },
+      receiveDeviceType: ''
+    },
+    agentInviterReward: {},
+    disableReceiveLogPop: 0,
+    guessIntegralPop: { list: null }
+  });
+}
+
+/** 官方返水汇总零态。没有返水活动时金额为 0，不填官方分类。 */
+function adaptReturnGoldSummary(providerResult) {
+  if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
+  return envelope({
+    headerType: 1,
+    todayForecast: { mainAmount: 0, rewardExpireTime: 0 },
+    nextDayForecast: null,
+    autoSendForecast: null,
+    todayReceivedAmount: 0,
+    todayCanReceiveAmount: 0,
+    todayValidBet: 0,
+    curReturnGold: 0,
+    nextReturnGold: 0,
+    autoSendReturnGold: 0,
+    initAmount: 0,
+    needRequestAmount: 0,
+    needApplyAmount: 0,
+    clientCalculateDelta: false,
+    activeId: 0,
+    returnGoldType: 0,
+    receiveDeviceType: '',
+    receiveDeviceLoginType: '',
+    list: []
+  });
+}
+
+/** 官方余额宝首页零态。开关关闭，不写规则文案。 */
+function adaptYuebaoIndex(providerResult) {
+  if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
+  const gold = Number(providerResult.data && providerResult.data.game_gold) || 0;
+  return envelope({
+    switchStatus: 0,
+    yuebaoGold: 0,
+    curIncome: 0,
+    yearRate: 0,
+    settleType: 0,
+    totalIncome: 0,
+    dayRate: 0,
+    cycleIncome: 0,
+    cycleTime: 0,
+    minSave: 0,
+    gameGold: gold,
+    validBetTimes: 0,
+    nextCalculateIncomeTime: 0,
+    nextCycleTime: 0,
+    principal: 0,
+    isPop: 0,
+    receiveType: 0,
+    todayUnclaimed: 0,
+    claimed: 0,
+    interestTop: 0,
+    ruleText: '',
+    list: [],
+    ruleTextData: {}
+  });
+}
+
+function adaptUnreadCount(providerResult) {
+  if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
+  const n = Number(providerResult.data && providerResult.data.unreadCnt) || 0;
+  return envelope({ unreadCnt: n });
+}
+
+/** 官方 /api/member/user/security/status：每项 verifyMethods，没有绑定记录时 withdrawPass 为空对象 */
+function adaptSecurityStatus() {
+  const block = { verifyMethods: { loginPass: 1 } };
+  return envelope({
+    loginPass: block,
+    question: block,
+    googleAuth: block,
+    phone: block,
+    email: block,
+    withdrawPass: {},
+    gesture: block,
+    thirdParty: block,
+    webAuthn: block
+  });
+}
+
+/** 官方 /api/active/withdraw/getAllActive：无提现活动时 activeList 为空 */
+function adaptWithdrawActiveList() {
+  return envelope({ activeList: [], SmallTypeMap: null });
+}
+
 function adaptFeaturePending(providerResult) {
   const msg = (providerResult && providerResult.msg)
     || 'feature adapter pending: wgame has no this capability';
@@ -674,6 +1009,13 @@ const ADAPTERS = {
   vipDetails: adaptVipDetails,
   vipInfoV2: adaptVipInfoV2,
   vipLevelList: adaptVipLevelList,
+  securityStatus: adaptSecurityStatus,
+  withdrawActiveList: adaptWithdrawActiveList,
+  awardList: adaptAwardList,
+  canReceivePop: adaptCanReceivePop,
+  returnGoldSummary: adaptReturnGoldSummary,
+  yuebaoIndex: adaptYuebaoIndex,
+  unreadCount: adaptUnreadCount,
   avatars: adaptAvatars,
   payPending: adaptPayPending,
   payList: adaptPayList,
@@ -684,6 +1026,8 @@ const ADAPTERS = {
   payOrderInfo: adaptPayOrderInfo,
   gameLaunch: adaptGameLaunch,
   agentBlob: adaptAgentBlob,
+  agentSettleTime: adaptAgentSettleTime,
+  maxChargeRate: adaptMaxChargeRate,
   withdrawPending: adaptWithdrawPending,
   logout: adaptLogout,
   lobbyOk: adaptLobbyOk,

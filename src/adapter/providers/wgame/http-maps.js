@@ -199,6 +199,33 @@ function mapWithdrawInfo({ enableRes, chRes, paywayRes, vipRes } = {}) {
     needWageRequired: setting.needWageRequired,
     minAmount,
     maxAmount,
+    withdrawMin: minAmount,
+    withdrawMax: maxAmount,
+    withdrawTimes: 0,
+    withdrawCount: accounts.length,
+    requireBet: Number(setting.needWageRequired) || 0,
+    cpf: '',
+    auditModeInfo: {
+      auditMode: 0,
+      withdrawResetBonus: 0,
+      bonusTransferInRule: 0,
+      bonus: '0',
+      bonusAvailable: '0',
+      bonusRequireBet: '0',
+      bonusTransferIn: false,
+      withdrawNeedBet: false,
+      undoneResetBonus: false
+    },
+    withdrawClose: {
+      channelSwitch: false,
+      closeType: 0,
+      dailyCycle: 0,
+      startTime: 0,
+      endTime: 0,
+      remark: '',
+      closingTimes: 0,
+      isEnableChannel: true
+    },
     fee: setting.fee || 0,
     feeRate: setting.feeRate || 0,
     channels,
@@ -261,39 +288,53 @@ function mapWithdrawRecords(res) {
 
 function mapProxyStatistics(res) {
   if (!res) return {};
-  const n = (k) => toLongNumber(res[k], 0);
+  const money = (k) => happyToDisplay(res[k]);
+  const count = (k) => Number(res[k]) || 0;
+  const lv1Bonus = money('lv1Bonus');
+  const lv2Bonus = money('lv2Bonus');
+  const lv3Bonus = money('lv3Bonus');
+  const inviteBonus = money('inviteBonusLv1') + money('inviteBonusLv2') + money('inviteBonusLv3');
+  const directMembers = count('lv1PersonCount');
+  const otherMembers = count('lv2PersonCount') + count('lv3PersonCount');
   return {
-    totalDeposit: n('totalDeposit'),
-    totalWithdraw: n('totalWithdraw'),
-    totalTax: n('totalTax'),
-    totalRunning: n('totalRunning'),
-    lv1PersonCount: Number(res.lv1PersonCount) || 0,
-    lv1Deposit: n('lv1Deposit'),
-    lv1Tax: n('lv1Tax'),
-    lv1Running: n('lv1Running'),
-    lv1FirstDepositPerson: Number(res.lv1FirstDepositPerson) || 0,
-    lv1FirstDeposit: n('lv1FirstDeposit'),
-    lv1Withdraw: n('lv1Withdraw'),
-    lv2PersonCount: Number(res.lv2PersonCount) || 0,
-    lv2Deposit: n('lv2Deposit'),
-    lv2Tax: n('lv2Tax'),
-    lv2Running: n('lv2Running'),
-    lv2FirstDepositPerson: Number(res.lv2FirstDepositPerson) || 0,
-    lv2FirstDeposit: n('lv2FirstDeposit'),
-    lv2Withdraw: n('lv2Withdraw'),
-    lv3PersonCount: Number(res.lv3PersonCount) || 0,
-    lv3Deposit: n('lv3Deposit'),
-    lv3Tax: n('lv3Tax'),
-    lv3Running: n('lv3Running'),
-    lv3FirstDepositPerson: Number(res.lv3FirstDepositPerson) || 0,
-    lv3FirstDeposit: n('lv3FirstDeposit'),
-    lv3Withdraw: n('lv3Withdraw'),
-    // 兼容官方 index/total 常见字段名
-    inviteCount: Number(res.lv1PersonCount) || 0,
-    teamCount: (Number(res.lv1PersonCount) || 0)
-      + (Number(res.lv2PersonCount) || 0)
-      + (Number(res.lv3PersonCount) || 0),
-    commission: n('lv1Tax') + n('lv2Tax') + n('lv3Tax')
+    totalDeposit: money('totalDeposit'),
+    totalWithdraw: money('totalWithdraw'),
+    totalTax: money('totalTax'),
+    totalRunning: money('totalRunning'),
+    lv1PersonCount: directMembers,
+    lv1Deposit: money('lv1Deposit'),
+    lv1Tax: money('lv1Tax'),
+    lv1Running: money('lv1Running'),
+    lv1FirstDepositPerson: count('lv1FirstDepositPerson'),
+    lv1FirstDeposit: money('lv1FirstDeposit'),
+    lv1Withdraw: money('lv1Withdraw'),
+    lv1Bonus,
+    lv2PersonCount: count('lv2PersonCount'),
+    lv2Deposit: money('lv2Deposit'),
+    lv2Tax: money('lv2Tax'),
+    lv2Running: money('lv2Running'),
+    lv2FirstDepositPerson: count('lv2FirstDepositPerson'),
+    lv2FirstDeposit: money('lv2FirstDeposit'),
+    lv2Withdraw: money('lv2Withdraw'),
+    lv2Bonus,
+    lv3PersonCount: count('lv3PersonCount'),
+    lv3Deposit: money('lv3Deposit'),
+    lv3Tax: money('lv3Tax'),
+    lv3Running: money('lv3Running'),
+    lv3FirstDepositPerson: count('lv3FirstDepositPerson'),
+    lv3FirstDeposit: money('lv3FirstDeposit'),
+    lv3Withdraw: money('lv3Withdraw'),
+    lv3Bonus,
+    inviteCount: directMembers,
+    teamCount: directMembers + otherMembers,
+    directMembers,
+    otherMembers,
+    directPerformanceYet: money('lv1Running'),
+    totalDirectCommission: lv1Bonus,
+    totalOtherCommission: lv2Bonus + lv3Bonus,
+    totalCommission: lv1Bonus + lv2Bonus + lv3Bonus + inviteBonus,
+    canTakeCommission: lv1Bonus + lv2Bonus + lv3Bonus + inviteBonus,
+    commission: lv1Bonus + lv2Bonus + lv3Bonus + inviteBonus
   };
 }
 

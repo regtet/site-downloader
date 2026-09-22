@@ -42,7 +42,7 @@ const DEFAULT_AGENT = {
   },
   agentMode: {
     agent_id: 0,
-    agentModeName: 'Infinite',
+    agentModeName: '',
     settleDuration: 0,
     settleDurationDays: 1,
     settleDurationCustom: '',

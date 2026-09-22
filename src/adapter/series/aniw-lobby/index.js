@@ -12,11 +12,29 @@ function normalizeApiPath(pathname) {
   return p;
 }
 
+const CREDIT_AGENT_ALIAS = {
+  '/api/agent/credit/agentCenter/agentBasic': '/api/agent/promote/agentBasic',
+  '/api/agent/credit/agentCenter/indexInfoV2': '/api/agent/promote/index/indexInfoV2',
+  '/api/agent/credit/agentCenter/agentCommission': '/api/agent/promote/index/agentCommission',
+  '/api/agent/credit/agentCenter/settleTime': '/api/agent/promote/index/settleTime',
+  '/api/agent/credit/agentCenter/agentPromotion': '/api/agent/promote/report/agentPromotion'
+};
+
 function matchRoute(pathname) {
   const p = normalizeApiPath(pathname);
-  const row = MIGRATION_MAP[p];
+  let row = MIGRATION_MAP[p];
+  let path = p;
+  // 教程地址带 /agentId/数字，和列表地址共用同一条官方回源
+  if (!row && /\/api\/agent\/promote\/config\/tutorial(\/|$)/.test(p)) {
+    row = MIGRATION_MAP['/api/agent/promote/config/tutorial'];
+    path = '/api/agent/promote/config/tutorial';
+  }
+  if (!row && CREDIT_AGENT_ALIAS[p]) {
+    path = CREDIT_AGENT_ALIAS[p];
+    row = MIGRATION_MAP[path];
+  }
   if (!row) return null;
-  return { op: row.op, adapter: row.adapter, path: p, note: row.note || '' };
+  return { op: row.op, adapter: row.adapter, path, note: row.note || '' };
 }
 
 function mapResponse(op, providerResult, meta) {

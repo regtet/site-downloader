@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const path = require('path');
 const axios = require('axios');
 const protobuf = require('protobufjs');
-const { applySystemProxy } = require('../../../system-proxy');
+const { applySystemProxy, getHttpsProxyAgent } = require('../../../system-proxy');
 const { resolveWgameWebRoot, loadWgameWebConfig } = require('./wgame-web-config');
 
 applySystemProxy({ log: false });
@@ -123,11 +123,12 @@ function decodeAny(common, Type) {
   return Type.decode(Buffer.from(common.data.value));
 }
 
-async function postProto(urlPath, TypeReq, payload, TypeRes, opts) {
-  const base = resolveLoginHttpBase(opts && opts.cfg);
-  if (!base) throw new Error('login HTTP base missing (derive from wssUrl → login.*)');
-  const secret = resolveHttpSignSecret(opts && opts.cfg);
-  const body = encodeProto(TypeReq, payload);
+function signedHeaders(body, secret, token) {
+  if (!secret) {
+    const err = new Error('登录签名密钥为空，部署包没有读到 httpSignSecret');
+    err.code = 1005;
+    throw err;
+  }
   const timestamp = Date.now().toString();
   const nonce = randomNonce(16);
   const signature = md5Hex(Buffer.concat([
@@ -139,28 +140,60 @@ async function postProto(urlPath, TypeReq, payload, TypeRes, opts) {
   const headers = {
     'Content-Type': 'application/x-protobuf',
     Accept: 'application/x-protobuf',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     'X-Timestamp': timestamp,
     'X-Nonce': nonce,
     'X-Signature': signature
   };
-  const token = opts && opts.token;
-  if (token) {
-    headers.Authorization = /^Bearer\s+/i.test(token) ? token : ('Bearer ' + token);
+  // 对齐 wgame_web：Authorization 是原始 token，不加 Bearer
+  if (token) headers.Authorization = String(token).replace(/^Bearer\s+/i, '');
+  return headers;
+}
+
+function httpFail(status, urlPath, data) {
+  let extra = '';
+  if (status === 403 || status === 401) {
+    let text = '';
+    try {
+      text = Buffer.isBuffer(data) ? data.toString('utf8', 0, 160) : String(data || '').slice(0, 160);
+    } catch (_) { /* ignore */ }
+    if (!text || /<html|cloudflare|forbidden|attention required/i.test(text)) {
+      extra = '。登录域名拒绝了当前服务器，请确认这台机器能访问登录地址，或设置 HTTPS_PROXY';
+    }
   }
+  const err = new Error('HTTP ' + status + ' ' + urlPath + extra);
+  err.httpStatus = status;
+  return err;
+}
+
+async function postSigned(base, urlPath, body, secret, token, timeoutMs) {
+  const agent = getHttpsProxyAgent();
   const res = await axios.post(base + urlPath, body, {
-    headers,
-    timeout: (opts && opts.timeoutMs) || 30000,
+    headers: signedHeaders(body, secret, token),
+    timeout: timeoutMs || 30000,
     responseType: 'arraybuffer',
     validateStatus: () => true,
-    httpsAgent: undefined
+    httpsAgent: agent || undefined,
+    proxy: agent ? false : undefined
   });
-  if (res.status >= 400) {
-    const err = new Error('HTTP ' + res.status + ' ' + urlPath);
-    err.httpStatus = res.status;
-    throw err;
-  }
-  const common = decodeCommon(res.data);
-  return decodeAny(common, TypeRes);
+  if (res.status >= 400) throw httpFail(res.status, urlPath, res.data);
+  return res.data;
+}
+
+async function postProto(urlPath, TypeReq, payload, TypeRes, opts) {
+  const base = resolveLoginHttpBase(opts && opts.cfg);
+  if (!base) throw new Error('login HTTP base missing (derive from wssUrl → login.*)');
+  const secret = resolveHttpSignSecret(opts && opts.cfg);
+  const body = encodeProto(TypeReq, payload);
+  const raw = await postSigned(
+    base,
+    urlPath,
+    body,
+    secret,
+    opts && opts.token,
+    opts && opts.timeoutMs
+  );
+  return decodeAny(decodeCommon(raw), TypeRes);
 }
 
 function defaultDeviceId(account) {
@@ -212,33 +245,8 @@ async function httpUserBase({ token, cfg, timeoutMs }) {
   if (!base) throw new Error('login HTTP base missing');
   const secret = resolveHttpSignSecret(cfg);
   const body = Buffer.alloc(0);
-  const timestamp = Date.now().toString();
-  const nonce = randomNonce(16);
-  const signature = md5Hex(Buffer.concat([
-    Buffer.from(timestamp),
-    Buffer.from(nonce),
-    body,
-    Buffer.from(secret)
-  ]));
-  const res = await axios.post(base + '/api/user/base', body, {
-    headers: {
-      'Content-Type': 'application/x-protobuf',
-      Accept: 'application/x-protobuf',
-      Authorization: /^Bearer\s+/i.test(token) ? token : ('Bearer ' + token),
-      'X-Timestamp': timestamp,
-      'X-Nonce': nonce,
-      'X-Signature': signature
-    },
-    timeout: timeoutMs || 30000,
-    responseType: 'arraybuffer',
-    validateStatus: () => true
-  });
-  if (res.status >= 400) {
-    const err = new Error('HTTP ' + res.status + ' /api/user/base');
-    err.httpStatus = res.status;
-    throw err;
-  }
-  return decodeAny(decodeCommon(res.data), TypeRes);
+  const raw = await postSigned(base, '/api/user/base', body, secret, token, timeoutMs);
+  return decodeAny(decodeCommon(raw), TypeRes);
 }
 
 /**
@@ -312,37 +320,15 @@ async function postProtoEmpty(urlPath, TypeRes, opts) {
   if (!base) throw new Error('login HTTP base missing (derive from wssUrl → login.*)');
   const secret = resolveHttpSignSecret(opts && opts.cfg);
   const body = Buffer.alloc(0);
-  const timestamp = Date.now().toString();
-  const nonce = randomNonce(16);
-  const signature = md5Hex(Buffer.concat([
-    Buffer.from(timestamp),
-    Buffer.from(nonce),
+  const raw = await postSigned(
+    base,
+    urlPath,
     body,
-    Buffer.from(secret)
-  ]));
-  const headers = {
-    'Content-Type': 'application/x-protobuf',
-    Accept: 'application/x-protobuf',
-    'X-Timestamp': timestamp,
-    'X-Nonce': nonce,
-    'X-Signature': signature
-  };
-  const token = opts && opts.token;
-  if (token) {
-    headers.Authorization = /^Bearer\s+/i.test(token) ? token : ('Bearer ' + token);
-  }
-  const res = await axios.post(base + urlPath, body, {
-    headers,
-    timeout: (opts && opts.timeoutMs) || 30000,
-    responseType: 'arraybuffer',
-    validateStatus: () => true
-  });
-  if (res.status >= 400) {
-    const err = new Error('HTTP ' + res.status + ' ' + urlPath);
-    err.httpStatus = res.status;
-    throw err;
-  }
-  return decodeAny(decodeCommon(res.data), TypeRes);
+    secret,
+    opts && opts.token,
+    opts && opts.timeoutMs
+  );
+  return decodeAny(decodeCommon(raw), TypeRes);
 }
 
 function userOrGuestPath(token, leaf) {

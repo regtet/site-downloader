@@ -8,8 +8,7 @@ const {
   injectBootIntoHtml,
   tryHandleProxy,
   tryFallbackMissingAsset,
-  isLikelySameOriginApiPath,
-  isFetchLikeRequest
+  isLikelySameOriginApiPath
 } = require('./preview-proxy');
 const { tryHandleAdapter } = require('./adapter');
 const { noteUnmapped, isApiPath } = require('./adapter/unmapped-log');
@@ -60,6 +59,19 @@ const STATIC_ASSET_EXTS = new Set([
 function isStaticAssetPath(pathname) {
     const ext = path.extname(String(pathname || '').split('?')[0]).toLowerCase();
     return STATIC_ASSET_EXTS.has(ext);
+}
+
+/** 浏览器改写到本地前的官方 API 源（aniw/oniw），避免 upstreamOrigin 为空时活动接口落空 */
+function upstreamHint(req) {
+  const hinted = String((req && req.headers && req.headers['x-sd-upstream']) || '');
+  try {
+    const u = new URL(hinted);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';
+    if (!/^(aniw|oniw)\d*\./i.test(u.hostname)) return '';
+    return u.origin;
+  } catch (_) {
+    return '';
+  }
 }
 
 /** 本地 wgame 登录会话不能原样带给真实 HTTP 上游，否则会 TOKEN_EXPIRED(-1) */
@@ -150,7 +162,8 @@ function createStaticServer(siteDir, options = {}) {
     ossHosts: [],
     lobbyGameUrl: '',
     authEpoch: '',
-    adapterEnabled
+    adapterEnabled,
+    siteDir: root
   };
   try {
     const hostsPath = path.join(root, 'adapter-hosts.json');
@@ -216,6 +229,22 @@ function createStaticServer(siteDir, options = {}) {
       const filePath = resolveFilePath(root, req.url || '/');
 
       if (!filePath) {
+        // 短 path 回源：浏览器请求 /ipacdn.txt?t= ，原始主机在 x-sd-upstream
+        const hinted = upstreamHint(req);
+        let hintHost = '';
+        try { hintHost = hinted ? new URL(hinted).hostname : ''; } catch (_) { /* ignore */ }
+        const hintIsOss = /^oniw\d*\./i.test(hintHost);
+        if (
+          hinted
+          && !(isMutating && hintIsOss)
+          && tryFallbackMissingAsset(req, res, hinted, reqUrl.pathname, reqUrl.search, {
+            refererOrigin: hinted,
+            stripAuth: shouldStripAuth(req, adapterCfg),
+            sanitizeAuthKick: shouldStripAuth(req, adapterCfg)
+          })
+        ) {
+          return;
+        }
         // OSS/图片误落到本地短 path → 回 oniw OSS，不要回主站（且禁止 POST 打 OSS）
         if (
           !isMutating
@@ -243,8 +272,11 @@ function createStaticServer(siteDir, options = {}) {
         }
         // lobby 业务 API（含 getSiteInfo）：回 aniw，并补 /hall 前缀（上游只认 /hall/api/lobby）
         // 缺 siteCode 时补官方 LOBBY_SITE_CONFIG.siteCode（与浏览器正式请求一致，不伪造）
+        const hintedOrigin = upstreamHint(req);
+        const hallOrigin = (/^https?:\/\/aniw\d*\./i.test(hintedOrigin) ? hintedOrigin : '')
+          || apiUpstreamOrigin;
         if (
-          apiUpstreamOrigin
+          hallOrigin
           && /^\/(?:hall\/)?api\/lobby\//i.test(reqUrl.pathname)
         ) {
           let lobbyPath = reqUrl.pathname;
@@ -254,10 +286,10 @@ function createStaticServer(siteDir, options = {}) {
           const { ensureSiteCodeQuery } = require('./adapter/config');
           const lobbySearch = ensureSiteCodeQuery(reqUrl.search, adapterCfg.siteCode);
           if (
-            tryFallbackMissingAsset(req, res, apiUpstreamOrigin, lobbyPath, lobbySearch, {
+            tryFallbackMissingAsset(req, res, hallOrigin, lobbyPath, lobbySearch, {
               stripAuth: shouldStripAuth(req, adapterCfg),
               sanitizeAuthKick: shouldStripAuth(req, adapterCfg),
-              refererOrigin: apiUpstreamOrigin,
+              refererOrigin: hallOrigin,
               forcePath: lobbyPath
             })
           ) {
@@ -306,7 +338,7 @@ function createStaticServer(siteDir, options = {}) {
         // 本地 wgame 会话 Token 不能带给真实上游 → 剥 Token，但不再伪造 code:1
         // 短 path /api/* 上游只认 /hall/api/*（如 domainMatch）
         if (
-          apiUpstreamOrigin
+          hallOrigin
           && isHallApiPath(reqUrl.pathname)
         ) {
           let hallPath = reqUrl.pathname;
@@ -318,12 +350,13 @@ function createStaticServer(siteDir, options = {}) {
           const strip = shouldStripAuth(req, adapterCfg);
           const emptyListOnKick = /registerPopupDlgInfo|newcomer_benefit_pop/i.test(reqUrl.pathname);
           if (
-            tryFallbackMissingAsset(req, res, apiUpstreamOrigin, hallPath, hallSearch, {
+            tryFallbackMissingAsset(req, res, hallOrigin, hallPath, hallSearch, {
               stripAuth: strip,
               sanitizeAuthKick: strip,
               emptyListOnKick,
-              refererOrigin: apiUpstreamOrigin,
-              forcePath: hallPath
+              refererOrigin: hallOrigin,
+              forcePath: hallPath,
+              ossOrigin
             })
           ) {
             return;
@@ -336,14 +369,12 @@ function createStaticServer(siteDir, options = {}) {
         ) {
           return;
         }
-        // 主站常挂在 OSS/CDN：业务 API POST 过去会 405，有 hall API path 时禁止回主站
+        // 只回源真正的同源 API。/home/event 这类路由的 fetch 必须落本地 index，
+        // 否则会拿到线上更新的 data-version，弹出「页面已更新」。
         if (
           sourceOrigin
           && !isHallApiPath(reqUrl.pathname)
-          && (
-            isLikelySameOriginApiPath(reqUrl.pathname, reqUrl.search)
-            || isFetchLikeRequest(req)
-          )
+          && isLikelySameOriginApiPath(reqUrl.pathname, reqUrl.search)
           && tryFallbackMissingAsset(req, res, sourceOrigin, reqUrl.pathname, reqUrl.search, {
             stripAuth: shouldStripAuth(req, adapterCfg)
           })

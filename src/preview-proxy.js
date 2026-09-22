@@ -87,7 +87,16 @@ function parseProxyTarget(reqUrl) {
   if (parsed.searchParams.has('url')) {
     target = parsed.searchParams.get('url') || '';
   } else if (rest.startsWith('/')) {
-    target = decodeURIComponent(rest.slice(1));
+    const decoded = decodeURIComponent(rest.slice(1));
+    if (/^https?:\/\//i.test(decoded)) {
+      target = decoded;
+    } else {
+      const slash = decoded.indexOf('/');
+      const host = slash === -1 ? decoded : decoded.slice(0, slash);
+      const pathPart = slash === -1 ? '/' : decoded.slice(slash);
+      if (!host || host.indexOf('..') !== -1) return null;
+      target = 'https://' + host + pathPart + (parsed.search || '');
+    }
   }
   if (!target) return null;
 
@@ -264,7 +273,19 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
   }
 
   function toProxy(href) {
-    return PROXY_PREFIX + encodeURIComponent(href);
+    try {
+      var u = new URL(href);
+      if ((u.protocol !== 'http:' && u.protocol !== 'https:') || !u.host) {
+        return PROXY_PREFIX + encodeURIComponent(href);
+      }
+      return PROXY_PREFIX + u.host + u.pathname + u.search + u.hash;
+    } catch (e) {
+      return PROXY_PREFIX + encodeURIComponent(href);
+    }
+  }
+
+  function toLocal(u) {
+    return LOCAL_ORIGIN + u.pathname + u.search + u.hash;
   }
 
   /** 仅按站点 adapter-hosts.json 的 hosts / patterns / exclude 判断 */
@@ -331,18 +352,34 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
     try {
       var inputs = document.querySelectorAll('input');
       var account = '';
+      var accountScore = -1;
       var password = '';
       var invite = '';
       for (var i = 0; i < inputs.length; i++) {
         var el = inputs[i];
         if (!el || el.disabled || el.readOnly) continue;
-        var val = String(el.value || '');
+        var val = String(el.value || '').trim();
         if (!val) continue;
         var meta = ((el.name || '') + ' ' + (el.id || '') + ' ' + (el.placeholder || '')).toLowerCase();
         var typ = String(el.type || '').toLowerCase();
-        if (typ === 'password' || /pass|pwd|senha/.test(meta)) password = val;
-        else if (/invite|checkcode|ncheck|referral|agent/.test(meta)) invite = val;
-        else if (lookLikeAccountInput(el)) account = val;
+        if (typ === 'password' || /pass|pwd|senha/.test(meta)) {
+          password = val;
+          continue;
+        }
+        if (/invite|checkcode|ncheck|referral|agent/.test(meta)) {
+          invite = val;
+          continue;
+        }
+        if (!lookLikeAccountInput(el)) continue;
+        // 区号（+55）也是 text/tel，不能盖掉真正的账号
+        var score = 0;
+        if (/user|account|login|phone|email|mobile|tel|nome|conta/.test(meta)) score += 5;
+        if (val.length >= 4) score += 2;
+        if (/^\\+?\\d{1,4}$/.test(val)) score -= 10;
+        if (score > accountScore) {
+          accountScore = score;
+          account = val;
+        }
       }
       if (account) window.__sdAuthFields.account = account;
       if (password) window.__sdAuthFields.password = password;
@@ -387,24 +424,19 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
       var u = new URL(href);
       if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
       if (u.origin === LOCAL_ORIGIN) return null;
-      // 业务 API：部署包走本地 Bridge；原始 dist 回源官方
-      if (u.pathname.indexOf('/hall/api/') === 0 || u.pathname.indexOf('/api/') === 0) {
-        if (ADAPTER_ENABLED) return LOCAL_ORIGIN + u.pathname + u.search + u.hash;
-        return toProxy(href);
+      if (!u.pathname || u.pathname === '/') return toProxy(href);
+      var aniw = /^aniw\\d*\\./i.test(u.hostname);
+      // 官方预览也走本地短 path（/ipacdn.txt?t=），原始主机放在 x-sd-upstream，避免把整段 URL 编码进路径
+      if (
+        aniw
+        || isOssHost(u.hostname)
+        || isAdapterApiHost(u.hostname)
+        || u.pathname.indexOf('/hall/api/') === 0
+        || u.pathname.indexOf('/api/') === 0
+        || isMirroredAssetPath(u.pathname)
+      ) {
+        return toLocal(u);
       }
-      // OSS(oniw)：已下载的图片/静态走本地；version.json 等元数据必须回源（本地 404 会触发域名探测失败→整页图闪没）
-      if (isOssHost(u.hostname)) {
-        if (isMirroredAssetPath(u.pathname)) {
-          return LOCAL_ORIGIN + u.pathname + u.search + u.hash;
-        }
-        return toProxy(href);
-      }
-      // 其它业务 API 主机 → 本地短 path（仅部署包）或代理回源
-      if (isAdapterApiHost(u.hostname) && isLocalShortPath(u.pathname)) {
-        if (ADAPTER_ENABLED) return LOCAL_ORIGIN + u.pathname + u.search + u.hash;
-        return toProxy(href);
-      }
-      // 其它跨域 → 本地代理
       return toProxy(href);
     } catch (e) {
       return null;
@@ -656,6 +688,14 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
       }
 
       function dispatch(finalInit) {
+        if (next && href) {
+          try {
+            finalInit = finalInit ? Object.assign({}, finalInit) : {};
+            var headers = new Headers(finalInit.headers || (input && input.headers) || undefined);
+            headers.set('x-sd-upstream', new URL(href).origin);
+            finalInit.headers = headers;
+          } catch (e) {}
+        }
         if (ADAPTER_ENABLED && (next || (href && isAuthApiPath((function () { try { return new URL(href).pathname; } catch (e) { return ''; } })())))) {
           var authHref = next || href;
           if (finalInit && finalInit.body != null) {
@@ -687,10 +727,7 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
       if (!next) {
         return Promise.resolve(rawFetch.apply(this, arguments)).then(wrapResponse);
       }
-      if (input && typeof input === 'object' && typeof Request !== 'undefined' && input instanceof Request) {
-        return Promise.resolve(rawFetch.call(this, new Request(next, init || input))).then(wrapResponse);
-      }
-      return Promise.resolve(rawFetch.call(this, next, init)).then(wrapResponse);
+      return dispatch(init);
     };
   }
 
@@ -715,6 +752,11 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
     XO.prototype.send = function (body) {
       var self = this;
       var href = this.__sdHref || this.__sdRewrote || '';
+      if (this.__sdRewrote) {
+        try {
+          this.setRequestHeader('x-sd-upstream', new URL(this.__sdRewrote).origin);
+        } catch (e) {}
+      }
       // 登录注册明文替换仅部署包 Bridge 需要；原始 dist 必须保持官方 AES 密文
       if (ADAPTER_ENABLED && body != null && href) {
         body = withPlainAuthBody(href, body);
@@ -955,6 +997,114 @@ function injectBootIntoHtml(html, sourceOrigin, adapterHosts) {
   return tag + out;
 }
 
+function blankUpstreamUid(raw) {
+  try {
+    const obj = JSON.parse(String(raw || ''));
+    if (obj && typeof obj === 'object') {
+      obj.uid = '';
+      return JSON.stringify(obj);
+    }
+  } catch (_) { /* ignore */ }
+  return '';
+}
+
+function safeSegment(raw, fallback) {
+  const s = String(raw || '').split(',')[0].trim();
+  return /^[A-Za-z0-9_-]{1,12}$/.test(s) ? s : fallback;
+}
+
+/** 登录后活动/代理配置走业务接口会被踢；公开 json 才是列表本身 */
+function guestPublicPaths(pathname, headers) {
+  const p = String(pathname || '').replace(/^\/hall/, '');
+  const lang = safeSegment(headers && headers.language, 'pt');
+  const cur = safeSegment(headers && headers.currency, 'BRL');
+  if (/\/api\/active\/categoryV2$/i.test(p) || /\/api\/active\/category$/i.test(p)) {
+    return [
+      `/api/active/category/currency/${cur}/language/${lang}.json`,
+      `/api/active/categoryV2/currency/${cur}/language/${lang}.json`
+    ];
+  }
+  if (/\/api\/active\/getByTemplate$/i.test(p)) {
+    return [`/api/active/getByTemplate/currency/${cur}.json`];
+  }
+  if (/\/api\/active\/isShowV2$/i.test(p)) {
+    return ['/api/active/isShowV2/default.json'];
+  }
+  if (/\/api\/agent\/promote\/config\/index$/i.test(p)) {
+    return [`/api/agent/promote/config/index/currency/${cur}/language/${lang}.json`];
+  }
+  if (/\/api\/agent\/promote\/config\/tutorial/i.test(p)) {
+    return [`/api/agent/promote/config/tutorial/currency/${cur}/language/${lang}.json`];
+  }
+  if (/\/api\/agent\/promote\/getPublicityV3$/i.test(p)) {
+    return [`/api/agent/promote/getPublicityV3/currency/${cur}/language/${lang}.json`];
+  }
+  return [];
+}
+
+function isAuthKickText(text) {
+  const trimmed = String(text || '').trim();
+  if (!trimmed || trimmed[0] !== '{') return false;
+  try {
+    const j = JSON.parse(trimmed);
+    if (!j || typeof j !== 'object' || Array.isArray(j)) return false;
+    const num = Number(j.code);
+    const msg = String(j.msg || j.message || '');
+    return num === -1
+      || j.code === '-1'
+      || /dispositivo|desconectad|token\s*expir|fa[cç]a login novamente|n[aã]o est[aá] autorizada|not\s*authorized|unauthorized|login\s*again/i.test(msg);
+  } catch (_) {
+    return false;
+  }
+}
+
+function wrapGuestPayload(buf) {
+  const text = buf.toString('utf8').trim();
+  if (!text || isAuthKickText(text)) return null;
+  if (text[0] !== '{') return buf;
+  try {
+    const j = JSON.parse(text);
+    if (j && j.code != null) return buf;
+    if (j && (j.activeList || j.categoryList || j.list)) {
+      return Buffer.from(JSON.stringify({ code: 1, msg: '', data: j }));
+    }
+  } catch (_) { /* ciphertext-like json failure: pass through */ }
+  return buf;
+}
+
+async function recoverGuestJson(target, req, options) {
+  const paths = guestPublicPaths(target.pathname, req && req.headers);
+  if (!paths.length) return null;
+  const origins = [];
+  try { origins.push(new URL(target.href).origin); } catch (_) { /* ignore */ }
+  if (options && options.ossOrigin) origins.push(String(options.ossOrigin).replace(/\/$/, ''));
+  if (!origins.length) return null;
+  for (const rel of paths) {
+    for (const origin of origins) {
+    const url = origin + '/hall' + rel;
+    let host = target.host;
+    try { host = new URL(url).host; } catch (_) { /* keep target host */ }
+    try {
+      const res = await axios.get(url, {
+        timeout: 15000,
+        responseType: 'arraybuffer',
+        validateStatus: () => true,
+        proxy: undefined,
+        headers: {
+          Accept: 'application/json,text/plain,*/*',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          Host: host
+        }
+      });
+      if (res.status >= 400) continue;
+      const wrapped = wrapGuestPayload(Buffer.from(res.data || []));
+      if (wrapped && wrapped.length) return wrapped;
+    } catch (_) { /* try next public path */ }
+    }
+  }
+  return null;
+}
+
 function copyRequestHeaders(req, refererOrigin, options = {}) {
   const out = {};
   const headers = req.headers || {};
@@ -979,8 +1129,15 @@ function copyRequestHeaders(req, refererOrigin, options = {}) {
         || lower === 'jwt'
         || lower === 'jwt-token'
         || lower === 'jwt_token'
+        || lower === 'newjwt'
+        || lower === 'new-jwt'
       )
     ) {
+      continue;
+    }
+    // 登录后 x-object-id.uid 仍是我们的会员号，官方会当成失效会话把活动列表踢空
+    if (stripAuth && lower === 'x-object-id') {
+      out[key] = blankUpstreamUid(headers[key]);
       continue;
     }
     out[key] = headers[key];
@@ -1097,9 +1254,25 @@ function proxyRequest(req, res, target, refererOrigin, options = {}) {
           emptyListOnKick: !!options.emptyListOnKick
         });
         if (next !== raw) {
-          outHeaders['X-SD-Auth-Sanitized'] = '1';
-          buf = Buffer.from(next, 'utf8');
-          try { console.info('[sd-proxy] sanitized auth kick', target.pathname); } catch (_) { /* ignore */ }
+          const recovered = await recoverGuestJson(target, req, options);
+          if (recovered) {
+            outHeaders['X-SD-Guest-Json'] = '1';
+            buf = recovered;
+          } else {
+            outHeaders['X-SD-Auth-Sanitized'] = '1';
+            buf = Buffer.from(next, 'utf8');
+          }
+          try {
+            if (/active\/category/i.test(target.pathname)) {
+              console.info(
+                '[sd-proxy] category kick',
+                Object.keys(headers).join(','),
+                raw.slice(0, 140)
+              );
+            } else {
+              console.info('[sd-proxy] sanitized auth kick', target.pathname);
+            }
+          } catch (_) { /* ignore */ }
         }
       }
       outHeaders['Content-Length'] = String(buf.length);
@@ -1203,6 +1376,19 @@ function tryHandleProxy(req, res, sourceOrigin, adapterHosts) {
 
   const target = parseProxyTarget(reqUrl);
   if (!target) return false;
+
+  // 只有时钟在本地答。其余没有我们接口的请求继续向官方要原文，避免页面空数据
+  const { isGetServerTime } = require('./adapter/mock-hold');
+  if (isGetServerTime(target.pathname)) {
+    res.writeHead(200, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'Access-Control-Allow-Origin': '*',
+      'X-SD-Adapter': 'local-time'
+    });
+    res.end(JSON.stringify({ getServerTime: Math.floor(Date.now() / 1000) }));
+    return true;
+  }
 
   if (!sourceOrigin) {
     res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });

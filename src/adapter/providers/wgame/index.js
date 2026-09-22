@@ -660,15 +660,23 @@ async function execute(op, ctx) {
     // 充值赠送估算：无活动引擎时返回可解析空结构
     if (/calculateGift/i.test(routePath)) {
       return ok({
-        recommendMoneyGift: [],
-        recommendMoneyGiftList: [],
-        activeRes: {
-          active_list: [],
-          rechargeOrderGiveRewardDetailStr: ''
+        payCurrencyAmount: '0',
+        memberCurrencyAmount: '0',
+        payCurrencyActiveGiftAmount: '0',
+        memberCurrencyActiveGiftAmount: '0',
+        payCurrencyActiveCouponGiftAmount: '0',
+        memberCurrencyActiveCouponGiftAmount: '0',
+        matchGiftRes: {
+          payCurrency: '',
+          moneyList: null,
+          chargeRateList: null,
+          deduceLimit: '0'
         },
-        giftAmount: 0,
-        giveAmount: 0,
-        amount: 0
+        realAmount: '0',
+        recommendMoneyGift: [],
+        feeAmount: '0',
+        replaceAmount: '0',
+        activeRes: {}
       }, 'ok');
     }
 
@@ -1323,6 +1331,23 @@ async function execute(op, ctx) {
         }
         setting.channels = channels;
         setting.list = channels;
+        if (/getWithdrawFeeSetting$/i.test(routePath)) {
+          return ok({
+            exemptWithdrawFeeTime: 0,
+            todayExemptWithdrawFeeTime: 0,
+            fee: setting.fee || 0,
+            feeRate: setting.feeRate || 0
+          }, 'ok');
+        }
+        if (/withdrawSetting/i.test(routePath)) {
+          setting.bankInfo = Array.isArray(setting.bankInfo) ? setting.bankInfo : [];
+          setting.bankInfoV2 = setting.bankInfoV2 && typeof setting.bankInfoV2 === 'object'
+            ? setting.bankInfoV2
+            : { BRL: [] };
+          if (setting.betTaskDisplayToggle == null) setting.betTaskDisplayToggle = 0;
+          if (setting.showWithdrawAccountSwitch == null) setting.showWithdrawAccountSwitch = 1;
+          if (!Array.isArray(setting.withdrawAccountValidationRule)) setting.withdrawAccountValidationRule = [];
+        }
         return ok(setting, 'ok');
       } catch (err) {
         console.warn('[provider:wgame] withdrawSetting http failed:', (err && err.message) || err);

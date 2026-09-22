@@ -30,6 +30,50 @@ function readRawBody(req) {
   });
 }
 
+/** 首页会从多个组件同时打同一条只读接口。短缓存合并重复请求，刷新余额不走这里。 */
+const READ_CACHE_MS = 2000;
+const READ_CACHE_PATHS = new Set([
+  '/api/active/unreceiveAwardList',
+  '/api/active/receivedAwardList',
+  '/api/active/expireAwardList',
+  '/api/active/getRedDotV2',
+  '/api/active/pop_canReceiveReward',
+  '/api/active/returnGold/summary/v3',
+  '/api/member/user/vip',
+  '/api/member/user/vipDetails',
+  '/api/member/user/vipInfoV2',
+  '/api/active/allVipLevel',
+  '/api/gameCenter/gold',
+  '/api/gameCenter/gameApi/getPlatformBalance',
+  '/api/member/user/info',
+  '/api/member/v2/user/info',
+  '/api/member/getFastLogin',
+  '/api/yuebao/index',
+  '/api/finance/claim/unreadMsgCnt'
+]);
+const readCache = new Map();
+const readInflight = new Map();
+
+function readCacheKey(method, pathname, body, headers) {
+  const h = headers || {};
+  const auth = String(
+    h.token || h.Token || h.authorization || h.Authorization || h.session_key || ''
+  ).slice(-24);
+  let bodyKey = '';
+  if (body && typeof body === 'object' && !Buffer.isBuffer(body)) {
+    try { bodyKey = JSON.stringify(body); } catch (_) { bodyKey = ''; }
+  }
+  if (bodyKey.length > 500) bodyKey = bodyKey.slice(0, 500);
+  return method + '\n' + pathname + '\n' + auth + '\n' + bodyKey;
+}
+
+function rememberRead(key, result) {
+  readCache.set(key, { at: Date.now(), result });
+  if (readCache.size <= 300) return;
+  const oldest = readCache.keys().next().value;
+  if (oldest) readCache.delete(oldest);
+}
+
 function sendJson(res, status, obj, extraHeaders) {
   const body = JSON.stringify(obj);
   res.writeHead(status, Object.assign({
@@ -151,21 +195,6 @@ async function tryHandleAdapter(req, res, options = {}) {
       return true;
     }
 
-    function sendUpstreamFallback() {
-      if (req.method === 'OPTIONS') {
-        sendJson(res, 204, {});
-        return true;
-      }
-      const useEmptyList = matched.adapter === 'emptyList';
-      const result = series.mapResponse(
-        useEmptyList ? OP.EMPTY_RECORDS : OP.LOBBY_OK,
-        { ok: true, data: useEmptyList ? [] : {} },
-        { adapter: useEmptyList ? 'emptyList' : matched.adapter }
-      );
-      sendJson(res, 200, result, { 'X-SD-Adapter': 'upstream-fallback' });
-      return true;
-    }
-
     const snap = getOssSnapshotBody(siteDir, resolved.pathname, req.method);
     if (snap && snap.body) {
       return sendRawBody(snap.contentType, snap.body, 'oss-har');
@@ -178,7 +207,8 @@ async function tryHandleAdapter(req, res, options = {}) {
       }
     }
 
-    return sendUpstreamFallback();
+    // 没有本地快照、也没有我们自己的接口：交给后面的官方回源，不要回空对象
+    return false;
   }
 
   if (req.method === 'OPTIONS') {
@@ -207,33 +237,62 @@ async function tryHandleAdapter(req, res, options = {}) {
     }
   }
 
-  // provider 执行（③ 登录态在 auth.* / user.info / wallet 内维护）
-  const providerResult = await provider.execute(matched.op, {
-    body,
-    headers: req.headers || {},
-    siteDir: options.siteDir || '',
-    providerOptions: cfg.providerOptions,
-    routePath: matched.path,
-    adapter: matched.adapter
-  });
+  const cacheKey = READ_CACHE_PATHS.has(matched.path)
+    ? readCacheKey(req.method, matched.path, body, req.headers)
+    : '';
+  if (cacheKey) {
+    const hit = readCache.get(cacheKey);
+    if (hit && (Date.now() - hit.at) < READ_CACHE_MS) {
+      sendJson(res, 200, hit.result);
+      return true;
+    }
+  }
 
-  // ② 数据适配
-  const result = series.mapResponse(matched.op, providerResult, {
-    adapter: matched.adapter,
-    body,
-    routePath: matched.path
-  });
+  const run = async () => {
+    // provider 执行（③ 登录态在 auth.* / user.info / wallet 内维护）
+    const providerResult = await provider.execute(matched.op, {
+      body,
+      headers: req.headers || {},
+      siteDir: options.siteDir || '',
+      providerOptions: cfg.providerOptions,
+      routePath: matched.path,
+      adapter: matched.adapter
+    });
 
-  console.log(
-    '[bridge]',
-    cfg.series + '/' + cfg.provider,
-    req.method,
-    matched.path,
-    '→',
-    matched.op + '/' + matched.adapter,
-    result.code
-  );
-  sendJson(res, 200, result);
+    // ② 数据适配
+    const result = series.mapResponse(matched.op, providerResult, {
+      adapter: matched.adapter,
+      body,
+      routePath: matched.path
+    });
+
+    console.log(
+      '[bridge]',
+      cfg.series + '/' + cfg.provider,
+      req.method,
+      matched.path,
+      '→',
+      matched.op + '/' + matched.adapter,
+      result.code
+    );
+    return result;
+  };
+
+  if (!cacheKey) {
+    sendJson(res, 200, await run());
+    return true;
+  }
+
+  if (!readInflight.has(cacheKey)) {
+    const pending = run().then((result) => {
+      rememberRead(cacheKey, result);
+      return result;
+    }).finally(() => {
+      readInflight.delete(cacheKey);
+    });
+    readInflight.set(cacheKey, pending);
+  }
+  sendJson(res, 200, await readInflight.get(cacheKey));
   return true;
 }
 
