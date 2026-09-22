@@ -119,16 +119,28 @@ function getPlaywrightProxy() {
   }
 }
 
+let cachedProxyAgent = null;
+let cachedProxyKey = '';
+let directHttpsAgent = null;
+
 /**
- * 供 ws / https 使用的代理 Agent。ws 不会读 HTTPS_PROXY 环境变量。
+ * 供 ws / https 使用的代理 Agent。同一代理地址复用连接，避免每次登录重新握手。
  * @returns {import('https').Agent|undefined}
  */
 function getHttpsProxyAgent() {
   const proxyUrl = resolveProxyUrl();
   if (!proxyUrl) return undefined;
+  if (cachedProxyAgent && cachedProxyKey === proxyUrl) return cachedProxyAgent;
   try {
     const { HttpsProxyAgent } = require('https-proxy-agent');
-    return new HttpsProxyAgent(proxyUrl);
+    cachedProxyAgent = new HttpsProxyAgent(proxyUrl, {
+      keepAlive: true,
+      keepAliveMsecs: 30000,
+      maxSockets: 32,
+      scheduling: 'lifo'
+    });
+    cachedProxyKey = proxyUrl;
+    return cachedProxyAgent;
   } catch (err) {
     try {
       console.warn('[proxy] https-proxy-agent unavailable:', err && err.message);
@@ -137,11 +149,26 @@ function getHttpsProxyAgent() {
   }
 }
 
+/** 不走代理时也复用 TLS 连接 */
+function getDirectHttpsAgent() {
+  if (!directHttpsAgent) {
+    const https = require('https');
+    directHttpsAgent = new https.Agent({
+      keepAlive: true,
+      keepAliveMsecs: 30000,
+      maxSockets: 32,
+      scheduling: 'lifo'
+    });
+  }
+  return directHttpsAgent;
+}
+
 module.exports = {
   parseWindowsProxyServer,
   readWindowsSystemProxy,
   resolveProxyUrl,
   applySystemProxy,
   getPlaywrightProxy,
-  getHttpsProxyAgent
+  getHttpsProxyAgent,
+  getDirectHttpsAgent
 };

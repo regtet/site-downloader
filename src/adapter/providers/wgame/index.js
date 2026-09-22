@@ -433,6 +433,7 @@ async function callGateway(action, data, cfg) {
         toLongNumber
       } = require('./http-api');
       const authFn = action === 'register' ? httpRegister : httpLogin;
+      const tAuth = Date.now();
       const authRes = await authFn({
         account,
         password,
@@ -443,17 +444,20 @@ async function callGateway(action, data, cfg) {
         cfg,
         timeoutMs: cfg.timeoutMs
       });
+      const authMs = Date.now() - tAuth;
       const token = String(authRes.token || '');
       const userId = String(authRes.userId != null ? authRes.userId : '');
       if (!token || !userId) {
         return fail(1005, 'http auth missing token/userId');
       }
       let base = null;
+      const tBase = Date.now();
       try {
         base = await httpUserBase({ token, cfg, timeoutMs: cfg.timeoutMs });
       } catch (e) {
         console.warn('[provider:wgame] /api/user/base failed:', (e && e.message) || e);
       }
+      const baseMs = Date.now() - tBase;
       const user = {
         account,
         password: password || '',
@@ -471,7 +475,8 @@ async function callGateway(action, data, cfg) {
         account_type: base && base.accountType != null ? Number(base.accountType) : undefined,
         game_score: base ? toLongNumber(base.gameScore, 0) : undefined,
         first_login: base && base.firstLogin,
-        has_recharge: base && base.hasRecharge
+        has_recharge: base && base.hasRecharge,
+        profileAt: Date.now()
       };
       rememberSession(user, cfg);
       users.set(account, { password, user });
@@ -482,7 +487,9 @@ async function callGateway(action, data, cfg) {
           'via http',
           'base=' + (cfg.loginHttpBase || ''),
           'packageId=' + (cfg.packageId != null ? cfg.packageId : ''),
-          'userId=' + userId
+          'userId=' + userId,
+          'auth=' + authMs + 'ms',
+          'profile=' + baseMs + 'ms'
         );
       } catch (_) { /* ignore */ }
       return ok(user, 'ok');
@@ -570,10 +577,17 @@ async function execute(op, ctx) {
     const row = findSession(body, headers);
     if (!row || !row.user) return fail(401, 'not logged in');
     const token = require('./http-api').sessionHttpToken(row.user);
-    if (token) {
+    const profileFresh = row.user.profileAt && (Date.now() - Number(row.user.profileAt) < 8000);
+    if (token && !profileFresh) {
       try {
         const { httpUserBase, httpMoney, toLongNumber } = require('./http-api');
-        const base = await httpUserBase({ token, cfg, timeoutMs: cfg.timeoutMs });
+        const [base, moneyRes] = await Promise.all([
+          httpUserBase({ token, cfg, timeoutMs: cfg.timeoutMs }).catch((err) => {
+            console.warn('[provider:wgame] user.info base failed:', (err && err.message) || err);
+            return null;
+          }),
+          httpMoney({ token, cfg, timeoutMs: cfg.timeoutMs }).catch(() => null)
+        ]);
         if (base) {
           if (base.userName) row.user.nickname = String(base.userName);
           if (base.secPhone) row.user.phone = String(base.secPhone);
@@ -582,14 +596,12 @@ async function execute(op, ctx) {
           if (base.faceId != null) row.user.face_id = String(base.faceId);
           if (base.money != null) row.user.game_gold = require('./http-maps').happyToDisplay(base.money);
           if (base.gameScore != null) row.user.game_score = toLongNumber(base.gameScore, 0);
-          rememberSession(row.user, cfg);
         }
-        try {
-          const moneyRes = await httpMoney({ token, cfg, timeoutMs: cfg.timeoutMs });
-          const gold = require('./http-maps').mapMoney(moneyRes);
-          row.user.game_gold = gold;
-          rememberSession(row.user, cfg);
-        } catch (_) { /* money optional */ }
+        if (moneyRes) {
+          row.user.game_gold = require('./http-maps').mapMoney(moneyRes);
+        }
+        row.user.profileAt = Date.now();
+        rememberSession(row.user, cfg);
       } catch (err) {
         console.warn('[provider:wgame] user.info refresh failed:', (err && err.message) || err);
       }
@@ -1305,7 +1317,23 @@ async function execute(op, ctx) {
 
     // 提现设置 / 可提金额
     if (/withdrawSetting/i.test(routePath) || /getWithdrawFee|WithdrawAccountRules/i.test(routePath)) {
-      if (!token) return fail(401, 'not logged in');
+      // 这个 GET 用 staticOnly，登录后也不带会员 token。没会话时回可渲染空设置，避免 401 重试打满
+      if (!token) {
+        return ok({
+          minAmount: 0,
+          maxAmount: 0,
+          fee: 0,
+          feeRate: 0,
+          enableWithdraw: 0,
+          channels: [],
+          list: [],
+          bankInfo: [],
+          bankInfoV2: { BRL: [] },
+          betTaskDisplayToggle: 0,
+          showWithdrawAccountSwitch: 1,
+          withdrawAccountValidationRule: []
+        }, 'ok');
+      }
       try {
         const {
           httpEnableWithdraw,
@@ -1382,7 +1410,7 @@ async function execute(op, ctx) {
     }
 
     // 绑定收款方式
-    if (/bindWithdrawAccount|bindcard|bindCrypto|setPayWay/i.test(routePath)) {
+    if (/bindWithdrawAccount|bindcard|bindCrypto|setPayWay|bindalipay|bindAli/i.test(routePath)) {
       if (!token) return fail(401, 'not logged in');
       try {
         const { httpSetPayWay } = require('./http-api');

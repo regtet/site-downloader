@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const path = require('path');
 const axios = require('axios');
 const protobuf = require('protobufjs');
-const { applySystemProxy, getHttpsProxyAgent } = require('../../../system-proxy');
+const { applySystemProxy, getHttpsProxyAgent, getDirectHttpsAgent } = require('../../../system-proxy');
 const { resolveWgameWebRoot, loadWgameWebConfig } = require('./wgame-web-config');
 
 applySystemProxy({ log: false });
@@ -167,14 +167,15 @@ function httpFail(status, urlPath, data) {
 }
 
 async function postSigned(base, urlPath, body, secret, token, timeoutMs) {
-  const agent = getHttpsProxyAgent();
+  const agent = getHttpsProxyAgent() || getDirectHttpsAgent();
   const res = await axios.post(base + urlPath, body, {
     headers: signedHeaders(body, secret, token),
     timeout: timeoutMs || 30000,
     responseType: 'arraybuffer',
     validateStatus: () => true,
-    httpsAgent: agent || undefined,
-    proxy: agent ? false : undefined
+    httpsAgent: agent,
+    // 代理已在 agent 里；再让 axios 读 HTTPS_PROXY 会再跳一跳
+    proxy: false
   });
   if (res.status >= 400) throw httpFail(res.status, urlPath, res.data);
   return res.data;
@@ -396,8 +397,8 @@ async function httpSetPayWay({ token, payload, cfg, timeoutMs }) {
     '/api/user/setPayWay',
     protoType('TCmd_SetPayWayReq'),
     {
-      userName: String(p.userName || p.user_name || p.realName || ''),
-      bankCardNo: String(p.bankCardNo || p.bank_card_no || p.cardNo || p.account || ''),
+      userName: String(p.userName || p.user_name || p.realName || p.name || ''),
+      bankCardNo: String(p.bankCardNo || p.bank_card_no || p.cardNo || p.account || p.alipayAccount || p.aliAccount || ''),
       bankName: String(p.bankName || p.bank_name || ''),
       ifscCode: String(p.ifscCode || p.ifsc_code || p.phone || p.mobile || ''),
       mail: String(p.mail || p.email || ''),

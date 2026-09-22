@@ -1042,12 +1042,20 @@ function guestPublicPaths(pathname, headers) {
   return [];
 }
 
+function isNoServerObject(j) {
+  if (!j || typeof j !== 'object' || Array.isArray(j)) return false;
+  const err = Number(j.err_code != null ? j.err_code : j.errCode);
+  const msg = String(j.msg || j.message || '');
+  return err === 41000 || /failed to obtain server/i.test(msg);
+}
+
 function isAuthKickText(text) {
   const trimmed = String(text || '').trim();
   if (!trimmed || trimmed[0] !== '{') return false;
   try {
     const j = JSON.parse(trimmed);
     if (!j || typeof j !== 'object' || Array.isArray(j)) return false;
+    if (isNoServerObject(j)) return true;
     const num = Number(j.code);
     const msg = String(j.msg || j.message || '');
     return num === -1
@@ -1126,6 +1134,7 @@ function wrapGuestPayload(buf) {
   if (text[0] !== '{') return buf;
   try {
     const j = JSON.parse(text);
+    if (isNoServerObject(j)) return null;
     if (j && j.code != null) return buf;
     if (j && (j.activeList || j.categoryList || j.list)) {
       return Buffer.from(JSON.stringify({ code: 1, msg: '', data: j }));
@@ -1276,7 +1285,8 @@ function sanitizeUpstreamAuthJson(text, opts) {
     const num = Number(code);
     const msg = String(j.msg || j.message || '');
     const isKick =
-      num === -1
+      isNoServerObject(j)
+      || num === -1
       || code === '-1'
       || /dispositivo|desconectad|token\s*expir|fa[cç]a login novamente|n[aã]o est[aá] autorizada|not\s*authorized|unauthorized|login\s*again/i.test(msg);
     if (!isKick) return text;
@@ -1353,10 +1363,13 @@ function proxyRequest(req, res, target, refererOrigin, options = {}) {
     outHeaders['X-SD-Proxy'] = '1';
     let buf = Buffer.from(upRes.data || []);
 
-    if (sanitizeAuth) {
-      const ct = String((upRes.headers && (upRes.headers['content-type'] || upRes.headers['Content-Type'])) || '');
+    const ctEarly = String((upRes.headers && (upRes.headers['content-type'] || upRes.headers['Content-Type'])) || '');
+    const rawEarly = (/json|text|javascript/i.test(ctEarly) || buf.length < 2e6) ? buf.toString('utf8') : '';
+    const noServer = isAuthKickText(rawEarly) && /failed to obtain server|err_code"\s*:\s*41000|"err_code":41000/i.test(rawEarly);
+    if (sanitizeAuth || noServer) {
+      const ct = ctEarly;
       if (/json|text|javascript/i.test(ct) || buf.length < 2e6) {
-        const raw = buf.toString('utf8');
+        const raw = rawEarly;
         const next = sanitizeUpstreamAuthJson(raw, {
           emptyListOnKick: !!options.emptyListOnKick
         });
@@ -1372,6 +1385,8 @@ function proxyRequest(req, res, target, refererOrigin, options = {}) {
           try {
             if (recovered && /\/api\/active\/get$/i.test(String(target.pathname || ''))) {
               console.info('[sd-proxy] activity detail guest', target.pathname);
+            } else if (noServer) {
+              console.info('[sd-proxy] obtain-server silenced', target.pathname);
             } else if (/active\/category/i.test(target.pathname)) {
               console.info(
                 '[sd-proxy] category kick',

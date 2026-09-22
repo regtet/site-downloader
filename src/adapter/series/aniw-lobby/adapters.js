@@ -889,7 +889,10 @@ function adaptEmptyRecords(providerResult) {
     records: Array.isArray(d.records) ? d.records : list,
     rows: Array.isArray(d.rows) ? d.rows : list,
     page: d.page != null ? d.page : 1,
-    pageSize: d.pageSize != null ? d.pageSize : 20
+    pageSize: d.pageSize != null ? d.pageSize : 20,
+    totalRecords: d.totalRecords != null
+      ? Number(d.totalRecords)
+      : (d.total != null ? Number(d.total) : list.length)
   });
   return envelope(out);
 }
