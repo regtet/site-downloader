@@ -1,0 +1,16 @@
+---
+description: aniw 大厅迁移里已经踩过的坑，改适配器、预览代理和静态服务时必须遵守
+alwaysApply: true
+---
+
+# 不要再犯的错
+
+Node 22 默认 DNS 是 `verbatim`，会先等 IPv6，新域名大约 11 秒。`server.js` 和 `src/system-proxy.js` 入口保持 `dns.setDefaultResultOrder('ipv4first')`。直连 Agent 用 `family: 4`，并复用 keep-alive。不要每次请求 `new` 一个 Agent。
+
+活动列表和详情没有 wgame 文案。禁止 `emptyRecords`、`10060`、`{code:1,data:null}`。登录后官方会回 410099 或 41000。列表用 oniw 公开 JSON：`/hall/api/active/category/currency/{cur}/language/{lang}.json`。aniw 上这条会 41000。详情用游客明文 POST `/hall/api/active/get`，带 `x-data-mode: plain`，正文 `{"activeId":N}`。响应必须 `code===1`，且 `data.id===activeId`，并带 `name`、`content`、`template`、`activeData`。有公开内容时不要改成 `data:null`。
+
+分页字段 `count` 或 `totalRecords` 必须是数字，`0` 可以。缺了会无限翻页。wgame 金额先除以 1000。佣金用 `lv*Bonus` 加 `inviteBonusLv*`。人数保持整数。
+
+我们的 token 不能发给官方。去掉 token、jwt、newjwt，并把 `x-object-id` 的 uid 置空。不要改 `dist` 里的官方 JS。测速文件本地回 `ok`。不要把 `pt.json` 当成测速文件。心跳保留。
+
+`withdrawSettingV3` 没有 token 时回空壳，不要 401。登录改密保持未实现，不要假成功。不要把口号、图标 URL、某个账号的 VIP 数字写进适配器。`unmapped` 且路线是 UPSTREAM 表示回源。改 `adapter`、`preview-proxy`、`static-server` 后要重启 `yarn start`。

@@ -1,7 +1,7 @@
 const path = require('path');
 const { URL } = require('url');
 const axios = require('axios');
-const { applySystemProxy } = require('./system-proxy');
+const { applySystemProxy, getDirectHttpsAgent } = require('./system-proxy');
 applySystemProxy({ log: false });
 
 const PROXY_PREFIX = '/__sd_proxy__';
@@ -1100,10 +1100,11 @@ async function recoverActiveDetail(target, req, bodyBuf) {
   const payload = JSON.stringify({ activeId });
   try {
     const res = await axios.post(url.href, payload, {
-      timeout: 15000,
+      timeout: 12000,
       responseType: 'arraybuffer',
       validateStatus: () => true,
-      proxy: undefined,
+      httpsAgent: getDirectHttpsAgent(),
+      proxy: false,
       headers: {
         Accept: 'application/json,text/plain,*/*',
         'Content-Type': 'application/json',
@@ -1156,10 +1157,11 @@ async function recoverPlainGet(target, req) {
   const headers = (req && req.headers) || {};
   try {
     const res = await axios.get(url.href, {
-      timeout: 15000,
+      timeout: 12000,
       responseType: 'arraybuffer',
       validateStatus: () => true,
-      proxy: undefined,
+      httpsAgent: getDirectHttpsAgent(),
+      proxy: false,
       headers: {
         Accept: 'application/json,text/plain,*/*',
         'Accept-Encoding': 'identity',
@@ -1184,6 +1186,8 @@ async function recoverPlainGet(target, req) {
   }
 }
 
+const guestJsonCache = new Map();
+
 async function recoverGuestJson(target, req, options) {
   const detail = await recoverActiveDetail(target, req, options && options.reqBody);
   if (detail) return detail;
@@ -1192,20 +1196,28 @@ async function recoverGuestJson(target, req, options) {
   const paths = guestPublicPaths(target.pathname, req && req.headers);
   if (!paths.length) return null;
   const origins = [];
-  try { origins.push(new URL(target.href).origin); } catch (_) { /* ignore */ }
+  // 活动列表在 oniw 公开 json。先打 OSS，aniw 业务域名对这条会 41000。
   if (options && options.ossOrigin) origins.push(String(options.ossOrigin).replace(/\/$/, ''));
+  try {
+    const apiOrigin = new URL(target.href).origin;
+    if (!origins.includes(apiOrigin)) origins.push(apiOrigin);
+  } catch (_) { /* ignore */ }
   if (!origins.length) return null;
+  const httpsAgent = getDirectHttpsAgent();
   for (const rel of paths) {
+    const cached = guestJsonCache.get(rel);
+    if (cached && Date.now() - cached.at < 60000 && cached.buf && cached.buf.length) return cached.buf;
     for (const origin of origins) {
     const url = origin + '/hall' + rel;
     let host = target.host;
     try { host = new URL(url).host; } catch (_) { /* keep target host */ }
     try {
       const res = await axios.get(url, {
-        timeout: 15000,
+        timeout: 12000,
         responseType: 'arraybuffer',
         validateStatus: () => true,
-        proxy: undefined,
+        httpsAgent,
+        proxy: false,
         headers: {
           Accept: 'application/json,text/plain,*/*',
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -1214,7 +1226,10 @@ async function recoverGuestJson(target, req, options) {
       });
       if (res.status >= 400) continue;
       const wrapped = wrapGuestPayload(Buffer.from(res.data || []));
-      if (wrapped && wrapped.length) return wrapped;
+      if (wrapped && wrapped.length) {
+        guestJsonCache.set(rel, { at: Date.now(), buf: wrapped });
+        return wrapped;
+      }
     } catch (_) { /* try next public path */ }
     }
   }
@@ -1345,6 +1360,26 @@ function proxyRequest(req, res, target, refererOrigin, options = {}) {
       });
     }
 
+    const guestFirst = /\/api\/active\/(?:categoryV2|category|getByTemplate|isShowV2|get)$/i.test(
+      String(target.pathname || '').replace(/^\/hall/, '')
+    );
+    if (guestFirst) {
+      const recovered = await recoverGuestJson(target, req, Object.assign({}, options, { reqBody: body }));
+      if (recovered && recovered.length) {
+        if (!res.headersSent) {
+          res.writeHead(200, {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Cache-Control': 'no-store',
+            'Content-Length': String(recovered.length),
+            'X-SD-Guest-Json': '1'
+          });
+        }
+        res.end(recovered);
+        try { console.info('[sd-proxy] guest json', target.pathname, recovered.length); } catch (_) { /* ignore */ }
+        return;
+      }
+    }
+
     const upRes = await axios({
       url: target.href,
       method,
@@ -1388,11 +1423,7 @@ function proxyRequest(req, res, target, refererOrigin, options = {}) {
             } else if (noServer) {
               console.info('[sd-proxy] obtain-server silenced', target.pathname);
             } else if (/active\/category/i.test(target.pathname)) {
-              console.info(
-                '[sd-proxy] category kick',
-                Object.keys(headers).join(','),
-                raw.slice(0, 140)
-              );
+              console.info(recovered ? '[sd-proxy] category guest' : '[sd-proxy] category empty', target.pathname);
             } else {
               console.info('[sd-proxy] sanitized auth kick', target.pathname);
             }

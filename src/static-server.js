@@ -229,6 +229,28 @@ function createStaticServer(siteDir, options = {}) {
       const filePath = resolveFilePath(root, req.url || '/');
 
       if (!filePath) {
+        // 大厅测速文件：每种候选域名都会打一次，慢的会被浏览器取消。
+        // 本地预览域名已经固定，直接回 ok，不再打到真实 CDN。
+        const speedProbe = {
+          '/ipacdn.txt': 1,
+          '/agespeed.txt': 1,
+          '/fzcdn.txt': 1,
+          '/ssocdn.json': 1,
+          '/ssocdn.txt': 1,
+          '/cocos/bewcdn.json': 1,
+          '/normal/dscdn.json': 1
+        };
+        if (!isMutating && speedProbe[reqUrl.pathname]) {
+          const probeBody = 'ok';
+          res.writeHead(200, {
+            'Content-Type': 'text/plain; charset=utf-8',
+            'Content-Length': String(Buffer.byteLength(probeBody)),
+            'Cache-Control': 'no-store',
+            'Access-Control-Allow-Origin': '*'
+          });
+          res.end(probeBody);
+          return;
+        }
         // 短 path 回源：浏览器请求 /ipacdn.txt?t= ，原始主机在 x-sd-upstream
         const hinted = upstreamHint(req);
         let hintHost = '';

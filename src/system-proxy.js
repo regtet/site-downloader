@@ -119,6 +119,11 @@ function getPlaywrightProxy() {
   }
 }
 
+try {
+  const dns = require('dns');
+  if (typeof dns.setDefaultResultOrder === 'function') dns.setDefaultResultOrder('ipv4first');
+} catch (_) { /* Node 17 之前没有该接口 */ }
+
 let cachedProxyAgent = null;
 let cachedProxyKey = '';
 let directHttpsAgent = null;
@@ -135,7 +140,7 @@ function getHttpsProxyAgent() {
     const { HttpsProxyAgent } = require('https-proxy-agent');
     cachedProxyAgent = new HttpsProxyAgent(proxyUrl, {
       keepAlive: true,
-      keepAliveMsecs: 30000,
+      keepAliveMsecs: 120000,
       maxSockets: 32,
       scheduling: 'lifo'
     });
@@ -155,9 +160,10 @@ function getDirectHttpsAgent() {
     const https = require('https');
     directHttpsAgent = new https.Agent({
       keepAlive: true,
-      keepAliveMsecs: 30000,
+      keepAliveMsecs: 120000,
       maxSockets: 32,
-      scheduling: 'lifo'
+      scheduling: 'lifo',
+      family: 4
     });
   }
   return directHttpsAgent;

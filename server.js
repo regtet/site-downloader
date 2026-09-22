@@ -1,3 +1,7 @@
+try {
+  const dns = require('dns');
+  if (typeof dns.setDefaultResultOrder === 'function') dns.setDefaultResultOrder('ipv4first');
+} catch (_) { /* Node 17 之前没有该接口 */ }
 require('./src/playwright-env');
 require('./src/system-proxy').applySystemProxy();
 const http = require('http');
