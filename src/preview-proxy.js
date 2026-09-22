@@ -1058,6 +1058,68 @@ function isAuthKickText(text) {
   }
 }
 
+function readActiveId(buf) {
+  if (!buf || !buf.length) return 0;
+  let body;
+  try { body = JSON.parse(Buffer.from(buf).toString('utf8')); } catch (_) { return 0; }
+  if (!body || typeof body !== 'object') return 0;
+  const n = Number(body.activeId != null ? body.activeId : body.id);
+  if (!Number.isFinite(n) || n <= 0 || n > 1e12) return 0;
+  return Math.floor(n);
+}
+
+/**
+ * 活动详情 crypto 关闭，客户端要明文 JSON（name/content/activeData）。
+ * 带我们的会话会被踢；用活动 id 再以访客身份要一次官方正文。
+ */
+async function recoverActiveDetail(target, req, bodyBuf) {
+  const path = String((target && target.pathname) || '').replace(/^\/hall/, '');
+  if (!/\/api\/active\/get$/i.test(path)) return null;
+  const activeId = readActiveId(bodyBuf);
+  if (!activeId) return null;
+  const headers = (req && req.headers) || {};
+  const lang = safeSegment(headers.language, 'pt');
+  const cur = safeSegment(headers.currency, 'BRL');
+  const site = safeSegment(headers.sitecode, '');
+  let url;
+  try {
+    url = new URL(target.href);
+    url.pathname = '/hall/api/active/get';
+    url.search = '';
+  } catch (_) {
+    return null;
+  }
+  const payload = JSON.stringify({ activeId });
+  try {
+    const res = await axios.post(url.href, payload, {
+      timeout: 15000,
+      responseType: 'arraybuffer',
+      validateStatus: () => true,
+      proxy: undefined,
+      headers: {
+        Accept: 'application/json,text/plain,*/*',
+        'Content-Type': 'application/json',
+        'Accept-Encoding': 'identity',
+        'x-data-mode': 'plain',
+        currency: cur,
+        language: lang,
+        ...(site ? { sitecode: site } : {}),
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        Host: url.host
+      }
+    });
+    if (res.status >= 400) return null;
+    const buf = Buffer.from(res.data || []);
+    const text = buf.toString('utf8').trim();
+    if (!text || text[0] !== '{' || isAuthKickText(text)) return null;
+    const j = JSON.parse(text);
+    if (!j || Number(j.code) !== 1 || !j.data || j.data.name == null) return null;
+    return buf;
+  } catch (_) {
+    return null;
+  }
+}
+
 function wrapGuestPayload(buf) {
   const text = buf.toString('utf8').trim();
   if (!text || isAuthKickText(text)) return null;
@@ -1073,6 +1135,8 @@ function wrapGuestPayload(buf) {
 }
 
 async function recoverGuestJson(target, req, options) {
+  const detail = await recoverActiveDetail(target, req, options && options.reqBody);
+  if (detail) return detail;
   const paths = guestPublicPaths(target.pathname, req && req.headers);
   if (!paths.length) return null;
   const origins = [];
@@ -1254,7 +1318,7 @@ function proxyRequest(req, res, target, refererOrigin, options = {}) {
           emptyListOnKick: !!options.emptyListOnKick
         });
         if (next !== raw) {
-          const recovered = await recoverGuestJson(target, req, options);
+          const recovered = await recoverGuestJson(target, req, Object.assign({}, options, { reqBody: body }));
           if (recovered) {
             outHeaders['X-SD-Guest-Json'] = '1';
             buf = recovered;
@@ -1263,7 +1327,9 @@ function proxyRequest(req, res, target, refererOrigin, options = {}) {
             buf = Buffer.from(next, 'utf8');
           }
           try {
-            if (/active\/category/i.test(target.pathname)) {
+            if (recovered && /\/api\/active\/get$/i.test(String(target.pathname || ''))) {
+              console.info('[sd-proxy] activity detail guest', target.pathname);
+            } else if (/active\/category/i.test(target.pathname)) {
               console.info(
                 '[sd-proxy] category kick',
                 Object.keys(headers).join(','),

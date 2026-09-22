@@ -116,6 +116,7 @@ const CORE_MAP = {
 
   // —— 活动红点/弹窗（无活动引擎：空列表，不伪造奖励）——
   '/api/active/category': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'upstream activity categories' },
+  '/api/active/get': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'official activity detail name/content' },
   '/api/active/getByTemplate': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'activity banners OSS/HAR' },
   '/api/active/getRedDotV2': { op: OP.EMPTY_RECORDS, adapter: 'redDotEmpty', note: 'zero red dots' },
   '/api/active/pop_canReceiveReward': { op: OP.LOBBY_OK, adapter: 'canReceivePop', note: 'no rewards' },
