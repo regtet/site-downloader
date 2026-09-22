@@ -729,6 +729,88 @@ function adaptAgentBlob(providerResult, meta) {
   return envelope(d && typeof d === 'object' ? d : {});
 }
 
+function agentReportShell(extra) {
+  return {
+    list: [],
+    totalRecords: 0,
+    total: 0,
+    totalDeposit: 0,
+    directDeposit: 0,
+    otherDeposit: 0,
+    totalDepositPerson: 0,
+    directDepositPerson: 0,
+    otherDepositPerson: 0,
+    totalWithdraw: 0,
+    directWithdraw: 0,
+    otherWithdraw: 0,
+    totalWithdrawCount: 0,
+    directWithdrawCount: 0,
+    otherWithdrawCount: 0,
+    totalFirstDeposit: 0,
+    directFirstDeposit: 0,
+    otherFirstDeposit: 0,
+    totalFirstDepositPerson: 0,
+    directFirstDepositPerson: 0,
+    otherFirstDepositPerson: 0,
+    totalRegisterPerson: 0,
+    directRegisterPerson: 0,
+    otherRegisterPerson: 0,
+    totalValidBet: 0,
+    directValidBet: 0,
+    otherValidBet: 0,
+    totalProfitLose: 0,
+    directProfitLose: 0,
+    otherProfitLose: 0,
+    directCoupon: 0,
+    ...(extra || {})
+  };
+}
+
+/** 直属财务页：页脚用代理统计，没有逐人明细时 list 为空且 totalRecords 为 0，分页会停 */
+function adaptAgentFinance(providerResult) {
+  if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
+  const src = providerResult.data && typeof providerResult.data === 'object' ? providerResult.data : {};
+  const n = (v) => Number(v) || 0;
+  const directDeposit = n(src.lv1Deposit);
+  const otherDeposit = n(src.lv2Deposit) + n(src.lv3Deposit);
+  const directWithdraw = n(src.lv1Withdraw);
+  const otherWithdraw = n(src.lv2Withdraw) + n(src.lv3Withdraw);
+  const directFirst = n(src.lv1FirstDeposit);
+  const otherFirst = n(src.lv2FirstDeposit) + n(src.lv3FirstDeposit);
+  const directFirstPerson = n(src.lv1FirstDepositPerson);
+  const otherFirstPerson = n(src.lv2FirstDepositPerson) + n(src.lv3FirstDepositPerson);
+  const directReg = n(src.directMembers != null ? src.directMembers : src.lv1PersonCount);
+  const otherReg = n(src.otherMembers != null ? src.otherMembers : (n(src.lv2PersonCount) + n(src.lv3PersonCount)));
+  const directBet = n(src.directPerformanceYet != null ? src.directPerformanceYet : src.lv1Running);
+  const otherBet = n(src.lv2Running) + n(src.lv3Running);
+  return envelope(agentReportShell({
+    totalDeposit: n(src.totalDeposit) || (directDeposit + otherDeposit),
+    directDeposit,
+    otherDeposit,
+    totalWithdraw: n(src.totalWithdraw) || (directWithdraw + otherWithdraw),
+    directWithdraw,
+    otherWithdraw,
+    totalFirstDeposit: directFirst + otherFirst,
+    directFirstDeposit: directFirst,
+    otherFirstDeposit: otherFirst,
+    totalFirstDepositPerson: directFirstPerson + otherFirstPerson,
+    directFirstDepositPerson: directFirstPerson,
+    otherFirstDepositPerson: otherFirstPerson,
+    totalRegisterPerson: directReg + otherReg,
+    directRegisterPerson: directReg,
+    otherRegisterPerson: otherReg,
+    totalValidBet: n(src.totalRunning) || (directBet + otherBet),
+    directValidBet: directBet,
+    otherValidBet: otherBet
+  }));
+}
+
+/** 直属订单/优惠券没有逐笔数据：空页，成功码，避免 10060 */
+function adaptAgentReportEmpty(providerResult) {
+  if (providerResult && providerResult.ok === false) return failEnvelope(providerResult);
+  return envelope(agentReportShell());
+}
+
 function adaptAgentSettleTime(providerResult) {
   if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
   const d = providerResult.data || {};
@@ -1026,6 +1108,8 @@ const ADAPTERS = {
   payOrderInfo: adaptPayOrderInfo,
   gameLaunch: adaptGameLaunch,
   agentBlob: adaptAgentBlob,
+  agentFinance: adaptAgentFinance,
+  agentReportEmpty: adaptAgentReportEmpty,
   agentSettleTime: adaptAgentSettleTime,
   maxChargeRate: adaptMaxChargeRate,
   withdrawPending: adaptWithdrawPending,

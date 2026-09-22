@@ -1134,9 +1134,52 @@ function wrapGuestPayload(buf) {
   return buf;
 }
 
+async function recoverPlainGet(target, req) {
+  const path = String((target && target.pathname) || '').replace(/^\/hall/, '');
+  if (!/\/api\/agent\/promote\/config\/introduce$/i.test(path)) return null;
+  let url;
+  try {
+    url = new URL(target.href);
+    url.pathname = '/hall/api/agent/promote/config/introduce';
+  } catch (_) {
+    return null;
+  }
+  const headers = (req && req.headers) || {};
+  try {
+    const res = await axios.get(url.href, {
+      timeout: 15000,
+      responseType: 'arraybuffer',
+      validateStatus: () => true,
+      proxy: undefined,
+      headers: {
+        Accept: 'application/json,text/plain,*/*',
+        'Accept-Encoding': 'identity',
+        'x-data-mode': 'plain',
+        currency: safeSegment(headers.currency, 'BRL'),
+        language: safeSegment(headers.language, 'pt'),
+        ...(safeSegment(headers.sitecode, '') ? { sitecode: safeSegment(headers.sitecode, '') } : {}),
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        Host: url.host
+      }
+    });
+    if (res.status >= 400) return null;
+    const buf = Buffer.from(res.data || []);
+    const text = buf.toString('utf8').trim();
+    if (!text || isAuthKickText(text)) return null;
+    if (text[0] !== '{') return buf;
+    const j = JSON.parse(text);
+    if (!j || Number(j.code) !== 1 || j.data == null) return null;
+    return buf;
+  } catch (_) {
+    return null;
+  }
+}
+
 async function recoverGuestJson(target, req, options) {
   const detail = await recoverActiveDetail(target, req, options && options.reqBody);
   if (detail) return detail;
+  const intro = await recoverPlainGet(target, req);
+  if (intro) return intro;
   const paths = guestPublicPaths(target.pathname, req && req.headers);
   if (!paths.length) return null;
   const origins = [];

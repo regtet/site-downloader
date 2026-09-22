@@ -254,7 +254,10 @@ const CORE_MAP = {
   '/api/agent/promote/report/myCommissionDetailV3': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'detail empty until agent API' },
   '/api/agent/promote/report/myPerformanceV2': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'perf empty until agent API' },
   '/api/agent/promote/report/myPerformanceDetailV2': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'perf empty until agent API' },
-  '/api/agent/promote/report/directFinV4': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'direct fin empty' },
+  '/api/agent/promote/report/directFinV4': { op: OP.AGENT_TOTAL, adapter: 'agentFinance', note: 'footer from proxyStatistics' },
+  '/api/agent/promote/report/directOrderV3': { op: OP.LOBBY_OK, adapter: 'agentReportEmpty', note: 'no per-order rows' },
+  '/api/agent/promote/report/directCouponV3': { op: OP.LOBBY_OK, adapter: 'agentReportEmpty', note: 'no coupon rows' },
+  '/api/agent/promote/config/introduce': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'official agent introduce' },
   '/api/agent/promote/report/memberInfo': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'member info empty' },
 
   // —— 尾差：客服/消息 ——
