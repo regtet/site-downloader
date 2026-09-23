@@ -424,6 +424,12 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
       var u = new URL(href);
       if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
       if (u.origin === LOCAL_ORIGIN) return null;
+      if (
+        ADAPTER_ENABLED
+        && (u.pathname.indexOf('/pay/paysubmit') === 0 || u.pathname.indexOf('/dragon/phoenix') === 0)
+      ) {
+        return LOCAL_ORIGIN + '/api/finance/pay/paysubmit' + u.search + u.hash;
+      }
       if (!u.pathname || u.pathname === '/') return toProxy(href);
       var aniw = /^aniw\\d*\\./i.test(u.hostname);
       // 官方预览也走本地短 path（/ipacdn.txt?t=），原始主机放在 x-sd-upstream，避免把整段 URL 编码进路径
@@ -1013,16 +1019,24 @@ function safeSegment(raw, fallback) {
   return /^[A-Za-z0-9_-]{1,12}$/.test(s) ? s : fallback;
 }
 
+function langPrimary(raw) {
+  const s = String(raw || '').split(',')[0].trim().split(/[-_]/)[0];
+  return /^[a-z]{2}$/i.test(s) ? s.toLowerCase() : 'pt';
+}
+
 /** 登录后活动/代理配置走业务接口会被踢；公开 json 才是列表本身 */
 function guestPublicPaths(pathname, headers) {
   const p = String(pathname || '').replace(/^\/hall/, '');
-  const lang = safeSegment(headers && headers.language, 'pt');
+  const lang = langPrimary(headers && headers.language);
   const cur = safeSegment(headers && headers.currency, 'BRL');
   if (/\/api\/active\/categoryV2$/i.test(p) || /\/api\/active\/category$/i.test(p)) {
-    return [
-      `/api/active/category/currency/${cur}/language/${lang}.json`,
-      `/api/active/categoryV2/currency/${cur}/language/${lang}.json`
-    ];
+    const langs = lang === 'pt' ? ['pt'] : [lang, 'pt'];
+    const out = [];
+    for (const code of langs) {
+      out.push(`/api/active/category/currency/${cur}/language/${code}.json`);
+      out.push(`/api/active/categoryV2/currency/${cur}/language/${code}.json`);
+    }
+    return out;
   }
   if (/\/api\/active\/getByTemplate$/i.test(p)) {
     return [`/api/active/getByTemplate/currency/${cur}.json`];
@@ -1188,11 +1202,73 @@ async function recoverPlainGet(target, req) {
 
 const guestJsonCache = new Map();
 
+async function recoverGuestReplay(target, req, bodyBuf) {
+  const path = String((target && target.pathname) || '').replace(/^\/hall/, '');
+  if (!/\/api\/active\/(tasks\/task|tasks\/vitality\/boxs|returnGold\/summary\/v3|returnGold\/ratiotable|cutADeal\/list|turntable\/)/i.test(path)) {
+    return null;
+  }
+  let url;
+  try {
+    url = new URL(target.href);
+    url.pathname = '/hall' + path;
+    url.search = '';
+  } catch (_) {
+    return null;
+  }
+  const headers = (req && req.headers) || {};
+  let payload = bodyBuf && bodyBuf.length ? Buffer.from(bodyBuf) : Buffer.from('{}');
+  try {
+    const parsed = JSON.parse(payload.toString('utf8'));
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      for (const key of ['token', 'jwt', 'newJwt', 'newjwt', 'session_key', 'userkey', 'authorization']) {
+        delete parsed[key];
+      }
+      payload = Buffer.from(JSON.stringify(parsed));
+    }
+  } catch (_) { /* keep original body */ }
+  try {
+    const res = await axios.post(url.href, payload, {
+      timeout: 12000,
+      responseType: 'arraybuffer',
+      validateStatus: () => true,
+      httpsAgent: getDirectHttpsAgent(),
+      proxy: false,
+      headers: {
+        Accept: 'application/json,text/plain,*/*',
+        'Content-Type': 'application/json',
+        'Accept-Encoding': 'identity',
+        'x-data-mode': 'plain',
+        currency: safeSegment(headers.currency, 'BRL'),
+        language: langPrimary(headers.language),
+        ...(safeSegment(headers.sitecode, '') ? { sitecode: safeSegment(headers.sitecode, '') } : {}),
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        Host: url.host
+      }
+    });
+    if (res.status >= 400) return null;
+    const buf = Buffer.from(res.data || []);
+    const text = buf.toString('utf8').trim();
+    if (!text || text[0] !== '{' || isAuthKickText(text)) return null;
+    const body = JSON.parse(text);
+    if (!body || Number(body.code) !== 1 || body.data == null) {
+      try {
+        console.info('[sd-proxy] guest miss', path, res.status, body && (body.errorCode || body.code));
+      } catch (_) { /* ignore */ }
+      return null;
+    }
+    return buf;
+  } catch (_) {
+    return null;
+  }
+}
+
 async function recoverGuestJson(target, req, options) {
   const detail = await recoverActiveDetail(target, req, options && options.reqBody);
   if (detail) return detail;
   const intro = await recoverPlainGet(target, req);
   if (intro) return intro;
+  const replay = await recoverGuestReplay(target, req, options && options.reqBody);
+  if (replay) return replay;
   const paths = guestPublicPaths(target.pathname, req && req.headers);
   if (!paths.length) return null;
   const origins = [];
@@ -1360,7 +1436,7 @@ function proxyRequest(req, res, target, refererOrigin, options = {}) {
       });
     }
 
-    const guestFirst = /\/api\/active\/(?:categoryV2|category|getByTemplate|isShowV2|get)$/i.test(
+    const guestFirst = /\/api\/active\/(?:categoryV2|category|getByTemplate|isShowV2|get|tasks\/task|tasks\/vitality\/boxs|returnGold\/summary\/v3|returnGold\/ratiotable|cutADeal\/list)$|\/api\/active\/turntable\//i.test(
       String(target.pathname || '').replace(/^\/hall/, '')
     );
     if (guestFirst) {

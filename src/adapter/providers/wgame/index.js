@@ -17,6 +17,230 @@ const sessions = new Map();
 const SESSION_STORE = path.join(os.tmpdir(), 'site-downloader-wgame-sessions.json');
 /** 当前生效的登录域（loginHttpBase|packageId|wssUrl）；切换后清空本地缓存，避免「空服仍能登录」 */
 let activeAuthRealm = '';
+let shopPackCache = { at: 0, key: '', value: null };
+let vipLoadInflight = null;
+let vipLoadCache = { at: 0, key: '', value: null };
+const publicActiveCache = new Map();
+
+function langPrimary(raw) {
+  const s = String(raw || '').split(',')[0].trim().split(/[-_]/)[0];
+  return /^[a-z]{2}$/i.test(s) ? s.toLowerCase() : 'pt';
+}
+
+function resolveOssOrigin(siteDir) {
+  try {
+    const { loadAdapterConfig } = require('../../config');
+    const adapterCfg = loadAdapterConfig(siteDir, fs, path);
+    if (adapterCfg && adapterCfg.ossOrigin) return String(adapterCfg.ossOrigin).replace(/\/$/, '');
+  } catch (_) { /* fall through to html */ }
+  try {
+    const html = fs.readFileSync(path.join(siteDir, 'index.html'), 'utf8');
+    const tagged = html.match(/ossBaseUrl\s*:\s*["'](https?:\/\/[^"'&\s]+)/i);
+    const plain = html.match(/https?:\/\/oniw\d*\.[^"'&\s/]+/i);
+    const raw = (tagged && tagged[1]) || (plain && plain[0]) || '';
+    if (raw) return new URL(raw).origin;
+  } catch (_) { /* ignore */ }
+  return '';
+}
+
+async function loadVipMapped(token, cfg) {
+  const key = token ? String(token).slice(-16) : 'guest';
+  if (vipLoadCache.value && vipLoadCache.key === key && Date.now() - vipLoadCache.at < 15000) {
+    return vipLoadCache.value;
+  }
+  if (vipLoadInflight && vipLoadInflight.key === key) return vipLoadInflight.promise;
+  const promise = (async () => {
+    const { httpVipList } = require('./http-api');
+    const vipRes = await httpVipList({ token, cfg, timeoutMs: cfg.timeoutMs });
+    const mapped = require('./http-maps').mapVipDetail(vipRes);
+    if (mapped && Array.isArray(mapped.VipSettings) && mapped.VipSettings.length) {
+      vipLoadCache = { at: Date.now(), key, value: mapped };
+    }
+    return mapped;
+  })();
+  vipLoadInflight = { key, promise };
+  try {
+    return await promise;
+  } finally {
+    if (vipLoadInflight && vipLoadInflight.promise === promise) vipLoadInflight = null;
+  }
+}
+
+function rememberVip(row, mapped, cfg) {
+  if (!row || !row.user || !mapped) return;
+  if (mapped.vip_level != null) row.user.vip_level = mapped.vip_level;
+  if (Array.isArray(mapped.VipSettings) && mapped.VipSettings.length) {
+    row.user.VipSettings = mapped.VipSettings;
+    row.user.curPoint = mapped.curPoint;
+    row.user.curWater = mapped.curWater;
+  }
+  rememberSession(row.user, cfg);
+}
+
+function vipPayload(row, mapped) {
+  const base = (row && row.user) ? row.user : {};
+  const cached = vipLoadCache.value;
+  const settings = (mapped && Array.isArray(mapped.VipSettings) && mapped.VipSettings.length)
+    ? mapped.VipSettings
+    : (Array.isArray(base.VipSettings) && base.VipSettings.length
+      ? base.VipSettings
+      : (cached && cached.VipSettings));
+  return Object.assign({}, base, mapped || {}, settings && settings.length ? {
+    VipSettings: settings,
+    curPoint: mapped && mapped.curPoint != null ? mapped.curPoint : base.curPoint,
+    curWater: mapped && mapped.curWater != null ? mapped.curWater : base.curWater,
+    vip_level: mapped && mapped.vip_level != null ? mapped.vip_level : base.vip_level
+  } : {});
+}
+
+async function loadPublicActive(siteDir, routePath, headers) {
+  const oss = resolveOssOrigin(siteDir);
+  if (!oss) return null;
+  const lang = langPrimary(headers && headers.language);
+  const cur = 'BRL';
+  const p = String(routePath || '');
+  const rels = [];
+  if (/\/api\/active\/categoryV2$/i.test(p)) {
+    const langs = lang === 'pt' ? ['pt'] : [lang, 'pt'];
+    for (const code of langs) {
+      rels.push('/hall/api/active/categoryV2/currency/' + cur + '/language/' + code + '.json');
+      rels.push('/hall/api/active/category/currency/' + cur + '/language/' + code + '.json');
+    }
+  } else if (/\/api\/active\/category$/i.test(p)) {
+    const langs = lang === 'pt' ? ['pt'] : [lang, 'pt'];
+    for (const code of langs) {
+      rels.push('/hall/api/active/category/currency/' + cur + '/language/' + code + '.json');
+    }
+  } else if (/\/api\/active\/isShowV2$/i.test(p)) {
+    rels.push('/hall/api/active/isShowV2/default.json');
+  } else if (/\/api\/active\/getByTemplate$/i.test(p)) {
+    rels.push('/hall/api/active/getByTemplate/currency/' + cur + '.json');
+  } else {
+    return null;
+  }
+  const axios = require('axios');
+  const { getDirectHttpsAgent } = require('../../../system-proxy');
+  for (const rel of rels) {
+    const cached = publicActiveCache.get(rel);
+    if (cached && Date.now() - cached.at < 60000 && cached.data != null) return cached.data;
+    try {
+      const res = await axios.get(oss + rel, {
+        httpsAgent: getDirectHttpsAgent(),
+        proxy: false,
+        timeout: 12000,
+        validateStatus: () => true
+      });
+      const body = res.data;
+      if (res.status < 400 && body && Number(body.code) === 1 && body.data != null) {
+        publicActiveCache.set(rel, { at: Date.now(), data: body.data });
+        const data = body.data;
+        const n = Array.isArray(data.activeList)
+          ? data.activeList.length
+          : (Array.isArray(data.taskSetting) ? data.taskSetting.length : (Array.isArray(data) ? data.length : 0));
+        try { console.info('[provider:wgame] public active', p, 'n=' + n); } catch (_) { /* ignore */ }
+        return data;
+      }
+    } catch (err) {
+      console.warn('[provider:wgame] public active failed', rel, (err && err.message) || err);
+    }
+  }
+  return null;
+}
+
+function resolveApiOrigin(siteDir) {
+  try {
+    const { loadAdapterConfig } = require('../../config');
+    const adapterCfg = loadAdapterConfig(siteDir, fs, path);
+    if (adapterCfg && adapterCfg.upstreamOrigin) return String(adapterCfg.upstreamOrigin).replace(/\/$/, '');
+  } catch (_) { /* fall through */ }
+  try {
+    const html = fs.readFileSync(path.join(siteDir, 'index.html'), 'utf8');
+    const m = html.match(/https?:\/\/aniw\d*\.[^"'&\s/]+/i);
+    if (m) return m[0];
+  } catch (_) { /* ignore */ }
+  return '';
+}
+
+async function replayOfficialActive(siteDir, routePath, body, headers) {
+  const origin = resolveApiOrigin(siteDir);
+  if (!origin) return null;
+  const pathName = '/hall' + String(routePath || '').replace(/^\/hall/, '');
+  const payload = Object.assign({}, body || {});
+  for (const key of ['token', 'jwt', 'newJwt', 'newjwt', 'session_key', 'userkey', 'authorization']) {
+    delete payload[key];
+  }
+  const axios = require('axios');
+  const { getDirectHttpsAgent } = require('../../../system-proxy');
+  try {
+    const res = await axios.post(origin + pathName, JSON.stringify(payload), {
+      httpsAgent: getDirectHttpsAgent(),
+      proxy: false,
+      timeout: 8000,
+      validateStatus: () => true,
+      headers: {
+        Accept: 'application/json,text/plain,*/*',
+        'Content-Type': 'application/json',
+        'x-data-mode': 'plain',
+        currency: 'BRL',
+        language: langPrimary(headers && headers.language),
+        'User-Agent': 'Mozilla/5.0'
+      }
+    });
+    const parsed = res.data;
+    if (res.status < 400 && parsed && Number(parsed.code) === 1 && parsed.data != null) return parsed.data;
+    try {
+      console.info('[provider:wgame] active replay miss', routePath, res.status, parsed && (parsed.errorCode || parsed.code));
+    } catch (_) { /* ignore */ }
+  } catch (err) {
+    console.warn('[provider:wgame] active replay failed', routePath, (err && err.message) || err);
+  }
+  return null;
+}
+
+async function loadLiveShopPack(cfg, token, siteDir) {
+  const key = (token ? String(token).slice(-16) : 'guest') + ':' + (cfg && cfg.packageId != null ? cfg.packageId : '');
+  if (shopPackCache.value && shopPackCache.key === key && Date.now() - shopPackCache.at < 15000) {
+    return shopPackCache.value;
+  }
+  const {
+    httpShopItemList,
+    httpGuestShopItemList
+  } = require('./http-api');
+  const { loadPayConfig, mapHttpShopToPack, loadHarPaySnapshot } = require('./pay-config');
+  const pay = loadPayConfig(siteDir, cfg);
+  const har = loadHarPaySnapshot(siteDir);
+  const shop = token
+    ? await httpShopItemList({
+      token,
+      packageId: cfg.packageId,
+      cfg,
+      timeoutMs: cfg.timeoutMs
+    })
+    : await httpGuestShopItemList({
+      packageId: cfg.packageId,
+      cfg,
+      timeoutMs: cfg.timeoutMs
+    });
+  const pack = mapHttpShopToPack(shop, pay, har, siteDir);
+  const items = (shop && (shop.item || shop.items)) || [];
+  const value = { pack, items: Array.isArray(items) ? items : [], pay };
+  shopPackCache = { at: Date.now(), key, value };
+  return value;
+}
+
+function bestShopChargeRate(items) {
+  const { shopAwardToDisplay } = require('./pay-config');
+  let best = 0;
+  for (const it of items || []) {
+    const rm = Number(it && (it.realMoney != null ? it.realMoney : it.nRealMoney)) || 0;
+    if (rm <= 0) continue;
+    const gift = shopAwardToDisplay(it.extraAward)
+      + shopAwardToDisplay(it.firstChargeAward)
+      + shopAwardToDisplay(it.dayFirstCharge);
+    if (gift > 0) best = Math.max(best, (gift / rm) * 100);
+  }
+  return best > 0 ? String(Math.round(best * 100) / 100) : '0';
+}
 
 function authRealmOf(cfg) {
   const c = cfg || {};
@@ -612,35 +836,20 @@ async function execute(op, ctx) {
   if (op === OP.USER_VIP || op === OP.USER_AVATARS) {
     const row = findSession(body, headers);
     const routePath = String((ctx && ctx.routePath) || '');
+    const { sessionHttpToken } = require('./http-api');
+    const token = (row && row.user) ? sessionHttpToken(row.user) : '';
     // vip 等级表可未登录
     const needList = /allVipLevel|vipInfoUnLogin/i.test(routePath);
-    if (needList) {
-      try {
-        const { httpVipList, sessionHttpToken } = require('./http-api');
-        const token = (row && row.user) ? sessionHttpToken(row.user) : '';
-        const vipRes = await httpVipList({ token, cfg, timeoutMs: cfg.timeoutMs });
-        const mapped = require('./http-maps').mapVipDetail(vipRes);
-        if (row && row.user) {
-          row.user.vip_level = mapped.vip_level;
-          rememberSession(row.user, cfg);
-          return ok(Object.assign({}, row.user, mapped), 'ok');
-        }
-        return ok(mapped, 'ok');
-      } catch (err) {
-        console.warn('[provider:wgame] vipList failed:', (err && err.message) || err);
-      }
-    }
-    if (!row || !row.user) return fail(401, 'not logged in');
+    if (!needList && (!row || !row.user)) return fail(401, 'not logged in');
     try {
-      const { httpVipList, sessionHttpToken } = require('./http-api');
-      const token = sessionHttpToken(row.user);
-      const vipRes = await httpVipList({ token, cfg, timeoutMs: cfg.timeoutMs });
-      const mapped = require('./http-maps').mapVipDetail(vipRes);
-      row.user.vip_level = mapped.vip_level;
-      rememberSession(row.user, cfg);
-      return ok(Object.assign({}, row.user, mapped), 'ok');
+      const mapped = await loadVipMapped(token, cfg);
+      rememberVip(row, mapped, cfg);
+      return ok(vipPayload(row, mapped), 'ok');
     } catch (err) {
-      console.warn('[provider:wgame] vipList (authed) failed:', (err && err.message) || err);
+      console.warn('[provider:wgame] vipList failed:', (err && err.message) || err);
+      const kept = vipPayload(row, null);
+      if (kept && Array.isArray(kept.VipSettings) && kept.VipSettings.length) return ok(kept, 'ok');
+      if (!row || !row.user) return fail(10061, 'vip list unavailable');
       return ok(row.user, 'ok');
     }
   }
@@ -669,13 +878,65 @@ async function execute(op, ctx) {
     const routePath = String((ctx && ctx.routePath) || '');
     const { getOrder, putOrder, listOrders } = require('./pay-orders');
 
-    // 充值赠送估算：无活动引擎时返回可解析空结构
+    const sessionRow = findSession(body, headers);
+    const { sessionHttpToken } = require('./http-api');
+    const shopToken = sessionRow && sessionRow.user ? sessionHttpToken(sessionRow.user) : '';
+
+    if (/payTypeSetting/i.test(routePath)) {
+      try {
+        const live = await loadLiveShopPack(cfg, shopToken, ctx && ctx.siteDir);
+        const { resolvePayTypeMeta, buildPayTypeList } = require('./pay-config');
+        const meta = resolvePayTypeMeta(live.pay, null, ctx && ctx.siteDir);
+        const channelName = live.pack && live.pack.list && live.pack.list[0]
+          && (live.pack.list[0].channlName || live.pack.list[0].merch_desc);
+        const types = buildPayTypeList(channelName
+          ? Object.assign({}, meta, { payTypeName: channelName })
+          : meta);
+        const payTypeList = types.map((row) => ({
+          payTypeId: row.paymentid || row.id,
+          payTypeName: row.pay_type_name || row.name || '',
+          supplyCurrency: (live.pay && live.pay.currency) || 'BRL',
+          iconUrl: ''
+        }));
+        try {
+          console.info('[provider:wgame] payTypeSetting via shop', 'types=' + payTypeList.length);
+        } catch (_) { /* ignore */ }
+        return ok({ payTypeList }, 'ok');
+      } catch (err) {
+        console.warn('[provider:wgame] payTypeSetting failed:', (err && err.message) || err);
+        return ok({ payTypeList: [] }, 'ok');
+      }
+    }
+
+    // 充值赠送：按商品档的 extra / 首充 / 每日首充奖励
     if (/calculateGift/i.test(routePath)) {
+      const amount = Number(body && (body.money != null ? body.money : body.amount)) || 0;
+      const amountStr = String(amount);
+      let gift = 0;
+      let recommend = [];
+      try {
+        const live = await loadLiveShopPack(cfg, shopToken, ctx && ctx.siteDir);
+        const { shopAwardToDisplay } = require('./pay-config');
+        recommend = (live.pack && live.pack.recommendList) || [];
+        let matched = null;
+        for (const it of live.items) {
+          const rm = Number(it && (it.realMoney != null ? it.realMoney : it.nRealMoney)) || 0;
+          if (rm === amount) { matched = it; break; }
+        }
+        if (matched) {
+          gift = shopAwardToDisplay(matched.extraAward)
+            + shopAwardToDisplay(matched.firstChargeAward)
+            + shopAwardToDisplay(matched.dayFirstCharge);
+        }
+      } catch (err) {
+        console.warn('[provider:wgame] calculateGift shop failed:', (err && err.message) || err);
+      }
+      const giftStr = String(gift);
       return ok({
-        payCurrencyAmount: '0',
-        memberCurrencyAmount: '0',
-        payCurrencyActiveGiftAmount: '0',
-        memberCurrencyActiveGiftAmount: '0',
+        payCurrencyAmount: amountStr,
+        memberCurrencyAmount: amountStr,
+        payCurrencyActiveGiftAmount: giftStr,
+        memberCurrencyActiveGiftAmount: giftStr,
         payCurrencyActiveCouponGiftAmount: '0',
         memberCurrencyActiveCouponGiftAmount: '0',
         matchGiftRes: {
@@ -684,8 +945,8 @@ async function execute(op, ctx) {
           chargeRateList: null,
           deduceLimit: '0'
         },
-        realAmount: '0',
-        recommendMoneyGift: [],
+        realAmount: amountStr,
+        recommendMoneyGift: recommend,
         feeAmount: '0',
         replaceAmount: '0',
         activeRes: {}
@@ -1522,6 +1783,17 @@ async function execute(op, ctx) {
 
   if (op === OP.LOBBY_OK) {
     const routePath = ctx && ctx.routePath;
+    if (routePath && /\/api\/active\/(categoryV2|category|isShowV2|getByTemplate)$/i.test(String(routePath))) {
+      const data = await loadPublicActive(ctx && ctx.siteDir, routePath, headers);
+      if (data != null) return ok(data, 'ok');
+      console.warn('[provider:wgame] public active empty', routePath);
+      return fail(41000, 'activity public json unavailable');
+    }
+    if (routePath && /\/api\/active\/(tasks\/task|tasks\/vitality\/boxs)$/i.test(String(routePath))) {
+      const data = await replayOfficialActive(ctx && ctx.siteDir, routePath, body, headers);
+      if (data != null) return ok(data, 'ok');
+      return fail(41040, 'mission unavailable');
+    }
     if (routePath && /^\/api\/platform\//i.test(routePath)) {
       const { buildPlatformResponse } = require('./platform-config');
       const { loadAdapterConfig } = require('../../config');
@@ -1531,6 +1803,24 @@ async function execute(op, ctx) {
     // 充值选银行：空列表即可
     if (routePath && /getPayChooseBank/i.test(String(routePath))) {
       return ok({ list: [], banks: [], records: [] }, 'ok');
+    }
+    if (routePath && /maxChargeRate/i.test(String(routePath))) {
+      try {
+        const row = findSession(body, headers);
+        const { sessionHttpToken } = require('./http-api');
+        const token = row && row.user ? sessionHttpToken(row.user) : '';
+        const live = await loadLiveShopPack(cfg, token, ctx && ctx.siteDir);
+        const rate = bestShopChargeRate(live && live.items);
+        return ok({
+          chargeRate: rate,
+          charge_rate: Number(rate) || 0,
+          maxGiftScore: '',
+          chargeConfig: { chargeRate: rate, giftColor: '', targetAmount: '0' }
+        }, 'ok');
+      } catch (err) {
+        console.warn('[provider:wgame] maxChargeRate failed:', (err && err.message) || err);
+        return ok({ chargeRate: '0', charge_rate: 0 }, 'ok');
+      }
     }
     // 注册成功弹窗等已由专用 adapter 处理；默认空对象
     if (routePath && /registerPopupDlgInfo/i.test(String(routePath))) {
@@ -1551,7 +1841,11 @@ async function execute(op, ctx) {
       try {
         const { httpChargeRecord } = require('./http-api');
         const res = await httpChargeRecord({ token, body, cfg, timeoutMs: cfg.timeoutMs });
-        return ok(maps.mapChargeRecords(res), 'ok');
+        const mapped = maps.mapChargeRecords(res);
+        try {
+          console.info('[provider:wgame] chargeRecord', 'n=' + ((mapped.list && mapped.list.length) || 0));
+        } catch (_) { /* ignore */ }
+        return ok(mapped, 'ok');
       } catch (err) {
         console.warn('[provider:wgame] chargeRecord failed:', (err && err.message) || err);
       }
@@ -1576,6 +1870,20 @@ async function execute(op, ctx) {
       }
     }
 
+    if (token && /financeGiveReward|dayRechargeBonus/i.test(routePath)) {
+      try {
+        const { httpDayRechargeBonus } = require('./http-api');
+        const res = await httpDayRechargeBonus({ token, cfg, timeoutMs: cfg.timeoutMs });
+        const mapped = maps.mapDayRechargeBonus(res);
+        try {
+          console.info('[provider:wgame] dayRechargeBonus', 'n=' + ((mapped.list && mapped.list.length) || 0));
+        } catch (_) { /* ignore */ }
+        return ok(mapped, 'ok');
+      } catch (err) {
+        console.warn('[provider:wgame] dayRechargeBonus failed:', (err && err.message) || err);
+      }
+    }
+
     // 代理统计/下级列表 → HTTP
     if (token && /\/agent\/promote\//i.test(routePath)) {
       try {
@@ -1589,13 +1897,43 @@ async function execute(op, ctx) {
           const res = await httpProxyUserList({ token, cfg, timeoutMs: cfg.timeoutMs });
           const list = (res && (res.item || res.items)) || [];
           const rows = Array.isArray(list) ? list : [];
-          return ok({ list: rows, records: rows, rows, total: rows.length }, 'ok');
+          return ok({
+            list: rows,
+            records: rows,
+            rows,
+            total: rows.length,
+            totalCount: rows.length,
+            count: rows.length,
+            totalRecords: rows.length
+          }, 'ok');
         }
-        if (/settleTime|proxySubBetConfig|myCommission/i.test(routePath)) {
+        if (/myPerformance|clubCommission|clubPerformance/i.test(routePath)) {
+          const { httpProxyStatistics } = require('./http-api');
+          const res = await httpProxyStatistics({ token, body, cfg, timeoutMs: cfg.timeoutMs });
+          const stat = maps.mapProxyStatistics(res);
+          return ok(Object.assign({
+            list: [],
+            records: [],
+            total: 0,
+            totalCount: 0,
+            count: 0,
+            totalRecords: 0
+          }, stat), 'ok');
+        }
+        if (/settleTime|proxySubBetConfig|myCommissionDetail/i.test(routePath)) {
           const { httpProxySubBetConfig } = require('./http-api');
           const res = await httpProxySubBetConfig({ token, cfg, timeoutMs: cfg.timeoutMs });
           const list = (res && (res.item || res.items)) || [];
-          return ok({ list: Array.isArray(list) ? list : [], total: 0, settleTime: Date.now() }, 'ok');
+          const rows = Array.isArray(list) ? list : [];
+          return ok({
+            list: rows,
+            records: rows,
+            total: rows.length,
+            totalCount: rows.length,
+            count: rows.length,
+            totalRecords: rows.length,
+            settleTime: Date.now()
+          }, 'ok');
         }
       } catch (err) {
         console.warn('[provider:wgame] agent http failed:', (err && err.message) || err);

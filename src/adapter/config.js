@@ -73,6 +73,22 @@ function inferOriginsFromNetwork(siteDir, fs, path) {
   }
 }
 
+/** index.html 里的 ossBaseUrl。network.json 没有 oniw 时，siteadmin 图片靠它回源。 */
+function inferOssOriginFromHtml(siteDir, fs, path) {
+  try {
+    const htmlPath = path.join(siteDir, 'index.html');
+    if (!fs.existsSync(htmlPath)) return '';
+    const html = fs.readFileSync(htmlPath, 'utf8');
+    const tagged = html.match(/ossBaseUrl\s*:\s*["'](https?:\/\/[^"'&\s]+)/i);
+    const plain = html.match(/https?:\/\/oniw\d*\.[^"'&\s/]+/i);
+    const raw = (tagged && tagged[1]) || (plain && plain[0]) || '';
+    if (!raw) return '';
+    return new URL(raw).origin;
+  } catch (_) {
+    return '';
+  }
+}
+
 /**
  * 从 index.html 内联 LOBBY_SITE_CONFIG 提取官方 siteCode（如 "12025"）。
  * 这是站点自带配置，不是伪造业务数据。
@@ -146,7 +162,9 @@ function loadAdapterConfig(siteDir, fs, path) {
     apiHostPatterns,
     excludeHosts,
     upstreamOrigin: raw.upstreamOrigin ? String(raw.upstreamOrigin) : (inferred.upstreamOrigin || ''),
-    ossOrigin: raw.ossOrigin ? String(raw.ossOrigin) : (inferred.ossOrigin || ''),
+    ossOrigin: raw.ossOrigin
+      ? String(raw.ossOrigin)
+      : (inferred.ossOrigin || inferOssOriginFromHtml(siteDir, fs, path) || ''),
     siteCode,
     providerOptions
   };
@@ -170,6 +188,7 @@ module.exports = {
   loadAdapterHosts,
   hasAdapterPack,
   inferOriginsFromNetwork,
+  inferOssOriginFromHtml,
   inferSiteCodeFromSite,
   ensureSiteCodeQuery,
   getSeries,

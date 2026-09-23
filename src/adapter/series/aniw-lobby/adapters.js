@@ -16,10 +16,8 @@ const DEFAULT_PORTRAIT_CDN =
   'https://g8wuzk-12025-ppp.s3.sa-east-1.amazonaws.com/siteadmin/upload/img/2003557522981953538.png';
 
 /** VIP style=2 官方默认图标（vipDetails 真实值） */
-const DEFAULT_VIP_ICON_STYLE =
-  'https://a6ilcy-10588-ppp.s3.sa-east-1.amazonaws.com/siteadmin/active/style2/iconStyle/style_2_vip_style0.png';
-const DEFAULT_VIP_ICON_COLOR =
-  'https://g8wuzk-12025-ppp.s3.sa-east-1.amazonaws.com/siteadmin/active/style2/iconColor/style_2_vip_color1.png';
+const DEFAULT_VIP_ICON_STYLE = '/siteadmin/active/style2/iconStyle/style_2_vip_style0.avif';
+const DEFAULT_VIP_ICON_COLOR = '/siteadmin/active/style2/iconColor/style_2_vip_color1.avif';
 const DEFAULT_VIP_ICON_COLOR_VALUE = '24B299';
 
 function envelope(data, msg) {
@@ -180,7 +178,9 @@ function memberProfile(user) {
     loanStatus: 0,
     regPkgId: 0,
     member_tag_ids: '',
-    platfromid: ''
+    platfromid: user.account
+      ? String(user.account)
+      : ((user.nickname != null && String(user.nickname).trim()) ? String(user.nickname) : '')
   };
 
   // 去掉 undefined
@@ -309,8 +309,8 @@ function toOfficialVipSetting(it) {
     week_bonus: vipNum(row.week_bonus != null ? row.week_bonus : row.weekAward),
     month_bet: vipNum(row.month_bet),
     month_bonus: vipNum(row.month_bonus != null ? row.month_bonus : row.monthAward),
-    icon_color: row.icon_color ? String(row.icon_color) : '',
-    icon_style: row.icon_style ? String(row.icon_style) : '',
+    icon_color: row.icon_color ? String(row.icon_color) : DEFAULT_VIP_ICON_COLOR,
+    icon_style: row.icon_style ? String(row.icon_style) : DEFAULT_VIP_ICON_STYLE,
     day_deposit: vipNum(row.day_deposit),
     week_deposit: vipNum(row.week_deposit),
     month_deposit: vipNum(row.month_deposit),
@@ -367,7 +367,7 @@ function officialVipLadder(user) {
   const settings = raw.map(toOfficialVipSetting);
   const level = vipNum(user && (user.vip_level != null ? user.vip_level : user.vip));
   const cur = settings.find((row) => row.vip === level) || null;
-  const next = settings.find((row) => row.vip === level + 1) || null;
+  const next = settings.find((row) => row.vip > level) || null;
   const deposit = vipNum(user && user.curPoint);
   const bet = vipNum(user && user.curWater);
   const nextDep = next ? next.level_up_deposit : 0;
@@ -427,12 +427,12 @@ function adaptVipSummary(providerResult) {
     email: user.email ? String(user.email) : '',
     show_deposit: true,
     show_valid_bet: true,
-    icon_style: '',
-    icon_color: '',
-    icon_color_value: '',
-    next_icon_style: '',
-    next_icon_color: '',
-    next_icon_color_value: '',
+    icon_style: DEFAULT_VIP_ICON_STYLE,
+    icon_color: DEFAULT_VIP_ICON_COLOR,
+    icon_color_value: DEFAULT_VIP_ICON_COLOR_VALUE,
+    next_icon_style: DEFAULT_VIP_ICON_STYLE,
+    next_icon_color: DEFAULT_VIP_ICON_COLOR,
+    next_icon_color_value: DEFAULT_VIP_ICON_COLOR_VALUE,
     registerTime: vipNum(user.register_time),
     background_index: '',
     current_style: '2',
@@ -472,9 +472,9 @@ function adaptVipDetails(providerResult) {
     week_bonus_status: 0,
     month_bonus_status: 0,
     day_bonus_status: 0,
-    icon_style: '',
-    icon_color: '',
-    icon_color_value: '',
+    icon_style: DEFAULT_VIP_ICON_STYLE,
+    icon_color: DEFAULT_VIP_ICON_COLOR,
+    icon_color_value: DEFAULT_VIP_ICON_COLOR_VALUE,
     icon_card: '',
     icon_final_image: '',
     show_deposit: true,
@@ -517,9 +517,9 @@ function adaptVipLevelList(providerResult) {
   return envelope({
     VipSettings: p.settings,
     vip_icon_show_type: '0',
-    icon_color_value: '',
-    icon_style: '',
-    icon_color: '',
+    icon_color_value: DEFAULT_VIP_ICON_COLOR_VALUE,
+    icon_style: DEFAULT_VIP_ICON_STYLE,
+    icon_color: DEFAULT_VIP_ICON_COLOR,
     current_vip: p.level,
     current_style: '2',
     serverTime: Math.floor(Date.now() / 1000)
@@ -573,8 +573,9 @@ function adaptPayList(providerResult) {
     pageReduceMode: 0,
     pageRenderMode: 0,
     payTabConfig: '',
-    sign_key: ''
+    sign_key: 'preview'
   }, d, {
+    sign_key: d.sign_key || 'preview',
     list: Array.isArray(d.list) ? d.list : []
   }));
 }
@@ -586,9 +587,11 @@ function enrichPayTypeRow(row) {
   out.pay_type_name = name;
   out.payment_name = out.payment_name || name;
   out.name = out.name || name;
-  if (!out.payplatformid && out.paymentid != null) out.payplatformid = out.paymentid;
-  if (!out.paymentid && out.payplatformid != null) out.paymentid = out.payplatformid;
-  if (!out.id && out.paymentid != null) out.id = out.paymentid;
+  const paymentid = Number(out.paymentid || out.payplatformid || out.id);
+  const platform = Number(out.payplatformid || out.paymentid || out.id);
+  out.paymentid = Number.isFinite(paymentid) ? paymentid : 0;
+  out.payplatformid = Number.isFinite(platform) ? platform : out.paymentid;
+  if (!out.id) out.id = out.paymentid;
   return out;
 }
 
@@ -618,20 +621,38 @@ function adaptPayChannels(providerResult) {
   if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
   const d = providerResult.data || {};
   const list = Array.isArray(d.list) ? d.list.map((ch) => {
-    const row = Object.assign({}, ch);
+    const row = enrichPayTypeRow(ch);
     if (Array.isArray(row.recommendList)) {
       row.recommendList = normalizeRecommendListForUi(row.recommendList);
     }
+    row.url = '/api/finance/pay/paysubmit';
+    if (!row.payCurrency) row.payCurrency = 'BRL';
+    if (row.openWay == null) row.openWay = 4;
+    if (row.combineOpenWay == null) row.combineOpenWay = 0;
     return row;
   }) : [];
+  const first = list[0] || {};
+  const recommendList = normalizeRecommendListForUi(
+    (Array.isArray(d.recommendList) && d.recommendList.length)
+      ? d.recommendList
+      : first.recommendList
+  );
+  const paymentid = Number(d.paymentid || first.paymentid);
+  const platform = Number(d.payplatformid || first.payplatformid || paymentid);
   return envelope({
     list,
     min: d.min != null ? String(d.min) : '0',
     max: d.max != null ? String(d.max) : '0',
-    url: d.url || '',
+    url: '/api/finance/pay/paysubmit',
     realInfoRule: d.realInfoRule != null ? d.realInfoRule : 0,
-    recommendList: normalizeRecommendListForUi(d.recommendList),
-    sign_key: d.sign_key || ''
+    recommendList,
+    sign_key: d.sign_key || '',
+    paymentid: Number.isFinite(paymentid) ? paymentid : 0,
+    payplatformid: Number.isFinite(platform) ? platform : 0,
+    payment_ids: list.map((row) => row.payplatformid).filter((id) => id != null && id !== '').join(','),
+    payCurrency: d.payCurrency || first.payCurrency || 'BRL',
+    openWay: d.openWay != null ? d.openWay : (first.openWay != null ? first.openWay : 4),
+    combineOpenWay: d.combineOpenWay != null ? d.combineOpenWay : 0
   });
 }
 
@@ -643,6 +664,28 @@ function adaptPayInfos(providerResult) {
 }
 
 /** offlineOrder：二维码/跳转下单结果 */
+/** 充值按钮 GET /pay/paysubmit。客户端读 body.success 和 body.data.success，不能套大厅 code。 */
+function adaptPaySubmit(providerResult) {
+  const d = (providerResult && providerResult.data) || {};
+  const url = d.url || d.payUrl || '';
+  const qrCode = d.qrCode || d.qrcode_url || '';
+  const ok = !!(providerResult && providerResult.ok && (url || qrCode));
+  return {
+    success: ok,
+    msg: ok ? '' : ((providerResult && providerResult.msg) || 'pay failed'),
+    data: {
+      success: ok,
+      orderNo: d.orderNo || d.order_no || '',
+      url,
+      qrCode,
+      outTradeNo: d.outTradeNo || d.orderNo || '',
+      payAddress: d.payAddress || '',
+      code: d.code || '',
+      verifyUrl: d.verifyUrl || ''
+    }
+  };
+}
+
 function adaptPayCreate(providerResult) {
   if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
   const d = providerResult.data || {};
@@ -823,12 +866,14 @@ function adaptAgentSettleTime(providerResult) {
 
 function adaptMaxChargeRate(providerResult) {
   if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
+  const d = providerResult.data || {};
+  const rate = d.chargeRate != null ? String(d.chargeRate) : '0';
   return envelope({
-    charge_rate: 0,
-    chargeRate: '0',
-    chargeGiftColor: '',
-    maxGiftScore: '',
-    chargeConfig: { chargeRate: '', giftColor: '', targetAmount: '0' },
+    charge_rate: Number(rate) || 0,
+    chargeRate: rate,
+    chargeGiftColor: d.chargeGiftColor || '',
+    maxGiftScore: d.maxGiftScore != null ? String(d.maxGiftScore) : '',
+    chargeConfig: d.chargeConfig || { chargeRate: rate, giftColor: '', targetAmount: '0' },
     customerRate: '0',
     customerMode: 0,
     customerColor: '',
@@ -892,6 +937,9 @@ function adaptEmptyRecords(providerResult) {
     pageSize: d.pageSize != null ? d.pageSize : 20,
     totalRecords: d.totalRecords != null
       ? Number(d.totalRecords)
+      : (d.total != null ? Number(d.total) : list.length),
+    totalCount: d.totalCount != null
+      ? Number(d.totalCount)
       : (d.total != null ? Number(d.total) : list.length)
   });
   return envelope(out);
@@ -1108,6 +1156,7 @@ const ADAPTERS = {
   payChannels: adaptPayChannels,
   payInfos: adaptPayInfos,
   payCreate: adaptPayCreate,
+  paySubmit: adaptPaySubmit,
   payOrderInfo: adaptPayOrderInfo,
   gameLaunch: adaptGameLaunch,
   agentBlob: adaptAgentBlob,

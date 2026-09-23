@@ -233,15 +233,35 @@ function mapWithdrawInfo({ enableRes, chRes, paywayRes, vipRes } = {}) {
   };
 }
 
+function mapDayRechargeBonus(res) {
+  const list = protoList(res, 'item').map((it) => ({
+    rechargeAmount: happyToDisplay(it.dayRecharge),
+    reward: happyToDisplay(it.bonus),
+    dayRecharge: happyToDisplay(it.dayRecharge),
+    bonus: happyToDisplay(it.bonus)
+  }));
+  return {
+    list,
+    records: list,
+    count: list.length,
+    total: list.length,
+    totalRecords: list.length,
+    bonus: happyToDisplay(res && res.bonus),
+    dayRecharge: happyToDisplay(res && res.dayRecharge),
+    nextDayReturn: happyToDisplay(res && res.nextDayReturn),
+    yesterdayRecharge: happyToDisplay(res && res.yesterdayRecharge)
+  };
+}
+
 function mapChargeRecords(res) {
   const list = protoList(res, 'item').map((it) => ({
     orderNo: String(it.order || ''),
     order: String(it.order || ''),
     amount: Number(it.chargeMoney) || 0,
     chargeMoney: Number(it.chargeMoney) || 0,
-    gameMoney: Number(it.gameMoney) || 0,
-    giveMoney: Number(it.giveMoney) || 0,
-    extraMoney: Number(it.extraMoney) || 0,
+    gameMoney: happyToDisplay(it.gameMoney),
+    giveMoney: happyToDisplay(it.giveMoney),
+    extraMoney: happyToDisplay(it.extraMoney),
     times: Number(it.times) || 0,
     createTime: Number(it.times) || 0,
     status: 1
@@ -251,6 +271,9 @@ function mapChargeRecords(res) {
     records: list,
     rows: list,
     total: list.length,
+    totalCount: list.length,
+    count: list.length,
+    totalRecords: list.length,
     totalDeposit: toLongNumber(res && res.totalDeposit, 0),
     beginTime: toLongNumber(res && res.beginTime, 0),
     endTime: toLongNumber(res && res.endTime, 0),
@@ -279,6 +302,9 @@ function mapWithdrawRecords(res) {
     records: list,
     rows: list,
     total: list.length,
+    totalCount: list.length,
+    count: list.length,
+    totalRecords: list.length,
     totalWithdraw: toLongNumber(res && res.totalWithdraw, 0),
     beginTime: toLongNumber(res && res.beginTime, 0),
     endTime: toLongNumber(res && res.endTime, 0),
@@ -346,6 +372,7 @@ module.exports = {
   mapEnableWithdraw,
   mapDrawChannels,
   mapWithdrawInfo,
+  mapDayRechargeBonus,
   mapChargeRecords,
   mapWithdrawRecords,
   mapProxyStatistics

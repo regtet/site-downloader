@@ -13,7 +13,7 @@ const {
 const { tryHandleAdapter } = require('./adapter');
 const { noteUnmapped, isApiPath } = require('./adapter/unmapped-log');
 const { loadAdapterConfig, isHallApiPath, isOssAssetPath } = require('./adapter/hosts');
-const { hasAdapterPack, inferOriginsFromNetwork, inferSiteCodeFromSite } = require('./adapter/config');
+const { hasAdapterPack, inferOriginsFromNetwork, inferOssOriginFromHtml, inferSiteCodeFromSite } = require('./adapter/config');
 const { getProvider } = require('./adapter/providers');
 const { isMockCashierPath, handleMockCashierRequest } = require('./mock-cashier');
 const { isMockAgentPath, handleMockAgentRequest } = require('./mock-agent-api');
@@ -142,7 +142,7 @@ function createStaticServer(siteDir, options = {}) {
         apiHostPatterns: [],
         excludeHosts: [],
         upstreamOrigin: inferred.upstreamOrigin || '',
-        ossOrigin: inferred.ossOrigin || '',
+        ossOrigin: inferred.ossOrigin || inferOssOriginFromHtml(root, fs, path) || '',
         siteCode: inferSiteCodeFromSite(root, fs, path) || '',
         provider: null,
         providerOptions: {}

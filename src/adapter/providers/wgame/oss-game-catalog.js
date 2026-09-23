@@ -208,6 +208,71 @@ function isOssCatalogGameId(gameId) {
   return n >= 100000;
 }
 
+const liveNameByKey = new Map();
+const liveFetched = new Set();
+
+function ossOriginFromSite(siteDir) {
+  try {
+    const { loadAdapterConfig } = require('../../config');
+    const cfg = loadAdapterConfig(siteDir, require('fs'), require('path'));
+    if (cfg && cfg.ossOrigin) return String(cfg.ossOrigin).replace(/\/$/, '');
+  } catch (_) { /* ignore */ }
+  return '';
+}
+
+async function fetchOssRows(oss, rel) {
+  const axios = require('axios');
+  const { getDirectHttpsAgent } = require('../../../system-proxy');
+  const res = await axios.get(oss + rel, {
+    httpsAgent: getDirectHttpsAgent(),
+    proxy: false,
+    timeout: 15000,
+    validateStatus: () => true
+  });
+  const data = res.data && res.data.data;
+  return Array.isArray(data) ? data : [];
+}
+
+function rememberLiveRows(rows) {
+  for (const row of rows) {
+    if (row == null || row.g0 == null || !row.g1) continue;
+    liveNameByKey.set(Number(row.g10) + ':' + Number(row.g0), String(row.g1).trim());
+  }
+}
+
+/** 本地表没有这款时，向站点 OSS 要平台列表里的名字。 */
+async function resolveLiveOssGameName(platformId, gameId, siteDir) {
+  const key = Number(platformId) + ':' + Number(gameId);
+  if (liveNameByKey.has(key)) return liveNameByKey.get(key) || '';
+  const oss = ossOriginFromSite(siteDir);
+  if (!oss || !Number(gameId)) return '';
+  if (!liveFetched.has('hot')) {
+    liveFetched.add('hot');
+    try {
+      rememberLiveRows(await fetchOssRows(
+        oss,
+        '/hall/api/game/hall/hotListV2/currency/BRL/language/pt.json'
+      ));
+    } catch (_) { /* ignore */ }
+  }
+  if (liveNameByKey.has(key)) return liveNameByKey.get(key) || '';
+  const cats = [3, 1, 2, 4, 5];
+  for (const cat of cats) {
+    const mark = 'p' + platformId + ':' + cat;
+    if (!liveFetched.has(mark)) {
+      liveFetched.add(mark);
+      const rel = '/hall/api/game/hall/listPlatformGameV2/categoryId/' + cat
+        + '/currency/BRL/language/pt/platformId/' + Number(platformId) + '.json';
+      try {
+        rememberLiveRows(await fetchOssRows(oss, rel));
+      } catch (_) { /* ignore */ }
+    }
+    if (liveNameByKey.has(key)) return liveNameByKey.get(key) || '';
+  }
+  liveNameByKey.set(key, '');
+  return '';
+}
+
 function resolveOssGameName(platformId, gameId, siteDir) {
   const row = resolveOssGameRow(platformId, gameId, siteDir);
   return row ? String(row.name || '').trim() : '';
@@ -227,6 +292,7 @@ module.exports = {
   clearOssGameListCache,
   isOssCatalogGameId,
   resolveOssGameName,
+  resolveLiveOssGameName,
   resolveOssGameRow,
   extractOssGameListFromHar,
   extractOssGameListFromOssSnapshot,

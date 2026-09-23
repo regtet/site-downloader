@@ -101,7 +101,7 @@ function defaultTaskPayload(body) {
     template: 2,
     taskId,
     taskName: 'Diário',
-    afterLoginPopType: 1,
+    afterLoginPopType: 0,
     beforeLoginPopType: 0,
     userLevel,
     seconds: 9 * 3600 + 19 * 60 + 9,

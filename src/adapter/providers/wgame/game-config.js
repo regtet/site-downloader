@@ -192,7 +192,7 @@ async function resolveGameLaunch(body, sessionUser, cfg, siteDir) {
     const { createUserGameLaunch } = require('./game-createuser');
     const { loadWgameConfig } = require('./config');
     const wgameCfg = loadWgameConfig(siteDir);
-    const target = resolveCreateUserTarget(body, cfg, siteDir);
+    const target = await resolveCreateUserTarget(body, cfg, siteDir);
     if (!target.nOriginalID || !target.gameid) {
       const pid = platformId || '?';
       const gid = body.gameid != null ? body.gameid : (body.gameId != null ? body.gameId : 0);

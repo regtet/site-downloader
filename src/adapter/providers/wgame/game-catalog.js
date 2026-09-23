@@ -5,7 +5,7 @@
 const fs = require('fs');
 const path = require('path');
 const { resolveWgameWebRoot } = require('./wgame-web-config');
-const { isOssCatalogGameId, resolveOssGameName, resolveOssGameRow } = require('./oss-game-catalog');
+const { isOssCatalogGameId, resolveOssGameName, resolveOssGameRow, resolveLiveOssGameName } = require('./oss-game-catalog');
 
 function parseGameInfoFromBody(body) {
   if (!body || typeof body !== 'object') return {};
@@ -37,6 +37,7 @@ function apiMeta(nApiID) {
     17: { gameKey: 'ppofficial', pl: 'pp' },
     18: { gameKey: 'oneapi', pl: 'oneapi' },
     21: { gameKey: 'jdb', pl: 'jdb' },
+    22: { gameKey: 'wg', pl: 'wg' },
     31: { gameKey: 'vintepg', pl: 'vintepg' }
   };
   return map[id] || { gameKey: '', pl: '' };
@@ -97,19 +98,96 @@ function pickOriginalId(candidates, nApiID) {
   return list[0];
 }
 
-function resolveByGameName(name, nApiID) {
+/** GameName 的原始号落在哪一档，就用哪一个 nApiID。对不上就不要拿别的平台去减。 */
+const API_BANDS = [
+  { api: 2, from: 30000, to: 10000000 },
+  { api: 4, from: 10000000, to: 11000000 },
+  { api: 11, from: 11000000, to: 12000000 },
+  { api: 7, from: 12000000, to: 13000000 },
+  { api: 9, from: 13000000, to: 14000000 },
+  { api: 8, from: 14000000, to: 15000000 },
+  { api: 3, from: 15000000, to: 17000000 },
+  { api: 26, from: 17000000, to: 20000000 },
+  { api: 6, from: 20000000, to: 22000000 },
+  { api: 12, from: 22000000, to: 25000000 },
+  { api: 13, from: 25000000, to: 26000000 },
+  { api: 14, from: 26000000, to: 27000000 },
+  { api: 15, from: 27000000, to: 46000000 },
+  { api: 22, from: 46000000, to: 47000000 },
+  { api: 23, from: 47000000, to: 49000000 },
+  { api: 25, from: 49000000, to: 51000000 },
+  { api: 31, from: 51000000, to: 61000000 },
+  { api: 45, from: 61000000, to: 80000000 },
+  { api: 70, from: 80000000, to: 80700000 },
+  { api: 77, from: 80700000, to: 80900000 },
+  { api: 79, from: 80900000, to: 81000000 },
+  { api: 80, from: 81000000, to: 81100000 },
+  { api: 81, from: 81100000, to: 85000000 },
+  { api: 90, from: 85000000, to: 95600000 },
+  { api: 156, from: 95600000, to: 95800000 },
+  { api: 158, from: 95800000, to: 95900000 },
+  { api: 159, from: 95900000, to: 96100000 },
+  { api: 161, from: 96100000, to: 96200000 },
+  { api: 162, from: 96200000, to: 200000000 },
+  { api: 17, from: 200000000, to: 4000000000 }
+];
+
+function inferApiFromOriginalId(id) {
+  const n = Number(id) || 0;
+  if (n < 30000) return 0;
+  for (let i = API_BANDS.length - 1; i >= 0; i--) {
+    const band = API_BANDS[i];
+    if (n >= band.from && n < band.to) return band.api;
+  }
+  return 0;
+}
+
+function lobbyLocalId(platformId, gameId) {
+  const pid = Number(platformId) || 0;
+  const gid = Number(gameId) || 0;
+  if (pid >= 100 && gid >= pid * 10000 && gid < (pid + 1) * 10000) return gid - pid * 10000;
+  return gid;
+}
+
+function listOriginalIdsByName(name) {
   const norm = normalizeName(name);
-  if (!norm) return 0;
+  if (!norm) return [];
   const { byName } = loadGameNameIndex();
-  let ids = byName.get(norm) || [];
-  if (!ids.length) {
+  let ids = (byName.get(norm) || []).slice();
+  if (!ids.length && norm.length >= 8) {
     for (const [k, v] of byName.entries()) {
-      if (k === norm || k.includes(norm) || norm.includes(k)) {
-        ids = ids.concat(v);
-      }
+      if (k.length >= 8 && (k === norm || k.includes(norm) || norm.includes(k))) ids = ids.concat(v);
     }
   }
-  ids = [...new Set(ids)];
+  return [...new Set(ids)];
+}
+
+function pickBestOriginalId(ids, platformId, lobbyGameId) {
+  const list = Array.isArray(ids) ? ids : [];
+  if (!list.length) return 0;
+  if (list.length === 1) return list[0];
+  const local = lobbyLocalId(platformId, lobbyGameId);
+  let best = list[0];
+  let bestScore = -1;
+  for (const id of list) {
+    const api = inferApiFromOriginalId(id);
+    const fixed = api ? fixGameId(api, id) : id;
+    let score = api ? 1 : 0;
+    if (fixed === local || fixed === Number(lobbyGameId) || id === Number(lobbyGameId) || id === local) {
+      score += 100;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      best = id;
+    }
+  }
+  return best;
+}
+
+function resolveByGameName(name, nApiID) {
+  const ids = listOriginalIdsByName(name);
+  const best = pickBestOriginalId(ids, '', 0);
+  if (best && inferApiFromOriginalId(best)) return best;
   return pickOriginalId(ids, nApiID);
 }
 
@@ -208,7 +286,7 @@ function resolveOriginalIdFromOssGameId(ossGameId, nApiID) {
   return gid;
 }
 
-function resolveCreateUserTarget(body, cfg, siteDir) {
+async function resolveCreateUserTarget(body, cfg, siteDir) {
   const platformId = String(
     body.platfromid != null ? body.platfromid : (body.platformId != null ? body.platformId : '')
   );
@@ -232,8 +310,18 @@ function resolveCreateUserTarget(body, cfg, siteDir) {
     ossRow = resolveOssGameRow(platformId, ossGameId, siteDir);
     if (ossRow) {
       if (!gameName && ossRow.name) gameName = String(ossRow.name);
-      if (ossRow.nOriginalID && !nOriginalID) nOriginalID = Number(ossRow.nOriginalID);
+      if (ossRow.nOriginalID && !nOriginalID) {
+        const rowId = Number(ossRow.nOriginalID);
+        const rowApi = ossRow.nApiID != null ? Number(ossRow.nApiID) : 0;
+        const band = inferApiFromOriginalId(rowId);
+        if (!rowApi || !band || rowApi === band) nOriginalID = rowId;
+      }
     }
+  }
+
+  if (!gameName && ossGameId) {
+    const liveName = await resolveLiveOssGameName(platformId, ossGameId, siteDir);
+    if (liveName) gameName = liveName;
   }
 
   const mappings = Array.isArray(cfg.mappings) ? cfg.mappings : [];
@@ -250,14 +338,24 @@ function resolveCreateUserTarget(body, cfg, siteDir) {
     break;
   }
 
-  if (!nOriginalID && gameName) nOriginalID = resolveByGameName(gameName, nApiID);
+  if (!nOriginalID && gameName) {
+    const ids = listOriginalIdsByName(gameName);
+    nOriginalID = pickBestOriginalId(ids, platformId, ossGameId);
+  }
   if (!nOriginalID && ossGameId && !isOssCatalogGameId(ossGameId)) {
     nOriginalID = resolveOriginalIdFromOssGameId(ossGameId, nApiID);
   }
 
+  const bandApi = inferApiFromOriginalId(nOriginalID);
+  if (bandApi && bandApi !== nApiID) nApiID = bandApi;
+
   const meta = apiMeta(nApiID);
-  const game_key = plat.game_key || (ossRow && ossRow.game_key) || meta.gameKey;
+  const rowKeyOk = ossRow && ossRow.game_key && (
+    ossRow.nApiID == null || Number(ossRow.nApiID) === nApiID
+  );
+  const game_key = (rowKeyOk && ossRow.game_key) || plat.game_key || meta.gameKey;
   const gameid = nOriginalID ? computeCreateGameId(nApiID, nOriginalID) : 0;
+  const pgWay = meta.pl === 'pg' || meta.pl === 'vintepg';
 
   return {
     nApiID,
@@ -265,7 +363,7 @@ function resolveCreateUserTarget(body, cfg, siteDir) {
     nOriginalID,
     gameid,
     game_key,
-    pg_new_way_login: plat.pg_new_way_login ? 1 : 0,
+    pg_new_way_login: pgWay ? 1 : 0,
     gameName: gameName || ('Game-' + nOriginalID),
     trial: 0
   };

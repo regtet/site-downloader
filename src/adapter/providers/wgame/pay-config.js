@@ -136,8 +136,8 @@ function normalizeRecommendList(list) {
   return list.map((row) => {
     if (row != null && typeof row === 'object' && !Array.isArray(row)) {
       const amount = row.amount != null ? String(row.amount) : '';
-      if (amount) return Object.assign({}, row, { amount });
-      return row;
+      if (!amount) return null;
+      return Object.assign({}, row, { amount });
     }
     const amount = String(row != null ? row : '').trim();
     return amount ? { amount } : null;
@@ -212,6 +212,13 @@ function buildPayTypeList(meta) {
   }];
 }
 
+/** 商品奖励是内部金币，展示值 = 金额 / 1000。realMoney 本身已是展示金额。 */
+function shopAwardToDisplay(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.floor(n / 10) / 100;
+}
+
 function shopItemsToRecommendList(shopItems, min, max, pay) {
   const lo = Number(min) || 0;
   const hi = Number(max) || Number.MAX_SAFE_INTEGER;
@@ -235,10 +242,10 @@ function shopItemsToRecommendList(shopItems, min, max, pay) {
     const amount = String(n);
     if (seen.has(amount)) continue;
     seen.add(amount);
-    const extra = Number(it.extraAward != null ? it.extraAward : it.nExtraAward) || 0;
-    const first = Number(
+    const extra = shopAwardToDisplay(it.extraAward != null ? it.extraAward : it.nExtraAward);
+    const first = shopAwardToDisplay(
       it.firstChargeAward != null ? it.firstChargeAward : it.nFirstChargeAward
-    ) || 0;
+    );
     const row = { amount };
     if (extra > 0) row.give = String(extra);
     if (first > 0) row.firstChargeAward = String(first);
@@ -477,6 +484,7 @@ module.exports = {
   normalizeRecommendList,
   defaultRecommendAmounts,
   shopItemsToRecommendList,
+  shopAwardToDisplay,
   resolvePayTypeMeta,
   buildPayTypeList,
   mapWgameChannelsToPack,

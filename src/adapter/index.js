@@ -235,6 +235,11 @@ async function tryHandleAdapter(req, res, options = {}) {
       sendJson(res, 400, { code: 400, msg: String(err && err.message || err), data: null });
       return true;
     }
+  } else {
+    body = {};
+    for (const [key, value] of reqUrl.searchParams.entries()) {
+      body[key] = value;
+    }
   }
 
   const cacheKey = READ_CACHE_PATHS.has(matched.path)

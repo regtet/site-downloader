@@ -391,21 +391,48 @@ async function httpDrawBackMoney({ token, money, payWay, id, cfg, timeoutMs }) {
   );
 }
 
+function lobbyPayWayType(p) {
+  const sub = String(p.subType || p.withdrawTypeName || p.wayCode || '').trim().toUpperCase();
+  const byName = {
+    CPF: 3,
+    PIX: 3,
+    PHONE: 8,
+    MOBILE: 8,
+    TELEFONE: 8,
+    EMAIL: 9,
+    EVP: 10,
+    RANDOM: 10,
+    CNPJ: 11,
+    BANK: 7,
+    ALIPAY: 1
+  };
+  if (byName[sub]) return byName[sub];
+  const raw = p.payWayType != null ? p.payWayType
+    : (p.pay_way_type != null ? p.pay_way_type
+      : (p.withdrawType != null ? p.withdrawType : p.type));
+  const n = Number(raw);
+  // 大厅 typeId 5 是 PIX 总类，不是 wgame 的支付方式编号
+  if (Number.isFinite(n) && n > 0 && n !== 5) return n;
+  return 3;
+}
+
 async function httpSetPayWay({ token, payload, cfg, timeoutMs }) {
   const p = payload || {};
+  const payWayType = lobbyPayWayType(p);
+  const account = String(p.bankCardNo || p.bank_card_no || p.cardNo || p.account || p.alipayAccount || p.aliAccount || '');
   return postProto(
     '/api/user/setPayWay',
     protoType('TCmd_SetPayWayReq'),
     {
       userName: String(p.userName || p.user_name || p.realName || p.name || ''),
-      bankCardNo: String(p.bankCardNo || p.bank_card_no || p.cardNo || p.account || p.alipayAccount || p.aliAccount || ''),
+      bankCardNo: account,
       bankName: String(p.bankName || p.bank_name || ''),
       ifscCode: String(p.ifscCode || p.ifsc_code || p.phone || p.mobile || ''),
       mail: String(p.mail || p.email || ''),
-      payWayType: Number(p.payWayType != null ? p.payWayType : (p.pay_way_type != null ? p.pay_way_type : p.type)) || 0,
+      payWayType,
       checkCode: Number(p.checkCode || p.check_code) || 0,
       id: Number(p.id) || 0,
-      idCard: String(p.idCard || p.id_card || p.idcard || '')
+      idCard: String(p.idCard || p.id_card || p.idcard || (payWayType === 3 ? account : ''))
     },
     protoType('TCmd_SetPayWayRes'),
     { cfg, token, timeoutMs }
@@ -445,6 +472,14 @@ function recordQueryPayload(body) {
     pageSize: Number(b.pageSize || b.page_size || b.pageSize || 15) || 15,
     queryType: Number(b.queryType != null ? b.queryType : (b.query_type != null ? b.query_type : 0)) || 0
   };
+}
+
+async function httpDayRechargeBonus({ token, cfg, timeoutMs }) {
+  return postProtoEmpty(
+    '/api/user/dayRechargeBonus',
+    protoType('TCmd_DayRechargeBonusConfig'),
+    { cfg, token, timeoutMs }
+  );
 }
 
 async function httpChargeRecord({ token, body, cfg, timeoutMs }) {
@@ -556,6 +591,7 @@ module.exports = {
   httpSetPayWay,
   httpSetWithdrawPwd,
   httpVerifyWithdrawPwd,
+  httpDayRechargeBonus,
   httpChargeRecord,
   httpWithdrawRecord,
   httpChargeWithdrawList,
