@@ -120,10 +120,10 @@
           <div class="result-actions">
             <button type="button" id="migrateBtn" class="btn btn-primary" disabled>替换接口</button>
             <button type="button" id="previewOfficialBtn" class="btn btn-secondary" disabled title="官方 UI + 官方上游数据（兼容层关闭）">预览官方</button>
-            <button type="button" id="previewOursBtn" class="btn btn-secondary" disabled title="官方 UI + 我们的数据（兼容层：HTTP/wgame）">预览我们的</button>
+            <button type="button" id="previewOursBtn" class="btn btn-secondary" disabled title="官方 UI + 已转换数据（兼容层：HTTP/wgame）">预览已转换</button>
             <button type="button" id="stopPreviewBtn" class="btn btn-ghost hidden">关闭预览</button>
           </div>
-          <p class="preview-hint">「替换接口」会整包重写 output（按当前 wgame_web），不沿用旧部署包。官方预览关兼容层；「我们的」走 HTTP/wgame。</p>
+          <p class="preview-hint">「替换接口」会整包重写 output（按当前 wgame_web），不沿用旧部署包。官方预览关兼容层；「已转换」走 HTTP/wgame。</p>
           <p id="migrateStatus" class="migrate-status hidden"></p>
           <p id="outputPath" class="output-path"></p>
           <div id="errorList" class="error-list scrollable hidden"></div>

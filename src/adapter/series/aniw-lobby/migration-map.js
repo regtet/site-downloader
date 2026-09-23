@@ -196,6 +196,11 @@ const CORE_MAP = {
     adapter: 'withdrawPending',
     note: 'http verifyWithdrawPwd'
   },
+  '/api/finance/certify/setdefault': {
+    op: OP.WITHDRAW_PENDING,
+    adapter: 'withdrawPending',
+    note: 'local default withdraw account'
+  },
 
   // —— 活动：列表/公告空；领取类明确 pending ——
   '/api/active/announcement': { op: OP.UPSTREAM, adapter: 'lobbyOk' },

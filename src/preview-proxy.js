@@ -17,146 +17,146 @@ const STATIC_PATH_EXT_RE = /\.(?:js|mjs|cjs|css|map|json|wasm|png|jpe?g|gif|webp
 const SAME_ORIGIN_API_PREFIX_RE = /^\/(member|api|apis|promo|promo_v2|gameapi|game|hall|auth|pay|wallet|agent|user|webapi|gateway|cdn-cgi)\b/i;
 
 function isLocalStaticPath(pathname) {
-  const p = String(pathname || '');
-  if (!p || p === '/') return false;
-  if (LOCAL_STATIC_PREFIX_RE.test(p)) return true;
-  if (STATIC_PATH_EXT_RE.test(p)) return true;
-  return false;
+    const p = String(pathname || '');
+    if (!p || p === '/') return false;
+    if (LOCAL_STATIC_PREFIX_RE.test(p)) return true;
+    if (STATIC_PATH_EXT_RE.test(p)) return true;
+    return false;
 }
 
 function isLikelySameOriginApiPath(pathname, search) {
-  const p = String(pathname || '');
-  if (!p || p === '/') return false;
-  if (isLocalStaticPath(p)) return false;
-  if (SAME_ORIGIN_API_PREFIX_RE.test(p)) return true;
-  if (search && /(?:^|[?&])pa=/.test(search)) return true;
-  return false;
+    const p = String(pathname || '');
+    if (!p || p === '/') return false;
+    if (isLocalStaticPath(p)) return false;
+    if (SAME_ORIGIN_API_PREFIX_RE.test(p)) return true;
+    if (search && /(?:^|[?&])pa=/.test(search)) return true;
+    return false;
 }
 
 function isFetchLikeRequest(req) {
-  const headers = (req && req.headers) || {};
-  const dest = String(headers['sec-fetch-dest'] || '').toLowerCase();
-  if (dest === 'document' || dest === 'iframe' || dest === 'frame') return false;
-  if (dest === 'empty') return true;
-  const accept = String(headers.accept || '').toLowerCase();
-  if (accept.includes('application/json')) return true;
-  if (headers['x-requested-with']) return true;
-  const method = String((req && req.method) || 'GET').toUpperCase();
-  if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') return true;
-  return false;
+    const headers = (req && req.headers) || {};
+    const dest = String(headers['sec-fetch-dest'] || '').toLowerCase();
+    if (dest === 'document' || dest === 'iframe' || dest === 'frame') return false;
+    if (dest === 'empty') return true;
+    const accept = String(headers.accept || '').toLowerCase();
+    if (accept.includes('application/json')) return true;
+    if (headers['x-requested-with']) return true;
+    const method = String((req && req.method) || 'GET').toUpperCase();
+    if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') return true;
+    return false;
 }
 
 const HOP_BY_HOP = new Set([
-  'connection',
-  'keep-alive',
-  'proxy-authenticate',
-  'proxy-authorization',
-  'te',
-  'trailers',
-  'transfer-encoding',
-  'upgrade',
-  'host',
-  'content-length'
+    'connection',
+    'keep-alive',
+    'proxy-authenticate',
+    'proxy-authorization',
+    'te',
+    'trailers',
+    'transfer-encoding',
+    'upgrade',
+    'host',
+    'content-length'
 ]);
 
 function resolveSourceOrigin(siteDir, fs, path) {
-  try {
-    const manifestPath = path.join(siteDir, 'manifest.json');
-    if (fs.existsSync(manifestPath)) {
-      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-      if (manifest && manifest.source) {
-        return new URL(manifest.source).origin;
-      }
+    try {
+        const manifestPath = path.join(siteDir, 'manifest.json');
+        if (fs.existsSync(manifestPath)) {
+            const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+            if (manifest && manifest.source) {
+                return new URL(manifest.source).origin;
+            }
+        }
+    } catch (_) { /* ignore */ }
+    try {
+        return 'https://' + path.basename(siteDir);
+    } catch (_) {
+        return '';
     }
-  } catch (_) { /* ignore */ }
-  try {
-    return 'https://' + path.basename(siteDir);
-  } catch (_) {
-    return '';
-  }
 }
 
 function parseProxyTarget(reqUrl) {
-  const parsed = typeof reqUrl === 'string'
-    ? new URL(reqUrl, 'http://127.0.0.1')
-    : reqUrl;
-  if (!parsed.pathname.startsWith(PROXY_PREFIX)) return null;
+    const parsed = typeof reqUrl === 'string'
+        ? new URL(reqUrl, 'http://127.0.0.1')
+        : reqUrl;
+    if (!parsed.pathname.startsWith(PROXY_PREFIX)) return null;
 
-  const rest = parsed.pathname.slice(PROXY_PREFIX.length);
-  let target = '';
-  if (parsed.searchParams.has('url')) {
-    target = parsed.searchParams.get('url') || '';
-  } else if (rest.startsWith('/')) {
-    const decoded = decodeURIComponent(rest.slice(1));
-    if (/^https?:\/\//i.test(decoded)) {
-      target = decoded;
-    } else {
-      const slash = decoded.indexOf('/');
-      const host = slash === -1 ? decoded : decoded.slice(0, slash);
-      const pathPart = slash === -1 ? '/' : decoded.slice(slash);
-      if (!host || host.indexOf('..') !== -1) return null;
-      target = 'https://' + host + pathPart + (parsed.search || '');
+    const rest = parsed.pathname.slice(PROXY_PREFIX.length);
+    let target = '';
+    if (parsed.searchParams.has('url')) {
+        target = parsed.searchParams.get('url') || '';
+    } else if (rest.startsWith('/')) {
+        const decoded = decodeURIComponent(rest.slice(1));
+        if (/^https?:\/\//i.test(decoded)) {
+            target = decoded;
+        } else {
+            const slash = decoded.indexOf('/');
+            const host = slash === -1 ? decoded : decoded.slice(0, slash);
+            const pathPart = slash === -1 ? '/' : decoded.slice(slash);
+            if (!host || host.indexOf('..') !== -1) return null;
+            target = 'https://' + host + pathPart + (parsed.search || '');
+        }
     }
-  }
-  if (!target) return null;
+    if (!target) return null;
 
-  let url;
-  try {
-    url = new URL(target);
-  } catch (_) {
-    return null;
-  }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
-  return url;
+    let url;
+    try {
+        url = new URL(target);
+    } catch (_) {
+        return null;
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    return url;
 }
 
 function normalizeBootCfg(adapterHostsOrCfg) {
-  if (Array.isArray(adapterHostsOrCfg)) {
+    if (Array.isArray(adapterHostsOrCfg)) {
+        return {
+            hosts: adapterHostsOrCfg,
+            apiHostPatterns: [],
+            excludeHosts: [],
+            ossHosts: [],
+            ossOrigin: '',
+            upstreamOrigin: '',
+            lobbyGameUrl: '',
+            authEpoch: '',
+            adapterEnabled: true
+        };
+    }
+    const c = adapterHostsOrCfg && typeof adapterHostsOrCfg === 'object' ? adapterHostsOrCfg : {};
+    const ossHosts = Array.isArray(c.ossHosts) ? c.ossHosts.map(String) : [];
+    if (c.ossOrigin) {
+        try {
+            const h = new URL(String(c.ossOrigin)).hostname;
+            if (h && !ossHosts.includes(h)) ossHosts.push(h);
+        } catch (_) { /* ignore */ }
+    }
     return {
-      hosts: adapterHostsOrCfg,
-      apiHostPatterns: [],
-      excludeHosts: [],
-      ossHosts: [],
-      ossOrigin: '',
-      upstreamOrigin: '',
-      lobbyGameUrl: '',
-      authEpoch: '',
-      adapterEnabled: true
+        hosts: Array.isArray(c.hosts) ? c.hosts : [],
+        apiHostPatterns: Array.isArray(c.apiHostPatterns) ? c.apiHostPatterns : [],
+        excludeHosts: Array.isArray(c.excludeHosts) ? c.excludeHosts : [],
+        ossHosts,
+        ossOrigin: c.ossOrigin ? String(c.ossOrigin) : '',
+        upstreamOrigin: c.upstreamOrigin ? String(c.upstreamOrigin) : '',
+        lobbyGameUrl: c.lobbyGameUrl ? String(c.lobbyGameUrl) : '',
+        authEpoch: c.authEpoch ? String(c.authEpoch) : '',
+        adapterEnabled: c.adapterEnabled !== false
     };
-  }
-  const c = adapterHostsOrCfg && typeof adapterHostsOrCfg === 'object' ? adapterHostsOrCfg : {};
-  const ossHosts = Array.isArray(c.ossHosts) ? c.ossHosts.map(String) : [];
-  if (c.ossOrigin) {
-    try {
-      const h = new URL(String(c.ossOrigin)).hostname;
-      if (h && !ossHosts.includes(h)) ossHosts.push(h);
-    } catch (_) { /* ignore */ }
-  }
-  return {
-    hosts: Array.isArray(c.hosts) ? c.hosts : [],
-    apiHostPatterns: Array.isArray(c.apiHostPatterns) ? c.apiHostPatterns : [],
-    excludeHosts: Array.isArray(c.excludeHosts) ? c.excludeHosts : [],
-    ossHosts,
-    ossOrigin: c.ossOrigin ? String(c.ossOrigin) : '',
-    upstreamOrigin: c.upstreamOrigin ? String(c.upstreamOrigin) : '',
-    lobbyGameUrl: c.lobbyGameUrl ? String(c.lobbyGameUrl) : '',
-    authEpoch: c.authEpoch ? String(c.authEpoch) : '',
-    adapterEnabled: c.adapterEnabled !== false
-  };
 }
 
 function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
-  const cfg = normalizeBootCfg(adapterHostsOrCfg);
-  const origin = JSON.stringify(sourceOrigin || '');
-  const prefix = JSON.stringify(PROXY_PREFIX + '/');
-  const hostsJson = JSON.stringify(cfg.hosts);
-  const patternsJson = JSON.stringify(cfg.apiHostPatterns);
-  const excludeJson = JSON.stringify(cfg.excludeHosts);
-  const ossHostsJson = JSON.stringify(cfg.ossHosts || []);
-  const lobbyGameUrlJson = JSON.stringify(cfg.lobbyGameUrl || '');
-  const adapterEnabledJson = cfg.adapterEnabled === false ? 'false' : 'true';
-  const authEpochJson = JSON.stringify(cfg.authEpoch || '');
-  return `/*! site-downloader preview proxy boot */
+    const cfg = normalizeBootCfg(adapterHostsOrCfg);
+    const origin = JSON.stringify(sourceOrigin || '');
+    const prefix = JSON.stringify(PROXY_PREFIX + '/');
+    const hostsJson = JSON.stringify(cfg.hosts);
+    const patternsJson = JSON.stringify(cfg.apiHostPatterns);
+    const excludeJson = JSON.stringify(cfg.excludeHosts);
+    const ossHostsJson = JSON.stringify(cfg.ossHosts || []);
+    const lobbyGameUrlJson = JSON.stringify(cfg.lobbyGameUrl || '');
+    const adapterEnabledJson = cfg.adapterEnabled === false ? 'false' : 'true';
+    const authEpochJson = JSON.stringify(cfg.authEpoch || '');
+    return `/*! site-downloader preview proxy boot */
 (function () {
   var SOURCE_ORIGIN = ${origin};
   var PROXY_PREFIX = ${prefix};
@@ -992,14 +992,14 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
 }
 
 function buildServiceWorkerScript(adapterHostsOrCfg) {
-  const cfg = normalizeBootCfg(adapterHostsOrCfg);
-  const proxyPrefix = JSON.stringify(PROXY_PREFIX + '/');
-  const hostsJson = JSON.stringify(cfg.hosts);
-  const patternsJson = JSON.stringify(cfg.apiHostPatterns);
-  const excludeJson = JSON.stringify(cfg.excludeHosts);
-  const ossHostsJson = JSON.stringify(cfg.ossHosts || []);
-  const adapterEnabledJson = cfg.adapterEnabled === false ? 'false' : 'true';
-  return `/*! site-downloader api adapter sw v10 */
+    const cfg = normalizeBootCfg(adapterHostsOrCfg);
+    const proxyPrefix = JSON.stringify(PROXY_PREFIX + '/');
+    const hostsJson = JSON.stringify(cfg.hosts);
+    const patternsJson = JSON.stringify(cfg.apiHostPatterns);
+    const excludeJson = JSON.stringify(cfg.excludeHosts);
+    const ossHostsJson = JSON.stringify(cfg.ossHosts || []);
+    const adapterEnabledJson = cfg.adapterEnabled === false ? 'false' : 'true';
+    return `/*! site-downloader api adapter sw v10 */
 self.addEventListener('install', function (e) { self.skipWaiting(); });
 self.addEventListener('activate', function (e) { e.waitUntil(self.clients.claim()); });
 
@@ -1114,379 +1114,379 @@ self.addEventListener('fetch', function (event) {
 `;
 }
 function injectBootIntoHtml(html, sourceOrigin, adapterHosts) {
-  if (!sourceOrigin || !html) return html;
-  const cfg = normalizeBootCfg(adapterHosts);
-  const mode = cfg.adapterEnabled === false ? '0' : '1';
-  // 始终替换旧 boot，避免切换 dist/部署包 后浏览器仍执行旧脚本
-  let out = String(html).replace(
-    /<script\b[^>]*\bdata-sd-boot=["']?1["']?[^>]*>[\s\S]*?<\/script>/gi,
-    ''
-  );
-  const raw = buildBootScript(sourceOrigin, adapterHosts);
-  const safe = String(raw).replace(/<\/script/gi, '<\\/script');
-  const tag = `<script data-sd-boot="1" data-sd-adapter="${mode}">${safe}</script>`;
-  if (/<head[^>]*>/i.test(out)) {
-    return out.replace(/<head([^>]*)>/i, `<head$1>${tag}`);
-  }
-  return tag + out;
+    if (!sourceOrigin || !html) return html;
+    const cfg = normalizeBootCfg(adapterHosts);
+    const mode = cfg.adapterEnabled === false ? '0' : '1';
+    // 始终替换旧 boot，避免切换 dist/部署包 后浏览器仍执行旧脚本
+    let out = String(html).replace(
+        /<script\b[^>]*\bdata-sd-boot=["']?1["']?[^>]*>[\s\S]*?<\/script>/gi,
+        ''
+    );
+    const raw = buildBootScript(sourceOrigin, adapterHosts);
+    const safe = String(raw).replace(/<\/script/gi, '<\\/script');
+    const tag = `<script data-sd-boot="1" data-sd-adapter="${mode}">${safe}</script>`;
+    if (/<head[^>]*>/i.test(out)) {
+        return out.replace(/<head([^>]*)>/i, `<head$1>${tag}`);
+    }
+    return tag + out;
 }
 
 function blankUpstreamUid(raw) {
-  try {
-    const obj = JSON.parse(String(raw || ''));
-    if (obj && typeof obj === 'object') {
-      obj.uid = '';
-      return JSON.stringify(obj);
-    }
-  } catch (_) { /* ignore */ }
-  return '';
+    try {
+        const obj = JSON.parse(String(raw || ''));
+        if (obj && typeof obj === 'object') {
+            obj.uid = '';
+            return JSON.stringify(obj);
+        }
+    } catch (_) { /* ignore */ }
+    return '';
 }
 
 function safeSegment(raw, fallback) {
-  const s = String(raw || '').split(',')[0].trim();
-  return /^[A-Za-z0-9_-]{1,12}$/.test(s) ? s : fallback;
+    const s = String(raw || '').split(',')[0].trim();
+    return /^[A-Za-z0-9_-]{1,12}$/.test(s) ? s : fallback;
 }
 
 function langPrimary(raw) {
-  const s = String(raw || '').split(',')[0].trim().split(/[-_]/)[0];
-  return /^[a-z]{2}$/i.test(s) ? s.toLowerCase() : 'pt';
+    const s = String(raw || '').split(',')[0].trim().split(/[-_]/)[0];
+    return /^[a-z]{2}$/i.test(s) ? s.toLowerCase() : 'pt';
 }
 
 /** 登录后活动/代理配置走业务接口会被踢；公开 json 才是列表本身 */
 function guestPublicPaths(pathname, headers) {
-  const p = String(pathname || '').replace(/^\/hall/, '');
-  const lang = langPrimary(headers && headers.language);
-  const cur = safeSegment(headers && headers.currency, 'BRL');
-  if (/\/api\/active\/categoryV2$/i.test(p) || /\/api\/active\/category$/i.test(p)) {
-    const langs = lang === 'pt' ? ['pt'] : [lang, 'pt'];
-    const out = [];
-    for (const code of langs) {
-      out.push(`/api/active/category/currency/${cur}/language/${code}.json`);
-      out.push(`/api/active/categoryV2/currency/${cur}/language/${code}.json`);
+    const p = String(pathname || '').replace(/^\/hall/, '');
+    const lang = langPrimary(headers && headers.language);
+    const cur = safeSegment(headers && headers.currency, 'BRL');
+    if (/\/api\/active\/categoryV2$/i.test(p) || /\/api\/active\/category$/i.test(p)) {
+        const langs = lang === 'pt' ? ['pt'] : [lang, 'pt'];
+        const out = [];
+        for (const code of langs) {
+            out.push(`/api/active/category/currency/${cur}/language/${code}.json`);
+            out.push(`/api/active/categoryV2/currency/${cur}/language/${code}.json`);
+        }
+        return out;
     }
-    return out;
-  }
-  if (/\/api\/active\/getByTemplate$/i.test(p)) {
-    return [`/api/active/getByTemplate/currency/${cur}.json`];
-  }
-  if (/\/api\/active\/isShowV2$/i.test(p)) {
-    return ['/api/active/isShowV2/default.json'];
-  }
-  if (/\/api\/agent\/promote\/config\/index$/i.test(p)) {
-    return [`/api/agent/promote/config/index/currency/${cur}/language/${lang}.json`];
-  }
-  if (/\/api\/agent\/promote\/config\/tutorial/i.test(p)) {
-    return [`/api/agent/promote/config/tutorial/currency/${cur}/language/${lang}.json`];
-  }
-  if (/\/api\/agent\/promote\/getPublicityV3$/i.test(p)) {
-    return [`/api/agent/promote/getPublicityV3/currency/${cur}/language/${lang}.json`];
-  }
-  return [];
+    if (/\/api\/active\/getByTemplate$/i.test(p)) {
+        return [`/api/active/getByTemplate/currency/${cur}.json`];
+    }
+    if (/\/api\/active\/isShowV2$/i.test(p)) {
+        return ['/api/active/isShowV2/default.json'];
+    }
+    if (/\/api\/agent\/promote\/config\/index$/i.test(p)) {
+        return [`/api/agent/promote/config/index/currency/${cur}/language/${lang}.json`];
+    }
+    if (/\/api\/agent\/promote\/config\/tutorial/i.test(p)) {
+        return [`/api/agent/promote/config/tutorial/currency/${cur}/language/${lang}.json`];
+    }
+    if (/\/api\/agent\/promote\/getPublicityV3$/i.test(p)) {
+        return [`/api/agent/promote/getPublicityV3/currency/${cur}/language/${lang}.json`];
+    }
+    return [];
 }
 
 function isNoServerObject(j) {
-  if (!j || typeof j !== 'object' || Array.isArray(j)) return false;
-  const err = Number(j.err_code != null ? j.err_code : j.errCode);
-  const msg = String(j.msg || j.message || '');
-  return err === 41000 || /failed to obtain server/i.test(msg);
+    if (!j || typeof j !== 'object' || Array.isArray(j)) return false;
+    const err = Number(j.err_code != null ? j.err_code : j.errCode);
+    const msg = String(j.msg || j.message || '');
+    return err === 41000 || /failed to obtain server/i.test(msg);
 }
 
 function isAuthKickText(text) {
-  const trimmed = String(text || '').trim();
-  if (!trimmed || trimmed[0] !== '{') return false;
-  try {
-    const j = JSON.parse(trimmed);
-    if (!j || typeof j !== 'object' || Array.isArray(j)) return false;
-    if (isNoServerObject(j)) return true;
-    const num = Number(j.code);
-    const msg = String(j.msg || j.message || '');
-    return num === -1
-      || j.code === '-1'
-      || /dispositivo|desconectad|token\s*expir|fa[cç]a login novamente|n[aã]o est[aá] autorizada|not\s*authorized|unauthorized|login\s*again/i.test(msg);
-  } catch (_) {
-    return false;
-  }
+    const trimmed = String(text || '').trim();
+    if (!trimmed || trimmed[0] !== '{') return false;
+    try {
+        const j = JSON.parse(trimmed);
+        if (!j || typeof j !== 'object' || Array.isArray(j)) return false;
+        if (isNoServerObject(j)) return true;
+        const num = Number(j.code);
+        const msg = String(j.msg || j.message || '');
+        return num === -1
+            || j.code === '-1'
+            || /dispositivo|desconectad|token\s*expir|fa[cç]a login novamente|n[aã]o est[aá] autorizada|not\s*authorized|unauthorized|login\s*again/i.test(msg);
+    } catch (_) {
+        return false;
+    }
 }
 
 function readActiveId(buf) {
-  if (!buf || !buf.length) return 0;
-  let body;
-  try { body = JSON.parse(Buffer.from(buf).toString('utf8')); } catch (_) { return 0; }
-  if (!body || typeof body !== 'object') return 0;
-  const n = Number(body.activeId != null ? body.activeId : body.id);
-  if (!Number.isFinite(n) || n <= 0 || n > 1e12) return 0;
-  return Math.floor(n);
+    if (!buf || !buf.length) return 0;
+    let body;
+    try { body = JSON.parse(Buffer.from(buf).toString('utf8')); } catch (_) { return 0; }
+    if (!body || typeof body !== 'object') return 0;
+    const n = Number(body.activeId != null ? body.activeId : body.id);
+    if (!Number.isFinite(n) || n <= 0 || n > 1e12) return 0;
+    return Math.floor(n);
 }
 
 /**
  * 活动详情 crypto 关闭，客户端要明文 JSON（name/content/activeData）。
- * 带我们的会话会被踢；用活动 id 再以访客身份要一次官方正文。
+ * 带已转换会话会被踢；用活动 id 再以访客身份要一次官方正文。
  */
 async function recoverActiveDetail(target, req, bodyBuf) {
-  const path = String((target && target.pathname) || '').replace(/^\/hall/, '');
-  if (!/\/api\/active\/get$/i.test(path)) return null;
-  const activeId = readActiveId(bodyBuf);
-  if (!activeId) return null;
-  const headers = (req && req.headers) || {};
-  const lang = safeSegment(headers.language, 'pt');
-  const cur = safeSegment(headers.currency, 'BRL');
-  const site = safeSegment(headers.sitecode, '');
-  let url;
-  try {
-    url = new URL(target.href);
-    url.pathname = '/hall/api/active/get';
-    url.search = '';
-  } catch (_) {
-    return null;
-  }
-  const payload = JSON.stringify({ activeId });
-  try {
-    const res = await axios.post(url.href, payload, {
-      timeout: 12000,
-      responseType: 'arraybuffer',
-      validateStatus: () => true,
-      httpsAgent: getDirectHttpsAgent(),
-      proxy: false,
-      headers: {
-        Accept: 'application/json,text/plain,*/*',
-        'Content-Type': 'application/json',
-        'Accept-Encoding': 'identity',
-        'x-data-mode': 'plain',
-        currency: cur,
-        language: lang,
-        ...(site ? { sitecode: site } : {}),
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        Host: url.host
-      }
-    });
-    if (res.status >= 400) return null;
-    const buf = Buffer.from(res.data || []);
-    const text = buf.toString('utf8').trim();
-    if (!text || text[0] !== '{' || isAuthKickText(text)) return null;
-    const j = JSON.parse(text);
-    if (!j || Number(j.code) !== 1 || !j.data || j.data.name == null) return null;
-    return buf;
-  } catch (_) {
-    return null;
-  }
+    const path = String((target && target.pathname) || '').replace(/^\/hall/, '');
+    if (!/\/api\/active\/get$/i.test(path)) return null;
+    const activeId = readActiveId(bodyBuf);
+    if (!activeId) return null;
+    const headers = (req && req.headers) || {};
+    const lang = safeSegment(headers.language, 'pt');
+    const cur = safeSegment(headers.currency, 'BRL');
+    const site = safeSegment(headers.sitecode, '');
+    let url;
+    try {
+        url = new URL(target.href);
+        url.pathname = '/hall/api/active/get';
+        url.search = '';
+    } catch (_) {
+        return null;
+    }
+    const payload = JSON.stringify({ activeId });
+    try {
+        const res = await axios.post(url.href, payload, {
+            timeout: 12000,
+            responseType: 'arraybuffer',
+            validateStatus: () => true,
+            httpsAgent: getDirectHttpsAgent(),
+            proxy: false,
+            headers: {
+                Accept: 'application/json,text/plain,*/*',
+                'Content-Type': 'application/json',
+                'Accept-Encoding': 'identity',
+                'x-data-mode': 'plain',
+                currency: cur,
+                language: lang,
+                ...(site ? { sitecode: site } : {}),
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                Host: url.host
+            }
+        });
+        if (res.status >= 400) return null;
+        const buf = Buffer.from(res.data || []);
+        const text = buf.toString('utf8').trim();
+        if (!text || text[0] !== '{' || isAuthKickText(text)) return null;
+        const j = JSON.parse(text);
+        if (!j || Number(j.code) !== 1 || !j.data || j.data.name == null) return null;
+        return buf;
+    } catch (_) {
+        return null;
+    }
 }
 
 function wrapGuestPayload(buf) {
-  const text = buf.toString('utf8').trim();
-  if (!text || isAuthKickText(text)) return null;
-  if (text[0] !== '{') return buf;
-  try {
-    const j = JSON.parse(text);
-    if (isNoServerObject(j)) return null;
-    if (j && j.code != null) return buf;
-    if (j && (j.activeList || j.categoryList || j.list)) {
-      return Buffer.from(JSON.stringify({ code: 1, msg: '', data: j }));
-    }
-  } catch (_) { /* ciphertext-like json failure: pass through */ }
-  return buf;
-}
-
-async function recoverPlainGet(target, req) {
-  const path = String((target && target.pathname) || '').replace(/^\/hall/, '');
-  if (!/\/api\/agent\/promote\/config\/introduce$/i.test(path)) return null;
-  let url;
-  try {
-    url = new URL(target.href);
-    url.pathname = '/hall/api/agent/promote/config/introduce';
-  } catch (_) {
-    return null;
-  }
-  const headers = (req && req.headers) || {};
-  try {
-    const res = await axios.get(url.href, {
-      timeout: 12000,
-      responseType: 'arraybuffer',
-      validateStatus: () => true,
-      httpsAgent: getDirectHttpsAgent(),
-      proxy: false,
-      headers: {
-        Accept: 'application/json,text/plain,*/*',
-        'Accept-Encoding': 'identity',
-        'x-data-mode': 'plain',
-        currency: safeSegment(headers.currency, 'BRL'),
-        language: safeSegment(headers.language, 'pt'),
-        ...(safeSegment(headers.sitecode, '') ? { sitecode: safeSegment(headers.sitecode, '') } : {}),
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        Host: url.host
-      }
-    });
-    if (res.status >= 400) return null;
-    const buf = Buffer.from(res.data || []);
     const text = buf.toString('utf8').trim();
     if (!text || isAuthKickText(text)) return null;
     if (text[0] !== '{') return buf;
-    const j = JSON.parse(text);
-    if (!j || Number(j.code) !== 1 || j.data == null) return null;
+    try {
+        const j = JSON.parse(text);
+        if (isNoServerObject(j)) return null;
+        if (j && j.code != null) return buf;
+        if (j && (j.activeList || j.categoryList || j.list)) {
+            return Buffer.from(JSON.stringify({ code: 1, msg: '', data: j }));
+        }
+    } catch (_) { /* ciphertext-like json failure: pass through */ }
     return buf;
-  } catch (_) {
-    return null;
-  }
+}
+
+async function recoverPlainGet(target, req) {
+    const path = String((target && target.pathname) || '').replace(/^\/hall/, '');
+    if (!/\/api\/agent\/promote\/config\/introduce$/i.test(path)) return null;
+    let url;
+    try {
+        url = new URL(target.href);
+        url.pathname = '/hall/api/agent/promote/config/introduce';
+    } catch (_) {
+        return null;
+    }
+    const headers = (req && req.headers) || {};
+    try {
+        const res = await axios.get(url.href, {
+            timeout: 12000,
+            responseType: 'arraybuffer',
+            validateStatus: () => true,
+            httpsAgent: getDirectHttpsAgent(),
+            proxy: false,
+            headers: {
+                Accept: 'application/json,text/plain,*/*',
+                'Accept-Encoding': 'identity',
+                'x-data-mode': 'plain',
+                currency: safeSegment(headers.currency, 'BRL'),
+                language: safeSegment(headers.language, 'pt'),
+                ...(safeSegment(headers.sitecode, '') ? { sitecode: safeSegment(headers.sitecode, '') } : {}),
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                Host: url.host
+            }
+        });
+        if (res.status >= 400) return null;
+        const buf = Buffer.from(res.data || []);
+        const text = buf.toString('utf8').trim();
+        if (!text || isAuthKickText(text)) return null;
+        if (text[0] !== '{') return buf;
+        const j = JSON.parse(text);
+        if (!j || Number(j.code) !== 1 || j.data == null) return null;
+        return buf;
+    } catch (_) {
+        return null;
+    }
 }
 
 const guestJsonCache = new Map();
 
 async function recoverGuestReplay(target, req, bodyBuf) {
-  const path = String((target && target.pathname) || '').replace(/^\/hall/, '');
-  if (!/\/api\/active\/(tasks\/task|tasks\/vitality\/boxs|returnGold\/summary\/v3|returnGold\/ratiotable|cutADeal\/list|turntable\/)/i.test(path)) {
-    return null;
-  }
-  let url;
-  try {
-    url = new URL(target.href);
-    url.pathname = '/hall' + path;
-    url.search = '';
-  } catch (_) {
-    return null;
-  }
-  const headers = (req && req.headers) || {};
-  let payload = bodyBuf && bodyBuf.length ? Buffer.from(bodyBuf) : Buffer.from('{}');
-  try {
-    const parsed = JSON.parse(payload.toString('utf8'));
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      for (const key of ['token', 'jwt', 'newJwt', 'newjwt', 'session_key', 'userkey', 'authorization']) {
-        delete parsed[key];
-      }
-      payload = Buffer.from(JSON.stringify(parsed));
+    const path = String((target && target.pathname) || '').replace(/^\/hall/, '');
+    if (!/\/api\/active\/(tasks\/task|tasks\/vitality\/boxs|returnGold\/summary\/v3|returnGold\/ratiotable|cutADeal\/list|turntable\/)/i.test(path)) {
+        return null;
     }
-  } catch (_) { /* keep original body */ }
-  try {
-    const res = await axios.post(url.href, payload, {
-      timeout: 12000,
-      responseType: 'arraybuffer',
-      validateStatus: () => true,
-      httpsAgent: getDirectHttpsAgent(),
-      proxy: false,
-      headers: {
-        Accept: 'application/json,text/plain,*/*',
-        'Content-Type': 'application/json',
-        'Accept-Encoding': 'identity',
-        'x-data-mode': 'plain',
-        currency: safeSegment(headers.currency, 'BRL'),
-        language: langPrimary(headers.language),
-        ...(safeSegment(headers.sitecode, '') ? { sitecode: safeSegment(headers.sitecode, '') } : {}),
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        Host: url.host
-      }
-    });
-    if (res.status >= 400) return null;
-    const buf = Buffer.from(res.data || []);
-    const text = buf.toString('utf8').trim();
-    if (!text || text[0] !== '{' || isAuthKickText(text)) return null;
-    const body = JSON.parse(text);
-    if (!body || Number(body.code) !== 1 || body.data == null) {
-      try {
-        console.info('[sd-proxy] guest miss', path, res.status, body && (body.errorCode || body.code));
-      } catch (_) { /* ignore */ }
-      return null;
+    let url;
+    try {
+        url = new URL(target.href);
+        url.pathname = '/hall' + path;
+        url.search = '';
+    } catch (_) {
+        return null;
     }
-    return buf;
-  } catch (_) {
-    return null;
-  }
+    const headers = (req && req.headers) || {};
+    let payload = bodyBuf && bodyBuf.length ? Buffer.from(bodyBuf) : Buffer.from('{}');
+    try {
+        const parsed = JSON.parse(payload.toString('utf8'));
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            for (const key of ['token', 'jwt', 'newJwt', 'newjwt', 'session_key', 'userkey', 'authorization']) {
+                delete parsed[key];
+            }
+            payload = Buffer.from(JSON.stringify(parsed));
+        }
+    } catch (_) { /* keep original body */ }
+    try {
+        const res = await axios.post(url.href, payload, {
+            timeout: 12000,
+            responseType: 'arraybuffer',
+            validateStatus: () => true,
+            httpsAgent: getDirectHttpsAgent(),
+            proxy: false,
+            headers: {
+                Accept: 'application/json,text/plain,*/*',
+                'Content-Type': 'application/json',
+                'Accept-Encoding': 'identity',
+                'x-data-mode': 'plain',
+                currency: safeSegment(headers.currency, 'BRL'),
+                language: langPrimary(headers.language),
+                ...(safeSegment(headers.sitecode, '') ? { sitecode: safeSegment(headers.sitecode, '') } : {}),
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                Host: url.host
+            }
+        });
+        if (res.status >= 400) return null;
+        const buf = Buffer.from(res.data || []);
+        const text = buf.toString('utf8').trim();
+        if (!text || text[0] !== '{' || isAuthKickText(text)) return null;
+        const body = JSON.parse(text);
+        if (!body || Number(body.code) !== 1 || body.data == null) {
+            try {
+                console.info('[sd-proxy] guest miss', path, res.status, body && (body.errorCode || body.code));
+            } catch (_) { /* ignore */ }
+            return null;
+        }
+        return buf;
+    } catch (_) {
+        return null;
+    }
 }
 
 async function recoverGuestJson(target, req, options) {
-  const detail = await recoverActiveDetail(target, req, options && options.reqBody);
-  if (detail) return detail;
-  const intro = await recoverPlainGet(target, req);
-  if (intro) return intro;
-  const replay = await recoverGuestReplay(target, req, options && options.reqBody);
-  if (replay) return replay;
-  const paths = guestPublicPaths(target.pathname, req && req.headers);
-  if (!paths.length) return null;
-  const origins = [];
-  // 活动列表在 oniw 公开 json。先打 OSS，aniw 业务域名对这条会 41000。
-  if (options && options.ossOrigin) origins.push(String(options.ossOrigin).replace(/\/$/, ''));
-  try {
-    const apiOrigin = new URL(target.href).origin;
-    if (!origins.includes(apiOrigin)) origins.push(apiOrigin);
-  } catch (_) { /* ignore */ }
-  if (!origins.length) return null;
-  const httpsAgent = getDirectHttpsAgent();
-  for (const rel of paths) {
-    const cached = guestJsonCache.get(rel);
-    if (cached && Date.now() - cached.at < 60000 && cached.buf && cached.buf.length) return cached.buf;
-    for (const origin of origins) {
-    const url = origin + '/hall' + rel;
-    let host = target.host;
-    try { host = new URL(url).host; } catch (_) { /* keep target host */ }
+    const detail = await recoverActiveDetail(target, req, options && options.reqBody);
+    if (detail) return detail;
+    const intro = await recoverPlainGet(target, req);
+    if (intro) return intro;
+    const replay = await recoverGuestReplay(target, req, options && options.reqBody);
+    if (replay) return replay;
+    const paths = guestPublicPaths(target.pathname, req && req.headers);
+    if (!paths.length) return null;
+    const origins = [];
+    // 活动列表在 oniw 公开 json。先打 OSS，aniw 业务域名对这条会 41000。
+    if (options && options.ossOrigin) origins.push(String(options.ossOrigin).replace(/\/$/, ''));
     try {
-      const res = await axios.get(url, {
-        timeout: 12000,
-        responseType: 'arraybuffer',
-        validateStatus: () => true,
-        httpsAgent,
-        proxy: false,
-        headers: {
-          Accept: 'application/json,text/plain,*/*',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          Host: host
+        const apiOrigin = new URL(target.href).origin;
+        if (!origins.includes(apiOrigin)) origins.push(apiOrigin);
+    } catch (_) { /* ignore */ }
+    if (!origins.length) return null;
+    const httpsAgent = getDirectHttpsAgent();
+    for (const rel of paths) {
+        const cached = guestJsonCache.get(rel);
+        if (cached && Date.now() - cached.at < 60000 && cached.buf && cached.buf.length) return cached.buf;
+        for (const origin of origins) {
+            const url = origin + '/hall' + rel;
+            let host = target.host;
+            try { host = new URL(url).host; } catch (_) { /* keep target host */ }
+            try {
+                const res = await axios.get(url, {
+                    timeout: 12000,
+                    responseType: 'arraybuffer',
+                    validateStatus: () => true,
+                    httpsAgent,
+                    proxy: false,
+                    headers: {
+                        Accept: 'application/json,text/plain,*/*',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        Host: host
+                    }
+                });
+                if (res.status >= 400) continue;
+                const wrapped = wrapGuestPayload(Buffer.from(res.data || []));
+                if (wrapped && wrapped.length) {
+                    guestJsonCache.set(rel, { at: Date.now(), buf: wrapped });
+                    return wrapped;
+                }
+            } catch (_) { /* try next public path */ }
         }
-      });
-      if (res.status >= 400) continue;
-      const wrapped = wrapGuestPayload(Buffer.from(res.data || []));
-      if (wrapped && wrapped.length) {
-        guestJsonCache.set(rel, { at: Date.now(), buf: wrapped });
-        return wrapped;
-      }
-    } catch (_) { /* try next public path */ }
     }
-  }
-  return null;
+    return null;
 }
 
 function copyRequestHeaders(req, refererOrigin, options = {}) {
-  const out = {};
-  const headers = req.headers || {};
-  const stripAuth = !!options.stripAuth;
-  for (const key of Object.keys(headers)) {
-    const lower = key.toLowerCase();
-    if (HOP_BY_HOP.has(lower)) continue;
-    if (lower === 'origin' || lower === 'referer') continue;
-    if (lower === 'cookie') continue;
-    if (lower === 'accept-encoding') continue;
-    if (
-      stripAuth
-      && (
-        lower === 'token'
-        || lower === 'authorization'
-        || lower === 'userid'
-        || lower === 'user-id'
-        || lower === 'useridx'
-        || lower === 'session-key'
-        || lower === 'session_key'
-        || lower === 'x-session-key'
-        || lower === 'jwt'
-        || lower === 'jwt-token'
-        || lower === 'jwt_token'
-        || lower === 'newjwt'
-        || lower === 'new-jwt'
-      )
-    ) {
-      continue;
+    const out = {};
+    const headers = req.headers || {};
+    const stripAuth = !!options.stripAuth;
+    for (const key of Object.keys(headers)) {
+        const lower = key.toLowerCase();
+        if (HOP_BY_HOP.has(lower)) continue;
+        if (lower === 'origin' || lower === 'referer') continue;
+        if (lower === 'cookie') continue;
+        if (lower === 'accept-encoding') continue;
+        if (
+            stripAuth
+            && (
+                lower === 'token'
+                || lower === 'authorization'
+                || lower === 'userid'
+                || lower === 'user-id'
+                || lower === 'useridx'
+                || lower === 'session-key'
+                || lower === 'session_key'
+                || lower === 'x-session-key'
+                || lower === 'jwt'
+                || lower === 'jwt-token'
+                || lower === 'jwt_token'
+                || lower === 'newjwt'
+                || lower === 'new-jwt'
+            )
+        ) {
+            continue;
+        }
+        // 登录后 x-object-id.uid 仍是已转换会员号，官方会当成失效会话把活动列表踢空
+        if (stripAuth && lower === 'x-object-id') {
+            out[key] = blankUpstreamUid(headers[key]);
+            continue;
+        }
+        out[key] = headers[key];
     }
-    // 登录后 x-object-id.uid 仍是我们的会员号，官方会当成失效会话把活动列表踢空
-    if (stripAuth && lower === 'x-object-id') {
-      out[key] = blankUpstreamUid(headers[key]);
-      continue;
+    out['Accept-Encoding'] = 'identity';
+    if (refererOrigin) {
+        const origin = String(refererOrigin).replace(/\/$/, '');
+        out.Origin = origin;
+        out.Referer = origin + '/';
     }
-    out[key] = headers[key];
-  }
-  out['Accept-Encoding'] = 'identity';
-  if (refererOrigin) {
-    const origin = String(refererOrigin).replace(/\/$/, '');
-    out.Origin = origin;
-    out.Referer = origin + '/';
-  }
-  if (!out['User-Agent'] && !out['user-agent']) {
-    out['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-  }
-  return out;
+    if (!out['User-Agent'] && !out['user-agent']) {
+        out['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+    }
+    return out;
 }
 
 /**
@@ -1494,167 +1494,167 @@ function copyRequestHeaders(req, refererOrigin, options = {}) {
  * 剥 Token 后上游也常回 -1 /「未授权」文案。预览里改成静默成功，避免断线弹窗。
  */
 function sanitizeUpstreamAuthJson(text, opts) {
-  if (!text || typeof text !== 'string') return text;
-  const trimmed = text.trim();
-  if (!trimmed || (trimmed[0] !== '{' && trimmed[0] !== '[')) return text;
-  try {
-    const j = JSON.parse(trimmed);
-    if (!j || typeof j !== 'object' || Array.isArray(j)) return text;
-    const code = j.code;
-    const num = Number(code);
-    const msg = String(j.msg || j.message || '');
-    const isKick =
-      isNoServerObject(j)
-      || num === -1
-      || code === '-1'
-      || /dispositivo|desconectad|token\s*expir|fa[cç]a login novamente|n[aã]o est[aá] autorizada|not\s*authorized|unauthorized|login\s*again/i.test(msg);
-    if (!isKick) return text;
-    let data = j.data !== undefined ? j.data : null;
-    if (opts && opts.emptyListOnKick && (data == null || (Array.isArray(data) && !data.length))) {
-      data = [];
+    if (!text || typeof text !== 'string') return text;
+    const trimmed = text.trim();
+    if (!trimmed || (trimmed[0] !== '{' && trimmed[0] !== '[')) return text;
+    try {
+        const j = JSON.parse(trimmed);
+        if (!j || typeof j !== 'object' || Array.isArray(j)) return text;
+        const code = j.code;
+        const num = Number(code);
+        const msg = String(j.msg || j.message || '');
+        const isKick =
+            isNoServerObject(j)
+            || num === -1
+            || code === '-1'
+            || /dispositivo|desconectad|token\s*expir|fa[cç]a login novamente|n[aã]o est[aá] autorizada|not\s*authorized|unauthorized|login\s*again/i.test(msg);
+        if (!isKick) return text;
+        let data = j.data !== undefined ? j.data : null;
+        if (opts && opts.emptyListOnKick && (data == null || (Array.isArray(data) && !data.length))) {
+            data = [];
+        }
+        return JSON.stringify({
+            code: 1,
+            msg: '',
+            data
+        });
+    } catch (_) {
+        return text;
     }
-    return JSON.stringify({
-      code: 1,
-      msg: '',
-      data
-    });
-  } catch (_) {
-    return text;
-  }
 }
 
 function filterResponseHeaders(headers) {
-  const out = {};
-  for (const key of Object.keys(headers || {})) {
-    const lower = key.toLowerCase();
-    if (HOP_BY_HOP.has(lower)) continue;
-    // 同源代理后 CORS / cookie 域对浏览器无意义且易干扰
-    if (lower === 'access-control-allow-origin') continue;
-    if (lower === 'access-control-allow-credentials') continue;
-    if (lower === 'access-control-allow-headers') continue;
-    if (lower === 'access-control-allow-methods') continue;
-    if (lower === 'access-control-expose-headers') continue;
-    if (lower === 'set-cookie') continue;
-    if (lower === 'content-encoding') continue;
-    if (lower === 'content-length') continue;
-    out[key] = headers[key];
-  }
-  return out;
+    const out = {};
+    for (const key of Object.keys(headers || {})) {
+        const lower = key.toLowerCase();
+        if (HOP_BY_HOP.has(lower)) continue;
+        // 同源代理后 CORS / cookie 域对浏览器无意义且易干扰
+        if (lower === 'access-control-allow-origin') continue;
+        if (lower === 'access-control-allow-credentials') continue;
+        if (lower === 'access-control-allow-headers') continue;
+        if (lower === 'access-control-allow-methods') continue;
+        if (lower === 'access-control-expose-headers') continue;
+        if (lower === 'set-cookie') continue;
+        if (lower === 'content-encoding') continue;
+        if (lower === 'content-length') continue;
+        out[key] = headers[key];
+    }
+    return out;
 }
 
 function proxyRequest(req, res, target, refererOrigin, options = {}) {
-  // 默认用目标站 origin 作 Referer（OSS/CDN 防盗链）；可显式传入
-  const ref = refererOrigin || (target.origin + '/');
-  const headers = copyRequestHeaders(req, ref, options);
-  headers.Host = target.host;
-  const sanitizeAuth = options.sanitizeAuthKick != null
-    ? !!options.sanitizeAuthKick
-    : !!options.stripAuth;
-  const method = String(req.method || 'GET').toUpperCase();
+    // 默认用目标站 origin 作 Referer（OSS/CDN 防盗链）；可显式传入
+    const ref = refererOrigin || (target.origin + '/');
+    const headers = copyRequestHeaders(req, ref, options);
+    headers.Host = target.host;
+    const sanitizeAuth = options.sanitizeAuthKick != null
+        ? !!options.sanitizeAuthKick
+        : !!options.stripAuth;
+    const method = String(req.method || 'GET').toUpperCase();
 
-  // 走 axios：自动尊重 HTTPS_PROXY / 系统代理（浏览器能开、Node https 直连常 ECONNRESET）
+    // 走 axios：自动尊重 HTTPS_PROXY / 系统代理（浏览器能开、Node https 直连常 ECONNRESET）
     const run = async () => {
-    let body = undefined;
-    if (method !== 'GET' && method !== 'HEAD') {
-      body = await new Promise((resolve, reject) => {
-        const chunks = [];
-        req.on('data', (c) => chunks.push(c));
-        req.on('end', () => resolve(Buffer.concat(chunks)));
-        req.on('error', reject);
-      });
-    }
-
-    const guestFirst = /\/api\/active\/(?:categoryV2|category|getByTemplate|isShowV2|get|tasks\/task|tasks\/vitality\/boxs|returnGold\/summary\/v3|returnGold\/ratiotable|cutADeal\/list)$|\/api\/active\/turntable\//i.test(
-      String(target.pathname || '').replace(/^\/hall/, '')
-    );
-    if (guestFirst) {
-      const recovered = await recoverGuestJson(target, req, Object.assign({}, options, { reqBody: body }));
-      if (recovered && recovered.length) {
-        if (!res.headersSent) {
-          res.writeHead(200, {
-            'Content-Type': 'application/json; charset=utf-8',
-            'Cache-Control': 'no-store',
-            'Content-Length': String(recovered.length),
-            'X-SD-Guest-Json': '1'
-          });
+        let body = undefined;
+        if (method !== 'GET' && method !== 'HEAD') {
+            body = await new Promise((resolve, reject) => {
+                const chunks = [];
+                req.on('data', (c) => chunks.push(c));
+                req.on('end', () => resolve(Buffer.concat(chunks)));
+                req.on('error', reject);
+            });
         }
-        res.end(recovered);
-        try { console.info('[sd-proxy] guest json', target.pathname, recovered.length); } catch (_) { /* ignore */ }
-        return;
-      }
-    }
 
-    const upRes = await axios({
-      url: target.href,
-      method,
-      headers,
-      data: body,
-      responseType: 'arraybuffer',
-      timeout: 30000,
-      maxRedirects: 5,
-      decompress: false,
-      validateStatus: () => true,
-      // false = 让 axios 读 HTTPS_PROXY；显式对象会覆盖 env
-      proxy: undefined
-    });
-
-    const outHeaders = filterResponseHeaders(upRes.headers || {});
-    outHeaders['X-SD-Proxy'] = '1';
-    let buf = Buffer.from(upRes.data || []);
-
-    const ctEarly = String((upRes.headers && (upRes.headers['content-type'] || upRes.headers['Content-Type'])) || '');
-    const rawEarly = (/json|text|javascript/i.test(ctEarly) || buf.length < 2e6) ? buf.toString('utf8') : '';
-    const noServer = isAuthKickText(rawEarly) && /failed to obtain server|err_code"\s*:\s*41000|"err_code":41000/i.test(rawEarly);
-    if (sanitizeAuth || noServer) {
-      const ct = ctEarly;
-      if (/json|text|javascript/i.test(ct) || buf.length < 2e6) {
-        const raw = rawEarly;
-        const next = sanitizeUpstreamAuthJson(raw, {
-          emptyListOnKick: !!options.emptyListOnKick
-        });
-        if (next !== raw) {
-          const recovered = await recoverGuestJson(target, req, Object.assign({}, options, { reqBody: body }));
-          if (recovered) {
-            outHeaders['X-SD-Guest-Json'] = '1';
-            buf = recovered;
-          } else {
-            outHeaders['X-SD-Auth-Sanitized'] = '1';
-            buf = Buffer.from(next, 'utf8');
-          }
-          try {
-            if (recovered && /\/api\/active\/get$/i.test(String(target.pathname || ''))) {
-              console.info('[sd-proxy] activity detail guest', target.pathname);
-            } else if (noServer) {
-              console.info('[sd-proxy] obtain-server silenced', target.pathname);
-            } else if (/active\/category/i.test(target.pathname)) {
-              console.info(recovered ? '[sd-proxy] category guest' : '[sd-proxy] category empty', target.pathname);
-            } else {
-              console.info('[sd-proxy] sanitized auth kick', target.pathname);
+        const guestFirst = /\/api\/active\/(?:categoryV2|category|getByTemplate|isShowV2|get|tasks\/task|tasks\/vitality\/boxs|returnGold\/summary\/v3|returnGold\/ratiotable|cutADeal\/list)$|\/api\/active\/turntable\//i.test(
+            String(target.pathname || '').replace(/^\/hall/, '')
+        );
+        if (guestFirst) {
+            const recovered = await recoverGuestJson(target, req, Object.assign({}, options, { reqBody: body }));
+            if (recovered && recovered.length) {
+                if (!res.headersSent) {
+                    res.writeHead(200, {
+                        'Content-Type': 'application/json; charset=utf-8',
+                        'Cache-Control': 'no-store',
+                        'Content-Length': String(recovered.length),
+                        'X-SD-Guest-Json': '1'
+                    });
+                }
+                res.end(recovered);
+                try { console.info('[sd-proxy] guest json', target.pathname, recovered.length); } catch (_) { /* ignore */ }
+                return;
             }
-          } catch (_) { /* ignore */ }
         }
-      }
-      outHeaders['Content-Length'] = String(buf.length);
-    } else if (!outHeaders['Content-Length'] && !outHeaders['content-length']) {
-      outHeaders['Content-Length'] = String(buf.length);
-    }
 
-    if (!res.headersSent) {
-      res.writeHead(upRes.status || 502, outHeaders);
-    }
-    res.end(buf);
-  };
+        const upRes = await axios({
+            url: target.href,
+            method,
+            headers,
+            data: body,
+            responseType: 'arraybuffer',
+            timeout: 30000,
+            maxRedirects: 5,
+            decompress: false,
+            validateStatus: () => true,
+            // false = 让 axios 读 HTTPS_PROXY；显式对象会覆盖 env
+            proxy: undefined
+        });
 
-  run().catch((err) => {
-    if (!res.headersSent) {
-      const isTimeout = err && (err.code === 'ECONNABORTED' || /timeout/i.test(String(err.message || '')));
-      res.writeHead(isTimeout ? 504 : 502, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({
-        error: isTimeout ? 'proxy timeout' : 'proxy failed',
-        message: String(err && err.message || err)
-      }));
-    }
-  });
+        const outHeaders = filterResponseHeaders(upRes.headers || {});
+        outHeaders['X-SD-Proxy'] = '1';
+        let buf = Buffer.from(upRes.data || []);
+
+        const ctEarly = String((upRes.headers && (upRes.headers['content-type'] || upRes.headers['Content-Type'])) || '');
+        const rawEarly = (/json|text|javascript/i.test(ctEarly) || buf.length < 2e6) ? buf.toString('utf8') : '';
+        const noServer = isAuthKickText(rawEarly) && /failed to obtain server|err_code"\s*:\s*41000|"err_code":41000/i.test(rawEarly);
+        if (sanitizeAuth || noServer) {
+            const ct = ctEarly;
+            if (/json|text|javascript/i.test(ct) || buf.length < 2e6) {
+                const raw = rawEarly;
+                const next = sanitizeUpstreamAuthJson(raw, {
+                    emptyListOnKick: !!options.emptyListOnKick
+                });
+                if (next !== raw) {
+                    const recovered = await recoverGuestJson(target, req, Object.assign({}, options, { reqBody: body }));
+                    if (recovered) {
+                        outHeaders['X-SD-Guest-Json'] = '1';
+                        buf = recovered;
+                    } else {
+                        outHeaders['X-SD-Auth-Sanitized'] = '1';
+                        buf = Buffer.from(next, 'utf8');
+                    }
+                    try {
+                        if (recovered && /\/api\/active\/get$/i.test(String(target.pathname || ''))) {
+                            console.info('[sd-proxy] activity detail guest', target.pathname);
+                        } else if (noServer) {
+                            console.info('[sd-proxy] obtain-server silenced', target.pathname);
+                        } else if (/active\/category/i.test(target.pathname)) {
+                            console.info(recovered ? '[sd-proxy] category guest' : '[sd-proxy] category empty', target.pathname);
+                        } else {
+                            console.info('[sd-proxy] sanitized auth kick', target.pathname);
+                        }
+                    } catch (_) { /* ignore */ }
+                }
+            }
+            outHeaders['Content-Length'] = String(buf.length);
+        } else if (!outHeaders['Content-Length'] && !outHeaders['content-length']) {
+            outHeaders['Content-Length'] = String(buf.length);
+        }
+
+        if (!res.headersSent) {
+            res.writeHead(upRes.status || 502, outHeaders);
+        }
+        res.end(buf);
+    };
+
+    run().catch((err) => {
+        if (!res.headersSent) {
+            const isTimeout = err && (err.code === 'ECONNABORTED' || /timeout/i.test(String(err.message || '')));
+            res.writeHead(isTimeout ? 504 : 502, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({
+                error: isTimeout ? 'proxy timeout' : 'proxy failed',
+                message: String(err && err.message || err)
+            }));
+        }
+    });
 }
 
 /**
@@ -1665,143 +1665,143 @@ function proxyRequest(req, res, target, refererOrigin, options = {}) {
  * @returns {boolean}
  */
 function tryFallbackMissingAsset(req, res, fallbackOrigin, pathname, search, options = {}) {
-  if (!fallbackOrigin || !pathname) return false;
+    if (!fallbackOrigin || !pathname) return false;
 
-  let pathAndQuery = pathname + (search || '');
-  // 允许调用方强制改写上游 path（如 /api/lobby → /hall/api/lobby）
-  if (options.forcePath) {
-    pathAndQuery = String(options.forcePath) + (search || '');
-  } else {
+    let pathAndQuery = pathname + (search || '');
+    // 允许调用方强制改写上游 path（如 /api/lobby → /hall/api/lobby）
+    if (options.forcePath) {
+        pathAndQuery = String(options.forcePath) + (search || '');
+    } else {
+        try {
+            const raw = String(req.url || '').split('#')[0];
+            if (raw && raw.charAt(0) === '/') {
+                pathAndQuery = raw;
+            }
+        } catch (_) { /* ignore */ }
+    }
+
+    let target;
     try {
-      const raw = String(req.url || '').split('#')[0];
-      if (raw && raw.charAt(0) === '/') {
-        pathAndQuery = raw;
-      }
-    } catch (_) { /* ignore */ }
-  }
+        target = new URL(pathAndQuery, fallbackOrigin.endsWith('/') ? fallbackOrigin : fallbackOrigin + '/');
+    } catch (_) {
+        return false;
+    }
+    if (target.protocol !== 'http:' && target.protocol !== 'https:') return false;
 
-  let target;
-  try {
-    target = new URL(pathAndQuery, fallbackOrigin.endsWith('/') ? fallbackOrigin : fallbackOrigin + '/');
-  } catch (_) {
-    return false;
-  }
-  if (target.protocol !== 'http:' && target.protocol !== 'https:') return false;
-
-  const referer = options.refererOrigin || target.origin + '/';
-  const stripAuth = !!options.stripAuth;
-  const sanitizeAuthKick = options.sanitizeAuthKick != null
-    ? !!options.sanitizeAuthKick
-    : stripAuth;
-  proxyRequest(req, res, target, referer, {
-    stripAuth,
-    sanitizeAuthKick,
-    emptyListOnKick: !!options.emptyListOnKick
-  });
-  return true;
+    const referer = options.refererOrigin || target.origin + '/';
+    const stripAuth = !!options.stripAuth;
+    const sanitizeAuthKick = options.sanitizeAuthKick != null
+        ? !!options.sanitizeAuthKick
+        : stripAuth;
+    proxyRequest(req, res, target, referer, {
+        stripAuth,
+        sanitizeAuthKick,
+        emptyListOnKick: !!options.emptyListOnKick
+    });
+    return true;
 }
 
 /**
  * @returns {boolean} true if handled
  */
 function tryHandleProxy(req, res, sourceOrigin, adapterHosts) {
-  const host = req.headers.host || '127.0.0.1';
-  const reqUrl = new URL(req.url || '/', `http://${host}`);
+    const host = req.headers.host || '127.0.0.1';
+    const reqUrl = new URL(req.url || '/', `http://${host}`);
 
-  if (reqUrl.pathname === BOOT_PATH) {
-    const body = buildBootScript(sourceOrigin, adapterHosts);
-    res.writeHead(200, {
-      'Content-Type': 'application/javascript; charset=utf-8',
-      'Cache-Control': 'no-store, no-cache, must-revalidate',
-      'Pragma': 'no-cache',
-      'X-Content-Type-Options': 'nosniff'
-    });
-    res.end(body);
+    if (reqUrl.pathname === BOOT_PATH) {
+        const body = buildBootScript(sourceOrigin, adapterHosts);
+        res.writeHead(200, {
+            'Content-Type': 'application/javascript; charset=utf-8',
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
+            'Pragma': 'no-cache',
+            'X-Content-Type-Options': 'nosniff'
+        });
+        res.end(body);
+        return true;
+    }
+
+    if (reqUrl.pathname === SW_PATH) {
+        const body = buildServiceWorkerScript(adapterHosts);
+        res.writeHead(200, {
+            'Content-Type': 'application/javascript; charset=utf-8',
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
+            'Pragma': 'no-cache',
+            'Service-Worker-Allowed': '/',
+            'X-Content-Type-Options': 'nosniff'
+        });
+        res.end(body);
+        return true;
+    }
+
+    const target = parseProxyTarget(reqUrl);
+    if (!target) return false;
+
+    // 只有时钟在本地答。其余没有我们接口的请求继续向官方要原文，避免页面空数据
+    const { isGetServerTime } = require('./adapter/mock-hold');
+    if (isGetServerTime(target.pathname)) {
+        res.writeHead(200, {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Cache-Control': 'no-store',
+            'Access-Control-Allow-Origin': '*',
+            'X-SD-Adapter': 'local-time'
+        });
+        res.end(JSON.stringify({ getServerTime: Math.floor(Date.now() / 1000) }));
+        return true;
+    }
+
+    if (!sourceOrigin) {
+        res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'preview source origin missing' }));
+        return true;
+    }
+
+    const bootCfg = normalizeBootCfg(adapterHosts);
+    const method = String(req.method || 'GET').toUpperCase();
+    const isMutating = method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS';
+    const pth = target.pathname || '';
+    const isApi = pth.indexOf('/api/') === 0 || pth.indexOf('/hall/api/') === 0;
+    const targetHost = String(target.hostname || '').toLowerCase();
+    const isOniw = /^oniw\d*\./i.test(targetHost)
+        || (bootCfg.ossHosts || []).some((h) => String(h).toLowerCase() === targetHost);
+
+    // POST/PUT 打到 OSS 会 405；改写到 aniw 业务上游
+    let finalTarget = target;
+    if (isApi && isMutating && isOniw && bootCfg.upstreamOrigin) {
+        try {
+            finalTarget = new URL(pth + (target.search || ''), bootCfg.upstreamOrigin.endsWith('/')
+                ? bootCfg.upstreamOrigin
+                : bootCfg.upstreamOrigin + '/');
+        } catch (_) { /* keep original */ }
+    }
+
+    // 代理到 API 主机时：仅部署包模式才剥 wgame 本地 Token
+    let stripAuth = false;
+    if (bootCfg.adapterEnabled !== false && isApi) {
+        try {
+            const { getProvider } = require('./adapter/providers');
+            const provider = getProvider('wgame');
+            const h = req.headers || {};
+            if (provider && typeof provider.isOurSession === 'function' && provider.isOurSession(h)) {
+                stripAuth = true;
+            }
+        } catch (_) { /* ignore */ }
+    }
+
+    proxyRequest(req, res, finalTarget, finalTarget.origin + '/', { stripAuth, sanitizeAuthKick: stripAuth });
     return true;
-  }
-
-  if (reqUrl.pathname === SW_PATH) {
-    const body = buildServiceWorkerScript(adapterHosts);
-    res.writeHead(200, {
-      'Content-Type': 'application/javascript; charset=utf-8',
-      'Cache-Control': 'no-store, no-cache, must-revalidate',
-      'Pragma': 'no-cache',
-      'Service-Worker-Allowed': '/',
-      'X-Content-Type-Options': 'nosniff'
-    });
-    res.end(body);
-    return true;
-  }
-
-  const target = parseProxyTarget(reqUrl);
-  if (!target) return false;
-
-  // 只有时钟在本地答。其余没有我们接口的请求继续向官方要原文，避免页面空数据
-  const { isGetServerTime } = require('./adapter/mock-hold');
-  if (isGetServerTime(target.pathname)) {
-    res.writeHead(200, {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Cache-Control': 'no-store',
-      'Access-Control-Allow-Origin': '*',
-      'X-SD-Adapter': 'local-time'
-    });
-    res.end(JSON.stringify({ getServerTime: Math.floor(Date.now() / 1000) }));
-    return true;
-  }
-
-  if (!sourceOrigin) {
-    res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify({ error: 'preview source origin missing' }));
-    return true;
-  }
-
-  const bootCfg = normalizeBootCfg(adapterHosts);
-  const method = String(req.method || 'GET').toUpperCase();
-  const isMutating = method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS';
-  const pth = target.pathname || '';
-  const isApi = pth.indexOf('/api/') === 0 || pth.indexOf('/hall/api/') === 0;
-  const targetHost = String(target.hostname || '').toLowerCase();
-  const isOniw = /^oniw\d*\./i.test(targetHost)
-    || (bootCfg.ossHosts || []).some((h) => String(h).toLowerCase() === targetHost);
-
-  // POST/PUT 打到 OSS 会 405；改写到 aniw 业务上游
-  let finalTarget = target;
-  if (isApi && isMutating && isOniw && bootCfg.upstreamOrigin) {
-    try {
-      finalTarget = new URL(pth + (target.search || ''), bootCfg.upstreamOrigin.endsWith('/')
-        ? bootCfg.upstreamOrigin
-        : bootCfg.upstreamOrigin + '/');
-    } catch (_) { /* keep original */ }
-  }
-
-  // 代理到 API 主机时：仅部署包模式才剥 wgame 本地 Token
-  let stripAuth = false;
-  if (bootCfg.adapterEnabled !== false && isApi) {
-    try {
-      const { getProvider } = require('./adapter/providers');
-      const provider = getProvider('wgame');
-      const h = req.headers || {};
-      if (provider && typeof provider.isOurSession === 'function' && provider.isOurSession(h)) {
-        stripAuth = true;
-      }
-    } catch (_) { /* ignore */ }
-  }
-
-  proxyRequest(req, res, finalTarget, finalTarget.origin + '/', { stripAuth, sanitizeAuthKick: stripAuth });
-  return true;
 }
 
 module.exports = {
-  PROXY_PREFIX,
-  BOOT_PATH,
-  SW_PATH,
-  resolveSourceOrigin,
-  parseProxyTarget,
-  buildBootScript,
-  buildServiceWorkerScript,
-  injectBootIntoHtml,
-  tryHandleProxy,
-  tryFallbackMissingAsset,
-  isLikelySameOriginApiPath,
-  isFetchLikeRequest
+    PROXY_PREFIX,
+    BOOT_PATH,
+    SW_PATH,
+    resolveSourceOrigin,
+    parseProxyTarget,
+    buildBootScript,
+    buildServiceWorkerScript,
+    injectBootIntoHtml,
+    tryHandleProxy,
+    tryFallbackMissingAsset,
+    isLikelySameOriginApiPath,
+    isFetchLikeRequest
 };

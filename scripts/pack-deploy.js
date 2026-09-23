@@ -5,109 +5,109 @@
 const fs = require('fs');
 const path = require('path');
 const {
-  toSiteId,
-  outputDir,
-  copyRecursive,
-  emptyDir,
-  ROOT
+    toSiteId,
+    outputDir,
+    copyRecursive,
+    emptyDir,
+    ROOT
 } = require('./site-paths');
 
 const DEPLOY_ROOT = path.join(ROOT, 'deploy');
 
 /** 运行时需要的源码（相对 ROOT） */
 const RUNTIME_FILES = [
-  'src/static-server.js',
-  'src/preview-proxy.js',
-  'src/url-query.js',
-  'src/mock-cashier.js',
-  'src/mock-agent-api.js',
-  'src/game-launcher.js',
-  'src/production-hooks.js',
-  'src/system-proxy.js'
+    'src/static-server.js',
+    'src/preview-proxy.js',
+    'src/url-query.js',
+    'src/mock-cashier.js',
+    'src/mock-agent-api.js',
+    'src/game-launcher.js',
+    'src/production-hooks.js',
+    'src/system-proxy.js'
 ];
 
 const RUNTIME_DIRS = [
-  'src/adapter'
+    'src/adapter'
 ];
 
 function ensureDir(p) {
-  fs.mkdirSync(p, { recursive: true });
+    fs.mkdirSync(p, { recursive: true });
 }
 
 function copyFileRel(rel, destRoot) {
-  const src = path.join(ROOT, rel);
-  if (!fs.existsSync(src)) {
-    console.warn('[pack-deploy] skip missing', rel);
-    return;
-  }
-  const dest = path.join(destRoot, rel);
-  ensureDir(path.dirname(dest));
-  fs.copyFileSync(src, dest);
+    const src = path.join(ROOT, rel);
+    if (!fs.existsSync(src)) {
+        console.warn('[pack-deploy] skip missing', rel);
+        return;
+    }
+    const dest = path.join(destRoot, rel);
+    ensureDir(path.dirname(dest));
+    fs.copyFileSync(src, dest);
 }
 
 function copyDirRel(rel, destRoot) {
-  const src = path.join(ROOT, rel);
-  if (!fs.existsSync(src)) {
-    console.warn('[pack-deploy] skip missing dir', rel);
-    return;
-  }
-  copyRecursive(src, path.join(destRoot, rel));
+    const src = path.join(ROOT, rel);
+    if (!fs.existsSync(src)) {
+        console.warn('[pack-deploy] skip missing dir', rel);
+        return;
+    }
+    copyRecursive(src, path.join(destRoot, rel));
 }
 
 function bundleWgameWeb(destRoot) {
-  const { resolveWgameWebRoot } = require('../src/adapter/providers/wgame/wgame-web-config');
-  const webRoot = resolveWgameWebRoot();
-  if (!webRoot) {
-    throw new Error('找不到 wgame_web，无法打进部署包（设置 WGAME_WEB_PATH 或放在 ../wgame_web）');
-  }
-  const dest = path.join(destRoot, 'wgame_web');
-  emptyDir(dest);
-  // 仅 config + proto，够 HTTP protobuf / 登录配置
-  const cfgSrc = path.join(webRoot, 'src', 'config', 'config.js');
-  if (!fs.existsSync(cfgSrc)) throw new Error('wgame_web 缺少 src/config/config.js');
-  ensureDir(path.join(dest, 'src', 'config'));
-  fs.copyFileSync(cfgSrc, path.join(dest, 'src', 'config', 'config.js'));
-  const protoSrc = path.join(webRoot, 'src', 'proto');
-  if (fs.existsSync(protoSrc)) {
-    copyRecursive(protoSrc, path.join(dest, 'src', 'proto'));
-  }
-  fs.writeFileSync(
-    path.join(dest, 'PACK_META.json'),
-    JSON.stringify({
-      bundledAt: new Date().toISOString(),
-      from: webRoot,
-      includes: ['src/config/config.js', 'src/proto']
-    }, null, 2),
-    'utf8'
-  );
-  return webRoot;
+    const { resolveWgameWebRoot } = require('../src/adapter/providers/wgame/wgame-web-config');
+    const webRoot = resolveWgameWebRoot();
+    if (!webRoot) {
+        throw new Error('找不到 wgame_web，无法打进部署包（设置 WGAME_WEB_PATH 或放在 ../wgame_web）');
+    }
+    const dest = path.join(destRoot, 'wgame_web');
+    emptyDir(dest);
+    // 仅 config + proto，够 HTTP protobuf / 登录配置
+    const cfgSrc = path.join(webRoot, 'src', 'config', 'config.js');
+    if (!fs.existsSync(cfgSrc)) throw new Error('wgame_web 缺少 src/config/config.js');
+    ensureDir(path.join(dest, 'src', 'config'));
+    fs.copyFileSync(cfgSrc, path.join(dest, 'src', 'config', 'config.js'));
+    const protoSrc = path.join(webRoot, 'src', 'proto');
+    if (fs.existsSync(protoSrc)) {
+        copyRecursive(protoSrc, path.join(dest, 'src', 'proto'));
+    }
+    fs.writeFileSync(
+        path.join(dest, 'PACK_META.json'),
+        JSON.stringify({
+            bundledAt: new Date().toISOString(),
+            from: webRoot,
+            includes: ['src/config/config.js', 'src/proto']
+        }, null, 2),
+        'utf8'
+    );
+    return webRoot;
 }
 
 function writePackageJson(destRoot, siteId) {
-  const pkg = {
-    name: `sd-deploy-${siteId}`,
-    version: '1.0.0',
-    private: true,
-    description: `Deployable lobby+adapter pack for ${siteId}`,
-    main: 'server.js',
-    scripts: {
-      start: 'node server.js'
-    },
-    engines: { node: '>=14.0.0' },
-    dependencies: {
-      axios: '^0.27.2',
-      'crypto-js': '4.2.0',
-      'https-proxy-agent': '7',
-      protobufjs: '7',
-      ws: '8.18.0'
-    }
-  };
-  fs.writeFileSync(path.join(destRoot, 'package.json'), JSON.stringify(pkg, null, 2), 'utf8');
+    const pkg = {
+        name: `sd-deploy-${siteId}`,
+        version: '1.0.0',
+        private: true,
+        description: `Deployable lobby+adapter pack for ${siteId}`,
+        main: 'server.js',
+        scripts: {
+            start: 'node server.js'
+        },
+        engines: { node: '>=14.0.0' },
+        dependencies: {
+            axios: '^0.27.2',
+            'crypto-js': '4.2.0',
+            'https-proxy-agent': '7',
+            protobufjs: '7',
+            ws: '8.18.0'
+        }
+    };
+    fs.writeFileSync(path.join(destRoot, 'package.json'), JSON.stringify(pkg, null, 2), 'utf8');
 }
 
 function writeServerJs(destRoot) {
-  const body = `/**
- * 部署入口：静态 www + adapter 桥（对齐「预览我们的」）
+    const body = `/**
+ * 部署入口：静态 www + adapter 桥（对齐「预览已转换」）
  *   cd 本目录 && npm i && npm start
  * 环境变量: PORT=8080  HOST=0.0.0.0  PAY_HTTP_URL=...  AGENT_HTTP_BASE=...
  */
@@ -152,11 +152,11 @@ server.start(www, PORT, { enableAdapter: true }).then((info) => {
   process.exit(1);
 });
 `;
-  fs.writeFileSync(path.join(destRoot, 'server.js'), body, 'utf8');
+    fs.writeFileSync(path.join(destRoot, 'server.js'), body, 'utf8');
 }
 
 function writeReadme(destRoot, siteId) {
-  const text = `# ${siteId} 部署包（静态前端 + Node 兼容桥）
+    const text = `# ${siteId} 部署包（静态前端 + Node 兼容桥）
 
 本目录可直接拷到服务器。**只需执行一次启动脚本**，缺 Node 会自动下载便携版，再安装依赖并启动。
 
@@ -207,12 +207,12 @@ export AGENT_HTTP_BASE=https://your-agent
 - 后端 wgame 不改；本进程只做大厅 API ↔ wgame 翻译。
 - 不要只挂 \`www/\` 到 nginx 而不跑本启动脚本。
 `;
-  fs.writeFileSync(path.join(destRoot, 'README.md'), text, 'utf8');
+    fs.writeFileSync(path.join(destRoot, 'README.md'), text, 'utf8');
 }
 
 function writeStartScripts(destRoot) {
-  // Windows：一条命令 — 检测/下载便携 Node → npm i → 启动
-  const cmd = `@echo off
+    // Windows：一条命令 — 检测/下载便携 Node → npm i → 启动
+    const cmd = `@echo off
 setlocal EnableExtensions
 cd /d "%~dp0"
 set "NODE_VER=v20.18.1"
@@ -251,7 +251,7 @@ if errorlevel 1 (
   echo [start] Portable Node still not on PATH
   exit /b 1
 )
-echo [start] Portable Node ready: 
+echo [start] Portable Node ready:
 node -v
 
 :HAVE_NODE
@@ -272,10 +272,10 @@ echo [start] launching server ...
 node server.js
 exit /b %ERRORLEVEL%
 `;
-  fs.writeFileSync(path.join(destRoot, 'start.cmd'), cmd.replace(/\n/g, '\r\n'), 'utf8');
+    fs.writeFileSync(path.join(destRoot, 'start.cmd'), cmd.replace(/\n/g, '\r\n'), 'utf8');
 
-  // Linux/macOS：一条命令
-  const sh = `#!/usr/bin/env bash
+    // Linux/macOS：一条命令
+    const sh = `#!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")"
 NODE_VER="v20.18.1"
@@ -339,63 +339,63 @@ fi
 echo "[start] launching server ..."
 exec node server.js
 `;
-  fs.writeFileSync(path.join(destRoot, 'start.sh'), sh, 'utf8');
-  try {
-    fs.chmodSync(path.join(destRoot, 'start.sh'), 0o755);
-  } catch (_) { /* windows may ignore */ }
+    fs.writeFileSync(path.join(destRoot, 'start.sh'), sh, 'utf8');
+    try {
+        fs.chmodSync(path.join(destRoot, 'start.sh'), 0o755);
+    } catch (_) { /* windows may ignore */ }
 }
 
 function packDeploy(siteId) {
-  const id = toSiteId(siteId || '679win');
-  const siteSrc = outputDir(id);
-  if (!fs.existsSync(siteSrc)) {
-    throw new Error(`找不到 output/${id}，请先 yarn export-migrated ${id}`);
-  }
-  if (!fs.existsSync(path.join(siteSrc, 'adapter-hosts.json'))) {
-    throw new Error(`output/${id} 缺少 adapter-hosts.json，请先完成「替换接口」`);
-  }
+    const id = toSiteId(siteId || '679win');
+    const siteSrc = outputDir(id);
+    if (!fs.existsSync(siteSrc)) {
+        throw new Error(`找不到 output/${id}，请先 yarn export-migrated ${id}`);
+    }
+    if (!fs.existsSync(path.join(siteSrc, 'adapter-hosts.json'))) {
+        throw new Error(`output/${id} 缺少 adapter-hosts.json，请先完成「替换接口」`);
+    }
 
-  const dest = path.join(DEPLOY_ROOT, id);
-  emptyDir(dest);
+    const dest = path.join(DEPLOY_ROOT, id);
+    emptyDir(dest);
 
-  // 1) 静态站
-  copyRecursive(siteSrc, path.join(dest, 'www'));
+    // 1) 静态站
+    copyRecursive(siteSrc, path.join(dest, 'www'));
 
-  // 2) 运行时源码
-  for (const f of RUNTIME_FILES) copyFileRel(f, dest);
-  for (const d of RUNTIME_DIRS) copyDirRel(d, dest);
+    // 2) 运行时源码
+    for (const f of RUNTIME_FILES) copyFileRel(f, dest);
+    for (const d of RUNTIME_DIRS) copyDirRel(d, dest);
 
-  // 3) wgame_web 精简
-  const webFrom = bundleWgameWeb(dest);
+    // 3) wgame_web 精简
+    const webFrom = bundleWgameWeb(dest);
 
-  // 4) 入口与说明
-  writePackageJson(dest, id);
-  writeServerJs(dest);
-  writeReadme(dest, id);
-  writeStartScripts(dest);
+    // 4) 入口与说明
+    writePackageJson(dest, id);
+    writeServerJs(dest);
+    writeReadme(dest, id);
+    writeStartScripts(dest);
 
-  return {
-    siteId: id,
-    deployDir: dest,
-    www: path.join(dest, 'www'),
-    wgameWebFrom: webFrom
-  };
+    return {
+        siteId: id,
+        deployDir: dest,
+        www: path.join(dest, 'www'),
+        wgameWebFrom: webFrom
+    };
 }
 
 function main() {
-  const id = process.argv[2] || '679win';
-  try {
-    const result = packDeploy(id);
-    console.log(JSON.stringify({
-      ok: true,
-      siteId: result.siteId,
-      deployDir: result.deployDir,
-      hint: 'cd deploy/' + result.siteId + ' && npm i && npm start'
-    }, null, 2));
-  } catch (err) {
-    console.error(err.message || err);
-    process.exit(1);
-  }
+    const id = process.argv[2] || '679win';
+    try {
+        const result = packDeploy(id);
+        console.log(JSON.stringify({
+            ok: true,
+            siteId: result.siteId,
+            deployDir: result.deployDir,
+            hint: 'cd deploy/' + result.siteId + ' && npm i && npm start'
+        }, null, 2));
+    } catch (err) {
+        console.error(err.message || err);
+        process.exit(1);
+    }
 }
 
 if (require.main === module) main();

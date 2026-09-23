@@ -457,6 +457,22 @@ function normalizeBody(raw) {
 }
 
 /** 规范用户态（系列无关） */
+/** UserBaseRes.withdrawPwdStatus：0 未设置 / 1 已设置 → 会话 permissionOpt */
+function syncWithdrawPwdStatus(user, base) {
+  if (!user || !base || base.withdrawPwdStatus == null) return;
+  const set = Number(base.withdrawPwdStatus) === 1;
+  user.hasWithdrawPasswd = set;
+  if (!user.permissionOpt) user.permissionOpt = {};
+  user.permissionOpt.hasWithdrawPasswd = set;
+}
+
+function markWithdrawPasswdSet(user) {
+  if (!user) return;
+  user.hasWithdrawPasswd = true;
+  if (!user.permissionOpt) user.permissionOpt = {};
+  user.permissionOpt.hasWithdrawPasswd = true;
+}
+
 function toCanonicalUser(account, password, res) {
   const session = String(res.sSession || '');
   const uid = String(res.dwUserID != null ? res.dwUserID : '');
@@ -682,6 +698,7 @@ async function callGateway(action, data, cfg) {
         console.warn('[provider:wgame] /api/user/base failed:', (e && e.message) || e);
       }
       const baseMs = Date.now() - tBase;
+      const prevUser = existing && existing.user;
       const user = {
         account,
         password: password || '',
@@ -700,8 +717,17 @@ async function callGateway(action, data, cfg) {
         game_score: base ? toLongNumber(base.gameScore, 0) : undefined,
         first_login: base && base.firstLogin,
         has_recharge: base && base.hasRecharge,
-        profileAt: Date.now()
+        profileAt: Date.now(),
+        // 同账号上次会话的默认收款账户（wgame 无 setdefault）
+        defaultWithdrawAccountId: prevUser && prevUser.defaultWithdrawAccountId
+          ? String(prevUser.defaultWithdrawAccountId)
+          : undefined
       };
+      // 官方进入提现看 permissionOpt.hasWithdrawPasswd；以 UserBaseRes.withdrawPwdStatus 为准
+      syncWithdrawPwdStatus(user, base);
+      if (user.hasWithdrawPasswd == null && prevUser && prevUser.hasWithdrawPasswd) {
+        markWithdrawPasswdSet(user);
+      }
       rememberSession(user, cfg);
       users.set(account, { password, user });
       try {
@@ -820,6 +846,7 @@ async function execute(op, ctx) {
           if (base.faceId != null) row.user.face_id = String(base.faceId);
           if (base.money != null) row.user.game_gold = require('./http-maps').happyToDisplay(base.money);
           if (base.gameScore != null) row.user.game_score = toLongNumber(base.gameScore, 0);
+          syncWithdrawPwdStatus(row.user, base);
         }
         if (moneyRes) {
           row.user.game_gold = require('./http-maps').mapMoney(moneyRes);
@@ -1569,11 +1596,28 @@ async function execute(op, ctx) {
           httpPaywayList({ token, cfg, timeoutMs: cfg.timeoutMs }).catch(() => null),
           httpVipList({ token, cfg, timeoutMs: cfg.timeoutMs }).catch(() => null)
         ]);
-        return ok(maps.mapWithdrawInfo({ enableRes, chRes, paywayRes, vipRes }), 'ok');
+        return ok(maps.mapWithdrawInfo({
+          enableRes,
+          chRes,
+          paywayRes,
+          vipRes,
+          defaultAccountId: row.user && row.user.defaultWithdrawAccountId
+        }), 'ok');
       } catch (err) {
         console.warn('[provider:wgame] withdrawInfo http failed:', (err && err.message) || err);
         return fail(10061, 'withdraw info failed: ' + ((err && err.message) || err));
       }
+    }
+
+    // 设为默认收款账户（wgame 无对应接口：本地记在会话，withdrawInfo 回 default:1）
+    if (/setdefault/i.test(routePath)) {
+      if (!token) return fail(401, 'not logged in');
+      const id = body && (body.id != null ? body.id : body.accountId);
+      if (row && row.user) {
+        row.user.defaultWithdrawAccountId = id != null ? String(id) : '';
+        rememberSession(row.user, cfg);
+      }
+      return ok({ success: true, id: id != null ? String(id) : '' }, 'ok');
     }
 
     // 提现设置 / 可提金额
@@ -1748,11 +1792,10 @@ async function execute(op, ctx) {
           timeoutMs: cfg.timeoutMs
         });
         if (res && Number(res.res) !== 0) return fail(10064, 'setWithdrawPwd res=' + res.res);
-        // 会话标记已设支付密码，供后续 user.info / permissionOpt 使用
+        // 会话标记已设支付密码，供后续 user.info / permissionOpt / securityStatus 使用
         if (row && row.user) {
-          row.user.hasWithdrawPasswd = true;
-          if (!row.user.permissionOpt) row.user.permissionOpt = {};
-          row.user.permissionOpt.hasWithdrawPasswd = true;
+          markWithdrawPasswdSet(row.user);
+          rememberSession(row.user, cfg);
         }
         return ok({ success: true }, 'ok');
       } catch (err) {
@@ -1797,6 +1840,15 @@ async function execute(op, ctx) {
 
   if (op === OP.LOBBY_OK) {
     const routePath = ctx && ctx.routePath;
+    if (routePath && /\/api\/member\/user\/security\/status$/i.test(String(routePath))) {
+      const row = findSession(body, headers);
+      const u = row && row.user;
+      const hasWd = !!(u && (
+        u.hasWithdrawPasswd
+        || (u.permissionOpt && u.permissionOpt.hasWithdrawPasswd)
+      ));
+      return ok({ hasWithdrawPasswd: hasWd }, 'ok');
+    }
     if (routePath && /\/api\/active\/(categoryV2|category|isShowV2|getByTemplate)$/i.test(String(routePath))) {
       const data = await loadPublicActive(ctx && ctx.siteDir, routePath, headers);
       if (data != null) return ok(data, 'ok');

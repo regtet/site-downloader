@@ -1101,16 +1101,21 @@ function adaptUnreadCount(providerResult) {
   return envelope({ unreadCnt: n });
 }
 
-/** 官方 /api/member/user/security/status：每项 verifyMethods，没有绑定记录时 withdrawPass 为空对象 */
-function adaptSecurityStatus() {
+/** 官方 /api/member/user/security/status：已设提现密码时 withdrawPass 带 verifyMethods，未设为空对象 */
+function adaptSecurityStatus(providerResult) {
   const block = { verifyMethods: { loginPass: 1 } };
+  const d = providerResult && providerResult.data;
+  const hasWd = !!(d && (
+    d.hasWithdrawPasswd
+    || (d.permissionOpt && d.permissionOpt.hasWithdrawPasswd)
+  ));
   return envelope({
     loginPass: block,
     question: block,
     googleAuth: block,
     phone: block,
     email: block,
-    withdrawPass: {},
+    withdrawPass: hasWd ? block : {},
     gesture: block,
     thirdParty: block,
     webAuthn: block

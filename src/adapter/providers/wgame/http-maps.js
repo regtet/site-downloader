@@ -95,7 +95,7 @@ const DEFAULT_PIX_CHANNELS = [{ wayId: 3, wayCode: 'CPF', id: 3, code: 'CPF' }];
 /**
  * withdrawInfoV2/V3：enableWithdraw + drawChannelCode + paywayList → 大厅 Conta/提现结构
  */
-function mapWithdrawInfo({ enableRes, chRes, paywayRes, vipRes } = {}) {
+function mapWithdrawInfo({ enableRes, chRes, paywayRes, vipRes, defaultAccountId } = {}) {
   const setting = mapEnableWithdraw(enableRes);
   let channels = mapDrawChannels(chRes);
   if (!channels.length) channels = DEFAULT_PIX_CHANNELS.slice();
@@ -155,9 +155,15 @@ function mapWithdrawInfo({ enableRes, chRes, paywayRes, vipRes } = {}) {
   };
 
   const channelById = new Map(channels.map((c) => [Number(c.wayId || c.id) || 0, c]));
+  const preferredId = defaultAccountId != null && defaultAccountId !== ''
+    ? String(defaultAccountId)
+    : '';
+  let matchedPreferred = false;
   const accounts = payways.map((pw) => {
     const ch = channelById.get(Number(pw.payWayType) || 0) || {};
     const code = String(ch.wayCode || ch.code || pw.bankName || 'PIX');
+    const isDefault = preferredId && String(pw.id) === preferredId ? 1 : 0;
+    if (isDefault) matchedPreferred = true;
     return {
       id: pw.id,
       typeId: LOBBY_TYPE_PIX,
@@ -172,11 +178,15 @@ function mapWithdrawInfo({ enableRes, chRes, paywayRes, vipRes } = {}) {
       mail: String(pw.mail || ''),
       ifscCode: String(pw.ifscCode || ''),
       logo: '',
-      default: 0,
+      default: isDefault,
       stop: 0,
       bankStop: 0
     };
   });
+  // 未指定默认时：单账户直接标默认；多账户标第一项，避免 UI 无选中
+  if (accounts.length && !matchedPreferred) {
+    accounts[0].default = 1;
+  }
 
   return {
     accounts,
