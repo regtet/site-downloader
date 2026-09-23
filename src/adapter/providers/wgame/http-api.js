@@ -392,7 +392,7 @@ async function httpDrawBackMoney({ token, money, payWay, id, cfg, timeoutMs }) {
 }
 
 function lobbyPayWayType(p) {
-  const sub = String(p.subType || p.withdrawTypeName || p.wayCode || '').trim().toUpperCase();
+  const sub = String(p.subType || p.withdrawTypeName || p.wayCode || p.channelName || '').trim().toUpperCase();
   const byName = {
     CPF: 3,
     PIX: 3,
@@ -404,35 +404,80 @@ function lobbyPayWayType(p) {
     RANDOM: 10,
     CNPJ: 11,
     BANK: 7,
-    ALIPAY: 1
+    ALIPAY: 1,
+    SLRY: 3,
+    SVGS: 3,
+    CACC: 3,
+    TRAN: 3
   };
   if (byName[sub]) return byName[sub];
   const raw = p.payWayType != null ? p.payWayType
     : (p.pay_way_type != null ? p.pay_way_type
       : (p.withdrawType != null ? p.withdrawType : p.type));
   const n = Number(raw);
-  // 大厅 typeId 5 是 PIX 总类，不是 wgame 的支付方式编号
+  // 大厅 accountType/typeId 5 是 PIX 总类，不是 wgame 的支付方式编号
   if (Number.isFinite(n) && n > 0 && n !== 5) return n;
   return 3;
+}
+
+function onlyDigits(s) {
+  return String(s || '').replace(/\D/g, '');
 }
 
 async function httpSetPayWay({ token, payload, cfg, timeoutMs }) {
   const p = payload || {};
   const payWayType = lobbyPayWayType(p);
-  const account = String(p.bankCardNo || p.bank_card_no || p.cardNo || p.account || p.alipayAccount || p.aliAccount || '');
+  const name = String(p.userName || p.user_name || p.realName || p.name || '').trim();
+  const accountRaw = String(
+    p.account || p.bankCardNo || p.bank_card_no || p.cardNo || p.alipayAccount || p.aliAccount || p.address || p.addr || ''
+  ).trim();
+  const cpfRaw = String(p.cpf || p.extendInfo || p.idCard || p.id_card || p.idcard || '').trim();
+  const cpf = onlyDigits(cpfRaw);
+  const email = String(p.email || p.mail || (accountRaw.indexOf('@') !== -1 ? accountRaw : '')).trim();
+  const phone = onlyDigits(p.phone || p.mobile || (payWayType === 8 ? accountRaw : ''));
+
+  // 对齐 wgame ManageAccount：CPF 进 bankCardNo；PHONE/EMAIL/EVP 的 PIX 密钥进 ifsc/mail，CPF 仍进 bankCardNo
+  let bankCardNo = '';
+  let ifscCode = '';
+  let mail = '';
+  let idCard = '';
+  if (payWayType === 9) {
+    bankCardNo = cpf || onlyDigits(accountRaw);
+    mail = email || accountRaw;
+    idCard = bankCardNo;
+  } else if (payWayType === 8) {
+    bankCardNo = cpf || onlyDigits(p.extendInfo || '');
+    ifscCode = phone || onlyDigits(accountRaw);
+    idCard = bankCardNo;
+  } else if (payWayType === 10) {
+    bankCardNo = cpf || onlyDigits(p.extendInfo || '');
+    ifscCode = accountRaw;
+    idCard = bankCardNo;
+  } else if (payWayType === 11) {
+    bankCardNo = onlyDigits(accountRaw) || accountRaw;
+    idCard = bankCardNo;
+  } else {
+    bankCardNo = onlyDigits(accountRaw) || onlyDigits(cpf) || accountRaw || cpf;
+    idCard = String(p.idCard || p.id_card || p.idcard || bankCardNo);
+  }
+
+  if (!bankCardNo) {
+    console.warn('[wgame] setPayWay empty bankCardNo keys=', Object.keys(p || {}));
+  }
+
   return postProto(
     '/api/user/setPayWay',
     protoType('TCmd_SetPayWayReq'),
     {
-      userName: String(p.userName || p.user_name || p.realName || p.name || ''),
-      bankCardNo: account,
+      userName: name,
+      bankCardNo: String(bankCardNo || ''),
       bankName: String(p.bankName || p.bank_name || ''),
-      ifscCode: String(p.ifscCode || p.ifsc_code || p.phone || p.mobile || ''),
-      mail: String(p.mail || p.email || ''),
+      ifscCode: String(ifscCode || p.ifscCode || p.ifsc_code || ''),
+      mail: String(mail || p.mail || ''),
       payWayType,
       checkCode: Number(p.checkCode || p.check_code) || 0,
       id: Number(p.id) || 0,
-      idCard: String(p.idCard || p.id_card || p.idcard || (payWayType === 3 ? account : ''))
+      idCard: String(idCard || '')
     },
     protoType('TCmd_SetPayWayRes'),
     { cfg, token, timeoutMs }

@@ -1677,7 +1677,21 @@ async function execute(op, ctx) {
         const { httpSetPayWay } = require('./http-api');
         const res = await httpSetPayWay({ token, payload: body, cfg, timeoutMs: cfg.timeoutMs });
         if (res && Number(res.res) !== 0) {
-          return fail(10064, 'setPayWay res=' + res.res);
+          const code = Number(res.res);
+          const known = {
+            38: 'error setting type',
+            39: 'account number cannot be empty',
+            40: 'bank card cannot be blank',
+            41: 'bank card number contains illegal data',
+            42: 'user name cannot be empty',
+            48: 'mailbox format incorrect',
+            '-1': 'account already bound to another user',
+            '-4': 'cannot change payment method after successful withdraw',
+            '-6': 'cpf can only be set once',
+            '-7': 'cpf can only be set once'
+          };
+          const tip = known[String(code)] || ('setPayWay res=' + code);
+          return fail(10064, tip);
         }
         return ok({ success: true, payWay: res && res.payWay }, 'ok');
       } catch (err) {
