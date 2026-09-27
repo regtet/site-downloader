@@ -187,6 +187,7 @@ async function handleApi(req, res, pathname) {
         }
         const job = jobManager.startJob(url, {
             retryFailedOnly: !!body.retryFailed,
+            freshDownload: !!body.freshDownload,
             multiPage: !!body.multiPage,
             downloadSkinManifest: body.downloadSkinManifest === true,
             downloadConcurrency: body.downloadConcurrency ? Number(body.downloadConcurrency) : undefined

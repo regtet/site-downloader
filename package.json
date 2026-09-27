@@ -28,6 +28,9 @@
     "probe-production-hooks": "node scripts/probe-production-hooks.js",
     "export-api-contract": "node scripts/export-api-contract.js",
     "wire-status": "node scripts/wire-status.js",
+    "verify-download-routing": "node scripts/verify-download-routing.js",
+    "capture-api-shapes": "node scripts/capture-official-shapes.js",
+    "compare-contract-shapes": "node scripts/compare-contract-shapes.js",
     "analyze-post-login": "node scripts/analyze-post-login.js"
   },
   "engines": {

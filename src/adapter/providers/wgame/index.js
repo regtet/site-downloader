@@ -1620,6 +1620,35 @@ async function execute(op, ctx) {
       return ok({ success: true, id: id != null ? String(id) : '' }, 'ok');
     }
 
+    // 明文收款账号（showAccountNo）：大厅 withdrawAccountInfo → paywayList
+    if (/withdrawAccountInfo/i.test(routePath)) {
+      if (!token) return fail(401, 'not logged in');
+      try {
+        const { httpPaywayList } = require('./http-api');
+        const paywayRes = await httpPaywayList({ token, cfg, timeoutMs: cfg.timeoutMs });
+        const list = maps.mapPayways(paywayRes);
+        const want = body && (body.withdrawAccountIds || body.ids || body.accountIds);
+        const idSet = new Set(
+          (Array.isArray(want) ? want : (want != null ? [want] : []))
+            .map((x) => String(x))
+            .filter(Boolean)
+        );
+        const picked = idSet.size
+          ? list.filter((pw) => idSet.has(String(pw.id)))
+          : list;
+        const accounts = picked.map((pw) => ({
+          id: String(pw.id),
+          account: String(pw.account || pw.bankCardNo || ''),
+          decryptAccount: String(pw.account || pw.bankCardNo || ''),
+          accountType: Number(pw.payWayType) || 0
+        }));
+        return ok({ accounts, list: accounts }, 'ok');
+      } catch (err) {
+        console.warn('[provider:wgame] withdrawAccountInfo failed:', (err && err.message) || err);
+        return fail(10061, 'withdrawAccountInfo failed: ' + ((err && err.message) || err));
+      }
+    }
+
     // 提现设置 / 可提金额
     if (/withdrawSetting/i.test(routePath) || /getWithdrawFee|WithdrawAccountRules/i.test(routePath)) {
       // 这个 GET 用 staticOnly，登录后也不带会员 token。没会话时回可渲染空设置，避免 401 重试打满
@@ -1718,10 +1747,34 @@ async function execute(op, ctx) {
     if (/bindWithdrawAccount|bindcard|bindCrypto|setPayWay|bindalipay|bindAli/i.test(routePath)) {
       if (!token) return fail(401, 'not logged in');
       try {
-        const { httpSetPayWay } = require('./http-api');
+        const { httpSetPayWay, httpPaywayList } = require('./http-api');
         const res = await httpSetPayWay({ token, payload: body, cfg, timeoutMs: cfg.timeoutMs });
         if (res && Number(res.res) !== 0) {
           const code = Number(res.res);
+          // 已创建过同类型/同 CPF：按成功刷新列表，避免 Conta「添加账户」反复失败
+          if (code === -5 || code === -6 || code === -7) {
+            try {
+              const paywayRes = await httpPaywayList({ token, cfg, timeoutMs: cfg.timeoutMs });
+              const list = maps.mapPayways(paywayRes);
+              const wantType = Number(
+                body && (body.withdrawType != null ? body.withdrawType
+                  : (body.payWayType != null ? body.payWayType
+                    : (body.accountType != null ? body.accountType : body.type)))
+              ) || 0;
+              const hasType = wantType > 0 && list.some((pw) => Number(pw.payWayType) === wantType);
+              const hasAny = list.length > 0;
+              if ((code === -5 && (hasType || hasAny)) || ((code === -6 || code === -7) && hasAny)) {
+                return ok({
+                  success: true,
+                  alreadyBound: true,
+                  payWay: res.payWay != null ? res.payWay : wantType,
+                  accounts: list
+                }, 'ok');
+              }
+            } catch (peekErr) {
+              console.warn('[provider:wgame] setPayWay already-bound peek failed:', (peekErr && peekErr.message) || peekErr);
+            }
+          }
           const known = {
             38: 'error setting type',
             39: 'account number cannot be empty',
@@ -1731,6 +1784,7 @@ async function execute(op, ctx) {
             48: 'mailbox format incorrect',
             '-1': 'account already bound to another user',
             '-4': 'cannot change payment method after successful withdraw',
+            '-5': 'payment method already bound',
             '-6': 'cpf can only be set once',
             '-7': 'cpf can only be set once'
           };

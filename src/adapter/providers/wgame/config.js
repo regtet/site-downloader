@@ -37,10 +37,35 @@ function applyBlock(out, w, opts) {
 
 function loadWgameConfig(siteDir) {
   const out = Object.assign({}, DEFAULTS);
+  let siteHosts = null;
+  try {
+    if (siteDir) {
+      const p = path.join(siteDir, 'adapter-hosts.json');
+      if (fs.existsSync(p)) siteHosts = JSON.parse(fs.readFileSync(p, 'utf8'));
+    }
+  } catch (_) { /* ignore */ }
 
-  // ① wgame_web/src/config/config.js（实时，debug→mockWssUrl，否则 baseWssUrl）
+  // 已生成站点必须固定到构建时连接配置，不能被工作区外 wgame_web 后续切分支污染。
+  const snapshot = siteHosts && siteHosts.wgameWeb
+    && (siteHosts.wgameWeb.snapshottedAt || siteHosts.wgameWeb.configMtime)
+    ? siteHosts.wgameWeb
+    : null;
+
+  // ① 构建快照优先；当前 wgame_web 仍提供 proto 路径及未落盘的签名密钥。
   const web = loadWgameWebConfig();
-  if (web) {
+  if (snapshot) {
+    applyBlock(out, {
+      wssUrl: snapshot.wssUrl,
+      packageId: snapshot.packageId,
+      loginHttpBase: snapshot.loginHttpBase
+    });
+    if (web) applyBlock(out, { httpSignSecret: web.httpSignSecret }, { skipConnection: true });
+    out.wgameWeb = Object.assign({}, snapshot, {
+      root: web ? web.webRoot : snapshot.root,
+      configPath: web ? web.configPath : undefined,
+      source: 'site-snapshot'
+    });
+  } else if (web) {
     applyBlock(out, {
       wssUrl: web.wssUrl,
       packageId: web.packageId,
@@ -57,22 +82,15 @@ function loadWgameConfig(siteDir) {
       mockWssUrl: web.mockWssUrl,
       loginHttpBase: web.loginHttpBase,
       lobbyGameUrl: web.lobbyGameUrl,
-      mtime: web.mtime
+      mtime: web.mtime,
+      source: 'live-wgame-web'
     };
   }
 
-  // ② 站点 adapter-hosts（不覆盖 wgame_web 已提供的 wss/packageId）
-  const hostOpts = web ? { skipConnection: true } : undefined;
-  try {
-    if (siteDir) {
-      const p = path.join(siteDir, 'adapter-hosts.json');
-      if (fs.existsSync(p)) {
-        const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
-        applyBlock(out, raw && raw.wgame, hostOpts);
-        applyBlock(out, raw && raw.providerOptions, hostOpts);
-      }
-    }
-  } catch (_) { /* ignore */ }
+  // ② 站点 provider 选项；连接信息已由快照/当前 wgame_web 决定。
+  const hostOpts = (snapshot || web) ? { skipConnection: true } : undefined;
+  applyBlock(out, siteHosts && siteHosts.wgame, hostOpts);
+  applyBlock(out, siteHosts && siteHosts.providerOptions, hostOpts);
 
   // ③ 环境变量（CI/临时覆盖，优先级最高）
   if (process.env.ADAPTER_AUTH_MODE) out.mode = String(process.env.ADAPTER_AUTH_MODE);

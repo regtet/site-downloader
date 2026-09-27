@@ -218,6 +218,33 @@ function adaptRegisterProfile(providerResult) {
   });
 }
 
+/** /api/member/v2/user/info：资料设置页使用的三段式结构，不是登录 userInfos。 */
+function adaptUserInfoV2(providerResult) {
+  if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
+  const user = providerResult.data || {};
+  return envelope({
+    basic: {
+      username: user.account != null ? String(user.account) : String(user.nickname || user.userId || ''),
+      avatarUrl: resolvePortraitUrl(user.face_id || user.avatarUrl),
+      userStatus: user.user_status != null ? Number(user.user_status) : 1,
+      accountType: user.account_type != null ? Number(user.account_type) : 2,
+      editRealName: user.editRealName != null ? Number(user.editRealName) : 0
+    },
+    profile: {
+      registerTime: user.register_time != null ? Number(user.register_time) : 0,
+      verifyFlag: Array.isArray(user.verifyFlag) ? user.verifyFlag : [1, 0, 0, 0, 0, 0, 0]
+    },
+    kycInfo: {
+      fullname: String(user.realname || user.fullname || ''),
+      country: String(user.country || ''),
+      placeOfBirth: '', placeOfBirthDetail: '', placeOfCurrent: '', placeOfCurrentDetail: '',
+      placeOfPermanent: '', placeOfPermanentDetail: '', workType: 0, workTypeOther: '',
+      incomeSource: 0, incomeSourceOther: '', ekycResult: String(user.ekycResult || 0),
+      ekycResultDoc: 'Init', ekycResultFace: 'Init', holdingIdPhoto: '', employerName: ''
+    }
+  });
+}
+
 /** 前端对 data 做 forEach（如 newcomer_benefit_pop）；必须是数组，不能是 lobbyOk 的 {} */
 function adaptEmptyList(providerResult) {
   if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
@@ -254,14 +281,54 @@ function adaptAppDownload(providerResult) {
  * emptyRecords 会变成 {list:[]}，dist 的 taskSeries 队列 beforeOpen 直接 false，Diário 弹不起来。
  */
 function adaptTaskDetail(providerResult, ctx) {
-  if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
   const { defaultTaskPayload } = require('../../providers/wgame/popup-config');
-  const raw = providerResult.data;
+  const raw = providerResult && providerResult.data;
   if (raw && typeof raw === 'object' && !Array.isArray(raw) && Array.isArray(raw.rules) && raw.rules.length) {
     return envelope(raw);
   }
   const body = (ctx && ctx.body) || {};
   return envelope(defaultTaskPayload(body));
+}
+
+/** 活跃宝箱：上游不可用时仍返回页面可解析的零态，避免任务页报网络超时。 */
+function adaptVitalityBoxes(providerResult) {
+  const raw = providerResult && providerResult.data;
+  if (raw && typeof raw === 'object' && !Array.isArray(raw) && Array.isArray(raw.box)) {
+    return envelope(raw);
+  }
+  return envelope({
+    box: [], loopType: 0, userActivity: 0, loopEndTime: 0,
+    audit: 0, status: 0, isCycle: 0, periodTime: 0, periodActivity: 0
+  });
+}
+
+function adaptClaimUserInfo() {
+  return envelope({
+    siteStatus: 2,
+    showTextSwitch: 0,
+    claimLevel: 2,
+    applyMinAmount: '0',
+    userStatus: 0,
+    endTime: 0,
+    last30DaysDeposit: '0',
+    totalDeposit: '0',
+    totalWithdraw: '0',
+    claimAmount: '0'
+  });
+}
+
+function adaptRedPackIndex() {
+  return envelope({ display: 0, redList: null, avtiveRedList: [], sendList: [] });
+}
+
+function adaptFeedbackInfo() {
+  return envelope({ result: null, count: 0, unRead: 0, availableRewards: 0 });
+}
+
+function adaptMessageList(providerResult) {
+  const d = providerResult && providerResult.data;
+  const marqueeList = d && Array.isArray(d.marqueeList) ? d.marqueeList : [];
+  return envelope({ marqueeList });
 }
 
 function adaptCheckRegister(providerResult) {
@@ -506,7 +573,11 @@ function adaptVipInfoV2(providerResult) {
     keepLevelStatus: 0,
     current_style: '2',
     vip_icon_show_type: '0',
-    vipShowQuestionStatus: 0
+    vipShowQuestionStatus: 0,
+    vipUpLevelShowStatus: 0,
+    receiveDeviceType: '',
+    receiveDeviceLoginType: '',
+    taskCondition: ''
   });
 }
 
@@ -602,7 +673,26 @@ function adaptPayType(providerResult) {
     ? d.payKind.list
     : (Array.isArray(d.list) ? d.list : []);
   const list = raw.map(enrichPayTypeRow);
-  return envelope({ payKind: { list } });
+  const first = list[0] || {};
+  const payKind = Object.assign({
+    id: 0,
+    name: 'Depósito online',
+    icon: '',
+    type: 1,
+    charge_rate: '',
+    maxPayName: '',
+    giftColor: '',
+    payTypeCnt: list.length,
+    weight: 0,
+    payCurrency: [first.payCurrency || 'BRL']
+  }, (d.payKind && typeof d.payKind === 'object') ? d.payKind : {}, { list });
+  return envelope({
+    chargeBlackList: !!d.chargeBlackList,
+    emailVerify: d.emailVerify || '',
+    mobileVerify: d.mobileVerify || '',
+    payKind,
+    sign_key: d.sign_key || 'preview'
+  });
 }
 
 /** payplatformlist：渠道包 */
@@ -639,10 +729,45 @@ function adaptPayChannels(providerResult) {
   );
   const paymentid = Number(d.paymentid || first.paymentid);
   const platform = Number(d.payplatformid || first.payplatformid || paymentid);
-  return envelope({
+  const min = Number(d.min != null ? d.min : (first.min_recharge_limit != null ? first.min_recharge_limit : 0));
+  const max = Number(d.max != null ? d.max : (first.max_recharge_limit != null ? first.max_recharge_limit : 0));
+  const channelIds = list.map((row) => Number(row.id || row.payplatformid)).filter(Number.isFinite);
+  return envelope(Object.assign({
+    type: 1,
+    name: 'Depósito online',
+    payline_type: 1,
+    payment_name: first.title || first.merch_desc || first.payment_name || '',
+    merge_status: 0,
+    pay_type_name: first.merch_desc || first.pay_type_name || first.channlName || '',
+    remark: '',
+    min_recharge_limit: min,
+    max_recharge_limit: max,
+    balance_switch: 0,
+    realNameSwitch: 0,
+    payAddressSwitch: 0,
+    orderEffectiveTime: 900,
+    rewardDetailsSwitch: 0,
+    captchaSwitch: 0,
+    slogan: '',
+    channelIds,
+    cardIDType: 0,
+    cardIDSupport: 0,
+    cardIDSupportTrigger: '0',
+    calculateGiftConfig: {
+      mergeStatus: 0,
+      OriginMoneyList: [],
+      moneyList: [],
+      chargeRateList: [],
+      deduceLimit: '0',
+      calculateByChildMoneyList: true,
+      calculateByChildChargeRate: true,
+      calculateChildList: []
+    },
+    channelAllocDimension: 1
+  }, d, {
     list,
-    min: d.min != null ? String(d.min) : '0',
-    max: d.max != null ? String(d.max) : '0',
+    min: Number.isFinite(min) ? min : 0,
+    max: Number.isFinite(max) ? max : 0,
     url: '/api/finance/pay/paysubmit',
     realInfoRule: d.realInfoRule != null ? d.realInfoRule : 0,
     recommendList,
@@ -652,8 +777,9 @@ function adaptPayChannels(providerResult) {
     payment_ids: list.map((row) => row.payplatformid).filter((id) => id != null && id !== '').join(','),
     payCurrency: d.payCurrency || first.payCurrency || 'BRL',
     openWay: d.openWay != null ? d.openWay : (first.openWay != null ? first.openWay : 4),
-    combineOpenWay: d.combineOpenWay != null ? d.combineOpenWay : 0
-  });
+    combineOpenWay: d.combineOpenWay != null ? d.combineOpenWay : 0,
+    channelIds: Array.isArray(d.channelIds) ? d.channelIds : channelIds
+  }));
 }
 
 /** payInfos：证件/卡列表（可空数组） */
@@ -730,7 +856,28 @@ function adaptAgentBlob(providerResult, meta) {
   if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
   const d = providerResult.data;
   const route = String((meta && meta.routePath) || '');
-  if (/indexInfoV2|agentBasic$/.test(route)) {
+  if (/userAgentMode$/.test(route)) {
+    const src = d && typeof d === 'object' ? d : {};
+    return envelope({
+      agent_id: Number(src.agent_id != null ? src.agent_id : src.agentId) || 0,
+      agentModeName: src.agentModeName || '',
+      settleDuration: Number(src.settleDuration) || 0,
+      settleDurationDays: Number(src.settleDurationDays) || 0,
+      calcPerformance: Number(src.calcPerformance) || 0
+    });
+  }
+  if (/agentBasic$/.test(route)) {
+    const src = d && typeof d === 'object' ? d : {};
+    return envelope({
+      parentUserIdx: Number(src.parentUserIdx) || 0,
+      parentUsername: src.parentUsername || '',
+      promoteLevelId: Number(src.promoteLevelId) || 0,
+      promoteLevelName: src.promoteLevelName || '',
+      isProAgent: !!src.isProAgent,
+      proAgentStatus: src.proAgentStatus != null ? Number(src.proAgentStatus) : 3
+    });
+  }
+  if (/indexInfoV2/.test(route)) {
     const src = d && typeof d === 'object' ? d : {};
     const lv1 = Number(src.lv1PersonCount) || 0;
     const other = (Number(src.lv2PersonCount) || 0) + (Number(src.lv3PersonCount) || 0);
@@ -739,13 +886,7 @@ function adaptAgentBlob(providerResult, meta) {
       otherMembers: src.otherMembers != null ? src.otherMembers : other,
       activeJson: typeof src.activeJson === 'string' ? src.activeJson : '[]',
       directPerformanceYet: src.directPerformanceYet != null ? src.directPerformanceYet : (Number(src.lv1Running) || 0),
-      isAgent: !!src.isAgent,
-      parentUserIdx: Number(src.parentUserIdx) || 0,
-      parentUsername: src.parentUsername || '',
-      promoteLevelId: Number(src.promoteLevelId) || 0,
-      promoteLevelName: src.promoteLevelName || '',
-      isProAgent: !!src.isProAgent,
-      proAgentStatus: src.proAgentStatus != null ? src.proAgentStatus : 0
+      isAgent: !!src.isAgent
     });
   }
   if (/agentCommission|myCommission/i.test(route)) {
@@ -1029,8 +1170,7 @@ function adaptCanReceivePop(providerResult) {
     surpriseReward: {
       type: '',
       rewardList: [],
-      setting: { switch: 'close', taskCondition: '{}' },
-      receiveDeviceType: ''
+      setting: { switch: 'close', taskCondition: '{}', receiveDeviceType: '' }
     },
     agentInviterReward: {},
     disableReceiveLogPop: 0,
@@ -1091,7 +1231,20 @@ function adaptYuebaoIndex(providerResult) {
     interestTop: 0,
     ruleText: '',
     list: [],
-    ruleTextData: {}
+    ruleTextData: {
+      auditType: 0,
+      billPeriod: '',
+      dynamic: '',
+      income: '0',
+      interestTop: 0,
+      minCapital: '0',
+      platformTxt: '',
+      receiveType: 0,
+      startYear: 0,
+      time: '',
+      validBetTimes: '0',
+      yearRate: '0'
+    }
   });
 }
 
@@ -1140,6 +1293,7 @@ function adaptFeaturePending(providerResult) {
 
 const ADAPTERS = {
   memberProfile: adaptMemberProfile,
+  userInfoV2: adaptUserInfoV2,
   registerProfile: adaptRegisterProfile,
   checkRegister: adaptCheckRegister,
   walletGold: adaptWalletGold,
@@ -1178,6 +1332,11 @@ const ADAPTERS = {
   registerPopup: adaptRegisterPopup,
   appDownload: adaptAppDownload,
   taskDetail: adaptTaskDetail,
+  vitalityBoxes: adaptVitalityBoxes,
+  claimUserInfo: adaptClaimUserInfo,
+  redPackIndex: adaptRedPackIndex,
+  feedbackInfo: adaptFeedbackInfo,
+  messageList: adaptMessageList,
   redDotEmpty: adaptRedDotEmpty,
   fingerprint: adaptFingerprint,
   listAccount: adaptListAccount,

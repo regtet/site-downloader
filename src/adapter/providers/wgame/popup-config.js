@@ -98,6 +98,16 @@ function defaultTaskPayload(body) {
   ];
 
   return {
+    startTime: 1591804800,
+    endTime: 1893455999,
+    content: '',
+    cycleType: 1,
+    oneClick: 0,
+    multiple: 0,
+    isDefaultRule: 1,
+    translateRuleText: '',
+    taskTime: '',
+    taskCondition: '',
     template: 2,
     taskId,
     taskName: 'Diário',
@@ -114,8 +124,19 @@ function defaultTaskPayload(body) {
       nameExt: 'Concluir primeiro depósito',
       progress: 0,
       max: lv.max,
+      cycleType: 1,
+      prize: 0,
+      prizename: 'Bônus',
       // 绿色闪电图标：award-info 用 bonusEnum=Activity(1) + brisk 数值
       brisk: lv.brisk,
+      BriskName: 'Nível de Atividade',
+      content: '',
+      weigh: levels.length - idx,
+      cfg: '{}',
+      amount: lv.max,
+      awardType: 0,
+      randomAmount: '',
+      bubbleContent: '',
       bonusEnum: 1,
       bonusBigEnum: 0,
       status: 0,
@@ -127,8 +148,36 @@ function defaultTaskPayload(body) {
       receiveDuration: 0,
       periodTime: 0,
       canReceiveTime: 0,
-      receiveTimeType: 0
-    }))
+      receiveTimeType: 0,
+      receiveTimeDay: 0,
+      receiveTimeStart: 0,
+      receiveTimeEnd: 0,
+      competedTime: 0,
+      extraBonusBigEnum: 0,
+      extraBonusEnum: 0,
+      calculateType: 10,
+      maxThreeMysteriousAmount: 0,
+      minThreeMysteriousAmount: 0,
+      platformCategoryGame: '[]',
+      payType: ''
+    })),
+    withdrawTip: '',
+    receiveDeviceType: '',
+    receiveDeviceLoginType: '',
+    receiveCondition: '{}',
+    ruleTextData: {
+      audit: '0',
+      auditIsExcludeMode: false,
+      auditNum: 0,
+      auditPlat: '',
+      giveType: 0,
+      moreLimitStr: '',
+      receiveDeviceType: '',
+      withdrawRate: '0',
+      withdrawRateNum: 0,
+      withdrawTaskSettings: '[]',
+      withdrawType: ''
+    }
   };
 }
 

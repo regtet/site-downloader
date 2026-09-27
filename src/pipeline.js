@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const Capture = require('./capture');
 const Downloader = require('./downloader');
-const { sortByAssetPriority } = require('./downloader');
+const { sortByAssetPriority, isCompatibleAssetResponse } = require('./downloader');
 const AssetStore = require('./asset-store');
 const ResourceParser = require('./resource-parser');
 const PathRewriter = require('./path-rewriter');
@@ -19,6 +19,7 @@ const {
   mergeTemplateContext,
   expandTemplates,
   collectAssetCdnBases,
+  collectResourceOriginHints,
   lobbyAssetLocalPath,
   lobbyAssetStemKey,
   buildLobbyAssetHints,
@@ -56,6 +57,8 @@ class Pipeline {
     this.previousErrors = [];
     this.templateContext = {};
     this.assetCdnBases = [];
+    this.resourceOriginHints = { origins: [], byPrefix: {} };
+    this.observedNetworkUrls = new Set();
     this.lobbyAssetHints = new Map();
     this.inFlightDownloads = new Map();
     this.manifestStats = { manifests: 0, listed: 0, success: 0, failed: 0 };
@@ -140,6 +143,8 @@ class Pipeline {
       try {
         const cachedNetwork = JSON.parse(fs.readFileSync(networkPath, 'utf-8'));
         this.assetCdnBases = collectAssetCdnBases(cachedNetwork);
+        this.resourceOriginHints = collectResourceOriginHints(cachedNetwork, '', this.sourceUrl);
+        this.observedNetworkUrls = new Set(cachedNetwork.map((entry) => this.store.normalizeUrl(entry && entry.url, this.sourceUrl)).filter(Boolean));
         this.lobbyAssetHints = buildLobbyAssetHints(cachedNetwork);
       } catch {}
     }
@@ -247,10 +252,11 @@ class Pipeline {
     let usedUrl = normalized;
     for (const candidate of candidates) {
       result = await this.downloader.download(candidate, referer || this.sourceUrl, {
-        retryStatuses: candidate === normalized ? [403, 429, 503] : [],
+        retryStatuses: candidate === normalized ? [429, 502, 503, 504] : [],
         maxRetries: candidate === normalized ? this.downloader.maxRetries : 0
       });
-      if (result.status >= 200 && result.status < 400 && result.data) {
+      if (result.status >= 200 && result.status < 400 && result.data
+        && isCompatibleAssetResponse(normalized, result.contentType, result.data)) {
         usedUrl = candidate;
         break;
       }
@@ -261,7 +267,8 @@ class Pipeline {
       const reason = (result && (result.error || 'download failed')) || 'download failed';
       if (!isOptionalMissing(normalized)) {
         this.onLog(`失败: ${normalized} (${status || 'error'})`);
-        this.reporter.addError({ url: normalized, status, reason, category: 'static-failed', resourceType });
+        const category = this.observedNetworkUrls.has(normalized) ? 'static-failed' : 'discovered-missing';
+        this.reporter.addError({ url: normalized, status, reason, category, resourceType });
       }
       this.downloadedUrls.add(normalized);
       return null;
@@ -304,6 +311,14 @@ class Pipeline {
         for (const base of this.assetCdnBases || []) {
           urls.push(base.replace(/\/$/, '') + suffix);
         }
+      }
+      const hints = this.resourceOriginHints || { origins: [], byPrefix: {} };
+      const prefix = ['/siteadmin/skin/', '/assets/', '/libs/', '/cocos/', '/pages/']
+        .find((item) => parsed.pathname.startsWith(item));
+      if (prefix) {
+        // 只跨到曾经真实承载过同一路径族的 origin，避免把静态文件轮询到 API/游戏域名。
+        const ranked = (hints.byPrefix && hints.byPrefix[prefix]) || [];
+        for (const origin of ranked) urls.push(String(origin).replace(/\/$/, '') + parsed.pathname + (parsed.search || ''));
       }
     } catch {}
     return [...new Set(urls)];
@@ -447,7 +462,8 @@ class Pipeline {
       outputDir: this.outputDir,
       sourceUrl: this.sourceUrl,
       urlMap: this.urlMap,
-      templateContext: this.templateContext
+      templateContext: this.templateContext,
+      observedUrls: this.observedNetworkUrls
     }).check([...this.savedFiles]);
     this.reporter.setIntegrity(integrity);
     this.reporter.writeManifest(url);
@@ -497,6 +513,14 @@ class Pipeline {
     this._aborted = false;
     this.sourceUrl = url;
     this.outputDir = this.getSiteDir(url);
+    if (options.freshDownload && fs.existsSync(this.outputDir)) {
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const historyRoot = path.join(path.dirname(this.outputRoot), 'logs', 'dist-history');
+      fs.mkdirSync(historyRoot, { recursive: true });
+      const archived = path.join(historyRoot, path.basename(this.outputDir) + '-' + stamp);
+      fs.renameSync(this.outputDir, archived);
+      this.onLog(`旧 dist 已归档: ${archived}`);
+    }
     fs.mkdirSync(this.outputDir, { recursive: true });
     this.reporter = new Reporter(this.outputDir);
 
@@ -532,8 +556,10 @@ class Pipeline {
     this.throwIfAborted();
 
     this.reporter.setNetwork(capture.network);
+    this.observedNetworkUrls = new Set(capture.network.map((entry) => this.store.normalizeUrl(entry && entry.url, this.sourceUrl)).filter(Boolean));
     this.reporter.writeNetwork();
     this.assetCdnBases = collectAssetCdnBases(capture.network, capture.html || '');
+    this.resourceOriginHints = collectResourceOriginHints(capture.network, capture.html || '', this.sourceUrl);
     this.lobbyAssetHints = buildLobbyAssetHints(capture.network);
 
     if (capture.error) this.onLog(`页面警告: ${capture.error}`);

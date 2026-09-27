@@ -32,6 +32,7 @@ const previewStatus = $('#previewStatus');
 const browserWarning = $('#browserWarning');
 const downloadConcurrencyInput = $('#downloadConcurrencyInput');
 const multiPageInput = $('#multiPageInput');
+const freshDownloadInput = $('#freshDownloadInput');
 const skinManifestInput = $('#skinManifestInput');
 const compareSummary = $('#compareSummary');
 const queueStatus = $('#queueStatus');
@@ -821,6 +822,7 @@ async function startDownload(url, options = {}) {
                 url,
                 downloadConcurrency: concurrency,
                 multiPage: !!options.multiPage || !!multiPageInput.checked,
+                freshDownload: !!freshDownloadInput.checked,
                 downloadSkinManifest: !!skinManifestInput.checked
             })
         });

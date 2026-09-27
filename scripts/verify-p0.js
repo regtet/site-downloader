@@ -96,7 +96,7 @@ function testAdapters() {
   assert(vip.code === 1 && vip.data.vip === 2, 'vip summary');
 
   const vd = adaptVipDetails({ ok: true, data: { vip_level: 0 } });
-  assert(vd.code === 1 && vd.data.vip === 0 && vd.data.current_style === 2, 'vipDetails official shape');
+  assert(vd.code === 1 && vd.data.vip === 0 && !Object.prototype.hasOwnProperty.call(vd.data, 'current_style'), 'vipDetails official shape');
   assert(vd.data.icon_style && vd.data.icon_color, 'vipDetails icons');
 
   const av = adaptAvatars({ ok: true, data: { face_id: '3' } });
@@ -142,7 +142,44 @@ function testMap() {
   );
 
   assert(series.matchRoute('/api/member/user/info').adapter === 'memberProfile', 'user.info');
+  assert(series.matchRoute('/api/member/v2/user/info').adapter === 'userInfoV2', 'v2 user info uses nested profile contract');
+  const v2 = series.applyAdapter('userInfoV2', {
+    ok: true,
+    data: { account: 'qq', userId: '42', face_id: '', account_type: 2, register_time: 123 }
+  });
+  assert(v2.code === 1 && v2.data.basic.username === 'qq', 'v2 basic username uses account');
+  assert(v2.data.profile.registerTime === 123 && Array.isArray(v2.data.profile.verifyFlag), 'v2 profile shape');
+  assert(v2.data.kycInfo && v2.data.kycInfo.ekycResult === '0', 'v2 kycInfo shape');
+  const agentBasic = series.applyAdapter('agentBlob', { ok: true, data: {} }, { routePath: '/api/agent/promote/agentBasic' });
+  assert(Object.keys(agentBasic.data).length === 6 && agentBasic.data.proAgentStatus === 3, 'agentBasic exact official fields');
+  const agentIndex = series.applyAdapter('agentBlob', { ok: true, data: {} }, { routePath: '/api/agent/promote/index/indexInfoV2' });
+  assert(Object.keys(agentIndex.data).length === 5 && agentIndex.data.isAgent === false, 'agent index exact official fields');
+  const agentMode = series.applyAdapter('agentBlob', { ok: true, data: {} }, { routePath: '/api/agent/promote/userAgentMode' });
+  assert(Object.keys(agentMode.data).length === 5 && agentMode.data.calcPerformance === 0, 'agent mode exact official fields');
+  const taskFallback = series.applyAdapter('taskDetail', { ok: false, code: 41040 }, { body: {} });
+  assert(taskFallback.code === 1 && Array.isArray(taskFallback.data.rules), 'task falls back to parseable rules');
+  const boxes = series.applyAdapter('vitalityBoxes', { ok: false, code: 41040 });
+  assert(boxes.code === 1 && Array.isArray(boxes.data.box), 'vitality boxes zero-state contract');
+  const claim = series.applyAdapter('claimUserInfo', { ok: true, data: {} });
+  assert(claim.data.siteStatus === 2 && claim.data.applyMinAmount === '0', 'claim userInfo zero-state contract');
+  const redPack = series.applyAdapter('redPackIndex', { ok: true, data: {} });
+  assert(redPack.data.display === 0 && redPack.data.redList === null, 'redPack zero-state contract');
+  const feedback = series.applyAdapter('feedbackInfo', { ok: true, data: {} });
+  assert(feedback.data.result === null && feedback.data.unRead === 0, 'feedback zero-state contract');
+  const messageList = series.applyAdapter('messageList', { ok: true, data: {} });
+  assert(Array.isArray(messageList.data.marqueeList), 'message list marquee contract');
+  const payTypeShape = series.applyAdapter('payType', {
+    ok: true,
+    data: { payKind: { list: [{ paymentid: 7, pay_type_name: 'PIX' }] } }
+  });
+  assert(payTypeShape.data.chargeBlackList === false && payTypeShape.data.payKind.name, 'payType official wrapper');
+  const payChannelShape = series.applyAdapter('payChannels', {
+    ok: true,
+    data: { min: '10', max: '500', list: [{ id: 7, paymentid: 7, merch_desc: 'PIX' }] }
+  });
+  assert(payChannelShape.data.min === 10 && Array.isArray(payChannelShape.data.channelIds), 'payChannels numeric limits and channel ids');
   assert(series.matchRoute('/api/gameCenter/gold').op === 'wallet.gold', 'gold');
+  assert(series.matchRoute('/api/gameCenter/gameApi/logout').op === 'wallet.gold', 'game logout refreshes wallet');
   assert(series.matchRoute('/api/member/user/vip').adapter === 'vipSummary', 'vip');
   assert(series.matchRoute('/api/member/user/avatars').adapter === 'avatars', 'avatars');
   assert(series.matchRoute('/api/finance/pay/payListV4').adapter === 'payList', 'payList config-driven');
@@ -204,6 +241,16 @@ function testMap() {
   const zeroPkg = loadWgameConfig(null);
   if (zeroPkg.wgameWeb && zeroPkg.wgameWeb.debug) {
     assert(zeroPkg.packageId === 0, 'packageId 0 from wgame_web');
+  }
+  const frozenHostsPath = path.join(siteDir, 'adapter-hosts.json');
+  if (fs.existsSync(frozenHostsPath)) {
+    const frozenHosts = JSON.parse(fs.readFileSync(frozenHostsPath, 'utf8'));
+    if (frozenHosts.wgameWeb && frozenHosts.wgameWeb.snapshottedAt) {
+      const frozenCfg = loadWgameConfig(siteDir);
+      assert(frozenCfg.wgameWeb.source === 'site-snapshot', 'generated site uses frozen wgame connection');
+      assert(frozenCfg.loginHttpBase === frozenHosts.wgameWeb.loginHttpBase, 'generated site login origin is stable');
+      assert(frozenCfg.packageId === Number(frozenHosts.wgameWeb.packageId), 'generated site packageId is stable');
+    }
   }
   const { isGameLauncherRequest } = require('../src/game-launcher');
   assert(isGameLauncherRequest(new URL('http://x/pages/game/index.html?keyType=url&storageKey=a')), 'game launcher path');

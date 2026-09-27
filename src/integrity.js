@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const ResourceParser = require('./resource-parser');
-const { hasUnresolvedTemplate, expandTemplates, lobbyAssetLocalPath, lobbyAssetStemKey, isLikelyAssetFile } = require('./url-classify');
+const { hasUnresolvedTemplate, expandTemplates, lobbyAssetLocalPath, lobbyAssetStemKey, isLikelyAssetFile, isOptionalMissing } = require('./url-classify');
 
 const ROOTISH_PREFIXES = ['assets/', 'lobby_asset/', 'libs/', 'cocos/', 'siteadmin/', 'pages/'];
 
@@ -11,6 +11,7 @@ class IntegrityChecker {
     this.sourceUrl = options.sourceUrl;
     this.urlMap = options.urlMap || new Map();
     this.templateContext = options.templateContext || {};
+    this.observedUrls = options.observedUrls || new Set();
   }
 
   toLocalFromUrl(url) {
@@ -86,6 +87,7 @@ class IntegrityChecker {
     }
 
     if (/^https?:\/\//i.test(value)) {
+      if (isOptionalMissing(value)) return { skip: true, optional: true, url: value };
       if (!isLikelyAssetFile(value)) return { skip: true, external: true, url: value };
       const mapped = this.toLocalFromUrl(value);
       if (!mapped) return { skip: true, external: true, url: value };
@@ -202,12 +204,19 @@ class IntegrityChecker {
           continue;
         }
         if (!this.existsLocal(resolved.local)) {
+          let observed = false;
+          try {
+            const normalized = new URL(ref.raw, this.sourceUrl);
+            normalized.hash = '';
+            observed = this.observedUrls.has(normalized.href);
+          } catch (_) {}
           add({
             from: relativePath,
             ref: ref.raw,
             local: resolved.local,
             reason: 'missing-local-file',
-            kind: ref.kind
+            kind: ref.kind,
+            severity: observed ? 'runtime' : 'discovered'
           });
         }
       }

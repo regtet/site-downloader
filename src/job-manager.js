@@ -73,6 +73,7 @@ class JobManager {
       result: null,
       error: null,
       retryFailedOnly: !!options.retryFailedOnly,
+      freshDownload: !!options.freshDownload,
       multiPage: !!options.multiPage,
       downloadSkinManifest: options.downloadSkinManifest === true,
       downloadConcurrency: options.downloadConcurrency || this.downloadConcurrency,
@@ -165,6 +166,7 @@ class JobManager {
       }
       const result = await pipeline.run(job.url, {
         retryFailedOnly: job.retryFailedOnly,
+        freshDownload: job.freshDownload,
         multiPage: job.multiPage
       });
       if (job.cancelRequested) {

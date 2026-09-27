@@ -95,6 +95,18 @@ function sortByAssetPriority(items) {
   });
 }
 
+function isCompatibleAssetResponse(url, contentType, data) {
+  let ext = '';
+  try { ext = path.extname(new URL(url).pathname).toLowerCase(); } catch (_) {}
+  const ct = String(contentType || '').split(';')[0].trim().toLowerCase();
+  const head = Buffer.isBuffer(data) ? data.slice(0, 256).toString('utf8').trim().toLowerCase() : '';
+  const htmlLike = ct === 'text/html' || head.startsWith('<!doctype html') || head.startsWith('<html');
+  if (['.js', '.mjs', '.cjs', '.css', '.json', '.map', '.wasm', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.otf'].includes(ext) && htmlLike) return false;
+  if (ext === '.css' && ct && !ct.includes('css') && !ct.startsWith('text/plain') && !ct.includes('octet-stream')) return false;
+  if (['.js', '.mjs', '.cjs'].includes(ext) && ct && !ct.includes('javascript') && !ct.includes('ecmascript') && !ct.startsWith('text/plain') && !ct.includes('octet-stream')) return false;
+  return true;
+}
+
 class Downloader {
   constructor(options = {}) {
     this.timeout = options.timeout || 20000;
@@ -203,3 +215,4 @@ module.exports = Downloader;
 module.exports.assetPriority = assetPriority;
 module.exports.sortByAssetPriority = sortByAssetPriority;
 module.exports.decompressIfNeeded = decompressIfNeeded;
+module.exports.isCompatibleAssetResponse = isCompatibleAssetResponse;

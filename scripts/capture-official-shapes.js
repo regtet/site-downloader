@@ -1,16 +1,20 @@
 /**
- * 登录官方站，走主页面，记下浏览器解开后的接口结构。
- * 账号从环境变量读取。产物在 logs/official-shapes/，不入库。
+ * 登录站点，走主页面，记下浏览器解开后的接口结构。
+ * 账号从环境变量读取。默认产物在 logs/official-shapes/，不入库。
  */
 require('../src/playwright-env');
 const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
 
-const outDir = path.join(__dirname, '..', 'logs', 'official-shapes');
+const outDir = process.env.SHAPES_OUT_DIR
+  ? path.resolve(process.env.SHAPES_OUT_DIR)
+  : path.join(__dirname, '..', 'logs', 'official-shapes');
 const base = process.env.OFFICIAL_BASE || 'https://719win.com';
+const account = process.env.SHAPES_ACCOUNT || process.env.OFFICIAL_ACCOUNT || '';
+const password = process.env.SHAPES_PASSWORD || process.env.OFFICIAL_PASSWORD || '';
 
-const routes = [
+const defaultRoutes = [
   '/',
   '/home/event?eventCurrent=1',
   '/home/task?eventCurrent=1',
@@ -29,6 +33,9 @@ const routes = [
   '/home/yuebao',
   '/home/discount'
 ];
+const routes = process.env.SHAPES_ROUTES
+  ? process.env.SHAPES_ROUTES.split(',').map((item) => item.trim()).filter(Boolean)
+  : defaultRoutes;
 
 const HOOK = `(() => {
   if (window.__sdCapHook) return;
@@ -133,9 +140,9 @@ async function loginUi(page) {
   }
   const pass = page.getByPlaceholder(/senha|password/i).first();
   await user.click({ force: true });
-  await user.fill(process.env.OFFICIAL_ACCOUNT || '');
+  await user.fill(account);
   await pass.click({ force: true });
-  await pass.fill(process.env.OFFICIAL_PASSWORD || '');
+  await pass.fill(password);
   const submit = page.locator('.ui-button').filter({ hasText: /^Login$/ }).last();
   await submit.click({ force: true, timeout: 8000 });
   await page.waitForTimeout(10000);
@@ -188,11 +195,18 @@ async function main() {
       }
     }
     try {
-      await page.goto(base + '/home/mine', { waitUntil: 'domcontentloaded', timeout: 45000 });
-      const dep = page.getByText('Depósito', { exact: true }).first();
-      if (await dep.count()) await dep.click({ timeout: 4000 }).catch(() => {});
+      await page.goto(base + '/', { waitUntil: 'domcontentloaded', timeout: 45000 });
+      const depById = page.locator('#depositClick:visible');
+      const dep = (await depById.count())
+        ? depById.first()
+        : page.getByText('Depósito', { exact: true }).last();
+      if (await dep.count()) await dep.click({ timeout: 5000, force: true }).catch(() => {});
       await page.waitForTimeout(6000);
       await drain(page, bucket, 'deposit-dialog');
+      await page.screenshot({ path: path.join(outDir, 'deposit-dialog.png') });
+      pageNotes['deposit-dialog'] = await page.evaluate(
+        () => (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 220)
+      );
     } catch (_) { /* deposit dialog optional */ }
   } finally {
     await browser.close();

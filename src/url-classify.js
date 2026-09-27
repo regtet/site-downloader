@@ -129,6 +129,12 @@ function isOptionalMissing(url) {
     if (pathname.includes('/maintain-time')) return true;
     if (pathname.endsWith('/webPush') || pathname.includes('/webPush/')) return true;
     if (pathname.endsWith('/video.js')) return true;
+    // 打包器内嵌的源码模块名，不是浏览器运行时会请求的独立资源。
+    if (/\/assets\/vendors\/vendor-@cg\/(?:src|node_modules)\//i.test(pathname)) return true;
+    if (/\/libs\/liveplayer@[^/]+\/dist\/component\//i.test(pathname)) return true;
+    if (/\/libs\/liveplayer@[^/]+\/dist\/(?:core|utils|io|demux|remux)\//i.test(pathname)) return true;
+    if (/\/libs\/liveplayer@[^/]+\/dist\/(?:config|utils)\.js$/i.test(pathname)) return true;
+    if (/\/turnstile\/v0\/api\.js$/i.test(pathname)) return true;
     return false;
   } catch {
     return /node_modules|\/pwa\/manifest|maintain-time|ssocdn\.txt|webPush/.test(url || '');
@@ -158,6 +164,34 @@ function collectAssetCdnBases(network, extraText) {
     }
   }
   return [...bases];
+}
+
+const RESOURCE_PREFIXES = [
+  '/siteadmin/skin/', '/lobby_asset/', '/assets/', '/libs/', '/cocos/', '/pages/'
+];
+
+function collectResourceOriginHints(network, extraText, sourceUrl) {
+  const origins = new Set();
+  const byPrefix = Object.create(null);
+  for (const prefix of RESOURCE_PREFIXES) byPrefix[prefix] = [];
+  const add = (raw) => {
+    let u;
+    try { u = new URL(String(raw || ''), sourceUrl || undefined); } catch (_) { return; }
+    if (!/^https?:$/.test(u.protocol)) return;
+    origins.add(u.origin);
+    for (const prefix of RESOURCE_PREFIXES) {
+      if (!u.pathname.startsWith(prefix) && !u.pathname.includes(prefix)) continue;
+      if (!byPrefix[prefix].includes(u.origin)) byPrefix[prefix].push(u.origin);
+    }
+  };
+  add(sourceUrl);
+  for (const entry of network || []) add(entry && entry.url);
+  if (extraText) {
+    const re = /https?:\\?\/\\?\/[^\s"'<>`\\]+/gi;
+    let match;
+    while ((match = re.exec(String(extraText))) !== null) add(match[0].replace(/\\\//g, '/'));
+  }
+  return { origins: [...origins], byPrefix };
 }
 
 function lobbyAssetLocalPath(url) {
@@ -224,6 +258,7 @@ module.exports = {
   mergeTemplateContext,
   expandTemplates,
   collectAssetCdnBases,
+  collectResourceOriginHints,
   lobbyAssetLocalPath,
   lobbyAssetStemKey,
   buildLobbyAssetHints,

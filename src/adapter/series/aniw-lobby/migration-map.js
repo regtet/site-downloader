@@ -23,7 +23,7 @@ const CORE_MAP = {
   // —— logout ——
   '/api/member/logout': { op: OP.AUTH_LOGOUT, adapter: 'logout' },
   // 退出游戏平台，不是会员登出；不能清 wgame 大厅会话（否则紧接着 gameApi/login 会 10061）
-  '/api/gameCenter/gameApi/logout': { op: OP.LOBBY_OK, adapter: 'lobbyOk', note: 'game platform logout noop' },
+  '/api/gameCenter/gameApi/logout': { op: OP.WALLET_GOLD, adapter: 'walletGold', note: 'leave game and refresh wallet balance' },
 
   // —— 会话复用 ——
   '/api/member/getFastLogin': {
@@ -34,7 +34,7 @@ const CORE_MAP = {
 
   // —— user.info ——
   '/api/member/user/info': { op: OP.USER_INFO, adapter: 'memberProfile' },
-  '/api/member/v2/user/info': { op: OP.USER_INFO, adapter: 'memberProfile' },
+  '/api/member/v2/user/info': { op: OP.USER_INFO, adapter: 'userInfoV2' },
 
   // —— 头像 ——
   '/api/member/user/avatars': { op: OP.USER_AVATARS, adapter: 'avatars' },
@@ -109,7 +109,7 @@ const CORE_MAP = {
   '/api/club/recharge/selfOrderInfo': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords' },
   '/api/club/recharge/payCancel': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'club cancel soft-ok' },
   '/api/club/recharge/payConfirm': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'club confirm soft-ok' },
-  '/api/finance/claim/userInfo': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no claim engine' },
+  '/api/finance/claim/userInfo': { op: OP.EMPTY_RECORDS, adapter: 'claimUserInfo', note: 'claim zero-state contract' },
   '/api/finance/maxChargeRate': { op: OP.LOBBY_OK, adapter: 'maxChargeRate' },
   '/api/finance/pay/payTypeSetting': { op: OP.PAY_PENDING, adapter: 'payPending', note: 'shop channel names' },
   '/api/finance/payPopup/content': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'pay popup content OSS' },
@@ -127,9 +127,9 @@ const CORE_MAP = {
   '/api/finance/claim/unreadMsgCnt': { op: OP.LOBBY_OK, adapter: 'unreadCount' },
   '/api/active/popRegressActive': { op: OP.EMPTY_RECORDS, adapter: 'emptyList', note: 'no regress popup' },
   '/api/active/recharge/financeGiveReward': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'http dayRechargeBonus' },
-  '/api/active/redPackIndex': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords', note: 'no redpack' },
-  '/api/active/tasks/task': { op: OP.LOBBY_OK, adapter: 'lobbyOk', note: 'official mission rules, guest replay' },
-  '/api/active/tasks/vitality/boxs': { op: OP.LOBBY_OK, adapter: 'lobbyOk', note: 'official vitality chests, guest replay' },
+  '/api/active/redPackIndex': { op: OP.EMPTY_RECORDS, adapter: 'redPackIndex', note: 'no redpack' },
+  '/api/active/tasks/task': { op: OP.LOBBY_OK, adapter: 'taskDetail', note: 'official mission rules with local fallback' },
+  '/api/active/tasks/vitality/boxs': { op: OP.LOBBY_OK, adapter: 'vitalityBoxes', note: 'official vitality chests with zero-state fallback' },
   '/api/active/cutADeal/list': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'official spins list' },
   '/api/active/turntable/luckyIntegralList': { op: OP.UPSTREAM, adapter: 'lobbyOk', note: 'official spins points' },
   '/api/active/tasks/newcomer_benefit_pop': { op: OP.EMPTY_RECORDS, adapter: 'emptyList', note: 'no newcomer popup engine' },
@@ -157,7 +157,7 @@ const CORE_MAP = {
   '/api/gameCenter/addFavorite': { op: OP.LOBBY_OK, adapter: 'lobbyOk', note: 'favorite not persisted' },
 
   // —— 消息 ——
-  '/api/message/list/all': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords' },
+  '/api/message/list/all': { op: OP.EMPTY_RECORDS, adapter: 'messageList' },
   '/api/message/details': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords' },
   '/api/message/delete': { op: OP.FEATURE_PENDING, adapter: 'featurePending', note: 'no message store' },
   '/api/message/delall': { op: OP.FEATURE_PENDING, adapter: 'featurePending', note: 'no message store' },
@@ -179,6 +179,11 @@ const CORE_MAP = {
   '/api/finance/certify/bindCrypto': { op: OP.WITHDRAW_PENDING, adapter: 'withdrawPending' },
   '/api/finance/certify/cashV3': { op: OP.WITHDRAW_PENDING, adapter: 'withdrawPending' },
   '/api/finance/certify/deleteAccount': { op: OP.WITHDRAW_PENDING, adapter: 'withdrawPending' },
+  '/api/finance/certify/withdrawAccountInfo': {
+    op: OP.WITHDRAW_PENDING,
+    adapter: 'withdrawPending',
+    note: 'decryptAccount list from paywayList'
+  },
 
   // —— 支付/提现密码（大厅 security → wgame setWithdrawPwd / verifyWithdrawPwd）——
   '/api/member/user/security/verifyWithdrawPass': {
@@ -272,6 +277,7 @@ const CORE_MAP = {
 
   // —— 尾差：客服/消息 ——
   '/api/finance/claim/withdrawRecord': { op: OP.EMPTY_RECORDS, adapter: 'emptyRecords' },
+  '/api/backstage/customer/getUserFeedback': { op: OP.EMPTY_RECORDS, adapter: 'feedbackInfo', note: 'feedback zero-state contract' },
   '/api/finance/claim/cancelOrder': { op: OP.FEATURE_PENDING, adapter: 'featurePending', note: 'no claim engine' },
   '/api/finance/claim/applyClaim': { op: OP.FEATURE_PENDING, adapter: 'featurePending', note: 'no claim engine' },
   '/api/finance/message/send': { op: OP.FEATURE_PENDING, adapter: 'featurePending' },

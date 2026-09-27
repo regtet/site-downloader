@@ -53,7 +53,7 @@ class Reporter {
   }
 
   staticFailures() {
-    return this.errors.filter((err) => err.category !== 'api-skipped' && err.category !== 'optional-missing');
+    return this.errors.filter((err) => !['api-skipped', 'optional-missing', 'discovered-missing'].includes(err.category));
   }
 
   writeManifest(sourceUrl) {
@@ -98,7 +98,8 @@ class Reporter {
       unresolved: this.unresolved.length,
       brokenReferences: this.integrity ? this.integrity.brokenReferences.length : 0,
       missingAssets: this.integrity ? this.integrity.missingAssets.length : 0,
-      apiSkipped: this.errors.filter((err) => err.category === 'api-skipped').length
+      apiSkipped: this.errors.filter((err) => err.category === 'api-skipped').length,
+      discoveredMissing: this.errors.filter((err) => err.category === 'discovered-missing').length
     };
 
     const statusCounts = {};
