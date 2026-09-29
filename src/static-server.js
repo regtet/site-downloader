@@ -179,7 +179,8 @@ function createStaticServer(siteDir, options = {}) {
     lobbyGameUrl: '',
     authEpoch: '',
     adapterEnabled,
-    siteDir: root
+    siteDir: root,
+    directHosts: typeof previewRules.directHosts === 'function' ? previewRules.directHosts(seriesInfo.ctx) : []
   };
   try {
     const hostsPath = path.join(root, 'adapter-hosts.json');

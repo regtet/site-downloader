@@ -117,6 +117,7 @@ function normalizeBootCfg(adapterHostsOrCfg) {
             apiHostPatterns: [],
             excludeHosts: [],
             ossHosts: [],
+            directHosts: [],
             ossOrigin: '',
             upstreamOrigin: '',
             lobbyGameUrl: '',
@@ -137,6 +138,7 @@ function normalizeBootCfg(adapterHostsOrCfg) {
         apiHostPatterns: Array.isArray(c.apiHostPatterns) ? c.apiHostPatterns : [],
         excludeHosts: Array.isArray(c.excludeHosts) ? c.excludeHosts : [],
         ossHosts,
+        directHosts: Array.isArray(c.directHosts) ? c.directHosts.map((h) => String(h).toLowerCase()) : [],
         ossOrigin: c.ossOrigin ? String(c.ossOrigin) : '',
         upstreamOrigin: c.upstreamOrigin ? String(c.upstreamOrigin) : '',
         lobbyGameUrl: c.lobbyGameUrl ? String(c.lobbyGameUrl) : '',
@@ -156,11 +158,14 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
     const lobbyGameUrlJson = JSON.stringify(cfg.lobbyGameUrl || '');
     const adapterEnabledJson = cfg.adapterEnabled === false ? 'false' : 'true';
     const authEpochJson = JSON.stringify(cfg.authEpoch || '');
+    const directHostsJson = JSON.stringify(cfg.directHosts || []);
     return `/*! site-downloader preview proxy boot */
 (function () {
   var SOURCE_ORIGIN = ${origin};
   var PROXY_PREFIX = ${prefix};
   var ADAPTER_HOSTS = ${hostsJson};
+  // 浏览器直连的主机（不改写、不走本地代理）：如 zg 的 tRPC API 有地区/机房 IP 限制，只有用户浏览器的线路能通
+  var DIRECT_HOSTS = ${directHostsJson};
   var API_HOST_PATTERNS = ${patternsJson};
   var EXCLUDE_HOSTS = ${excludeJson};
   var OSS_HOSTS = ${ossHostsJson};
@@ -547,6 +552,7 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
       var u = new URL(href);
       if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
       if (u.origin === LOCAL_ORIGIN) return null;
+      if (DIRECT_HOSTS.indexOf(u.hostname.toLowerCase()) !== -1) return null;
       if (
         ADAPTER_ENABLED
         && (u.pathname.indexOf('/pay/paysubmit') === 0 || u.pathname.indexOf('/dragon/phoenix') === 0)
@@ -999,7 +1005,9 @@ function buildServiceWorkerScript(adapterHostsOrCfg) {
     const excludeJson = JSON.stringify(cfg.excludeHosts);
     const ossHostsJson = JSON.stringify(cfg.ossHosts || []);
     const adapterEnabledJson = cfg.adapterEnabled === false ? 'false' : 'true';
+    const directHostsJson = JSON.stringify(cfg.directHosts || []);
     return `/*! site-downloader api adapter sw v10 */
+var DIRECT_HOSTS = ${directHostsJson};
 self.addEventListener('install', function (e) { self.skipWaiting(); });
 self.addEventListener('activate', function (e) { e.waitUntil(self.clients.claim()); });
 
@@ -1075,6 +1083,7 @@ self.addEventListener('fetch', function (event) {
   var url;
   try { url = new URL(req.url); } catch (e) { return; }
   if (url.origin === self.location.origin) return;
+  if (DIRECT_HOSTS.indexOf(url.hostname.toLowerCase()) !== -1) return;
 
   // 业务 API：部署包走本地 Bridge；原始 dist 代理回官方
   if (url.pathname.indexOf('/hall/api/') === 0 || url.pathname.indexOf('/api/') === 0) {
