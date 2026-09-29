@@ -139,6 +139,9 @@ function createStaticServer(siteDir, options = {}) {
   const previewRules = seriesInfo.preview || {};
   const hallChain = previewRules.hallChain !== false;
   const hintPattern = previewRules.hintHostPattern || null;
+  const proxyRules = typeof previewRules.proxyRefererOrigin === 'function'
+    ? { proxyRefererOrigin: (target) => previewRules.proxyRefererOrigin({ target, ctx: seriesInfo.ctx }) }
+    : {};
   try {
     console.info('[preview] series', seriesInfo.id, '(' + seriesInfo.reason + ')', path.basename(root));
   } catch (_) { /* ignore */ }
@@ -228,7 +231,7 @@ function createStaticServer(siteDir, options = {}) {
         if (adapterEnabled && isApiPath(u.pathname)) noteUnmapped(u.pathname, req.method);
       } catch (_) { /* ignore */ }
 
-      if (headerProxy && tryHandleProxy(req, res, sourceOrigin, bootCfg)) {
+      if (headerProxy && tryHandleProxy(req, res, sourceOrigin, bootCfg, proxyRules)) {
         return;
       }
 

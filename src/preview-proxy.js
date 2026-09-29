@@ -1708,7 +1708,7 @@ function tryFallbackMissingAsset(req, res, fallbackOrigin, pathname, search, opt
 /**
  * @returns {boolean} true if handled
  */
-function tryHandleProxy(req, res, sourceOrigin, adapterHosts) {
+function tryHandleProxy(req, res, sourceOrigin, adapterHosts, rules = {}) {
     const host = req.headers.host || '127.0.0.1';
     const reqUrl = new URL(req.url || '/', `http://${host}`);
 
@@ -1791,7 +1791,13 @@ function tryHandleProxy(req, res, sourceOrigin, adapterHosts) {
         } catch (_) { /* ignore */ }
     }
 
-    proxyRequest(req, res, finalTarget, finalTarget.origin + '/', { stripAuth, sanitizeAuthKick: stripAuth });
+    let referer = finalTarget.origin + '/';
+    if (typeof rules.proxyRefererOrigin === 'function') {
+        try {
+            referer = rules.proxyRefererOrigin(finalTarget) || referer;
+        } catch (_) { /* keep default */ }
+    }
+    proxyRequest(req, res, finalTarget, referer, { stripAuth, sanitizeAuthKick: stripAuth });
     return true;
 }
 
