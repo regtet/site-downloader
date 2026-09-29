@@ -15,6 +15,7 @@ const { noteUnmapped, isApiPath } = require('./adapter/unmapped-log');
 const { loadAdapterConfig, isHallApiPath, isOssAssetPath } = require('./adapter/hosts');
 const { hasAdapterPack, inferOriginsFromNetwork, inferOssOriginFromHtml, inferSiteCodeFromSite } = require('./adapter/config');
 const { getProvider } = require('./adapter/providers');
+const { detectSeries } = require('./adapter/series/detect');
 const { isMockCashierPath, handleMockCashierRequest } = require('./mock-cashier');
 const { isMockAgentPath, handleMockAgentRequest } = require('./mock-agent-api');
 const { isGameLauncherRequest, serveGameLauncher } = require('./game-launcher');
@@ -61,13 +62,18 @@ function isStaticAssetPath(pathname) {
     return STATIC_ASSET_EXTS.has(ext);
 }
 
-/** 浏览器改写到本地前的官方 API 源（aniw/oniw），避免 upstreamOrigin 为空时活动接口落空 */
-function upstreamHint(req) {
-  const hinted = String((req && req.headers && req.headers['x-sd-upstream']) || '');
+function rawUpstreamHeader(req) {
+  return String((req && req.headers && req.headers['x-sd-upstream']) || '');
+}
+
+/** 浏览器改写到本地前的官方 API 源（按系列 hintHostPattern，默认 aniw/oniw），避免 upstreamOrigin 为空时活动接口落空 */
+function upstreamHint(req, hostPattern) {
+  const hinted = rawUpstreamHeader(req);
+  const re = hostPattern || /^(aniw|oniw)\d*\./i;
   try {
     const u = new URL(hinted);
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';
-    if (!/^(aniw|oniw)\d*\./i.test(u.hostname)) return '';
+    if (!re.test(u.hostname)) return '';
     return u.origin;
   } catch (_) {
     return '';
@@ -129,6 +135,13 @@ function createStaticServer(siteDir, options = {}) {
     || resolveSourceOrigin(root, fs, path)
     || '';
   const headerProxy = options.headerProxy !== false && !!sourceOrigin;
+  const seriesInfo = detectSeries(root, { sourceOrigin });
+  const previewRules = seriesInfo.preview || {};
+  const hallChain = previewRules.hallChain !== false;
+  const hintPattern = previewRules.hintHostPattern || null;
+  try {
+    console.info('[preview] series', seriesInfo.id, '(' + seriesInfo.reason + ')', path.basename(root));
+  } catch (_) { /* ignore */ }
   const adapterPack = hasAdapterPack(root, fs, path);
   const adapterEnabled = options.enableAdapter !== undefined
     ? !!options.enableAdapter
@@ -251,8 +264,26 @@ function createStaticServer(siteDir, options = {}) {
           res.end(probeBody);
           return;
         }
+        // 非 aniw 系列：由系列规则决定 API 上游与 path
+        if (typeof previewRules.resolveApiUpstream === 'function') {
+          const plan = previewRules.resolveApiUpstream({
+            pathname: reqUrl.pathname,
+            method,
+            hintedOrigin: rawUpstreamHeader(req),
+            ctx: seriesInfo.ctx
+          });
+          if (
+            plan
+            && tryFallbackMissingAsset(req, res, plan.origin, plan.path, reqUrl.search, {
+              forcePath: plan.path,
+              refererOrigin: plan.refererOrigin || undefined
+            })
+          ) {
+            return;
+          }
+        }
         // 短 path 回源：浏览器请求 /ipacdn.txt?t= ，原始主机在 x-sd-upstream
-        const hinted = upstreamHint(req);
+        const hinted = hallChain ? upstreamHint(req, hintPattern) : '';
         let hintHost = '';
         try { hintHost = hinted ? new URL(hinted).hostname : ''; } catch (_) { /* ignore */ }
         const hintIsOss = /^oniw\d*\./i.test(hintHost);
@@ -269,7 +300,8 @@ function createStaticServer(siteDir, options = {}) {
         }
         // OSS/图片误落到本地短 path → 回 oniw OSS，不要回主站（且禁止 POST 打 OSS）
         if (
-          !isMutating
+          hallChain
+          && !isMutating
           && ossOrigin
           && isOssAssetPath(reqUrl.pathname)
           && tryFallbackMissingAsset(req, res, ossOrigin, reqUrl.pathname, reqUrl.search)
@@ -278,7 +310,8 @@ function createStaticServer(siteDir, options = {}) {
         }
         // home：lobby 静态 *.json 走 oniw（key 带 /hall）；getSiteInfo 等无后缀业务走 aniw
         if (
-          !isMutating
+          hallChain
+          && !isMutating
           && ossOrigin
           && /^\/api\/lobby\//i.test(reqUrl.pathname)
           && /\.json$/i.test(reqUrl.pathname)
@@ -294,9 +327,10 @@ function createStaticServer(siteDir, options = {}) {
         }
         // lobby 业务 API（含 getSiteInfo）：回 aniw，并补 /hall 前缀（上游只认 /hall/api/lobby）
         // 缺 siteCode 时补官方 LOBBY_SITE_CONFIG.siteCode（与浏览器正式请求一致，不伪造）
-        const hintedOrigin = upstreamHint(req);
-        const hallOrigin = (/^https?:\/\/aniw\d*\./i.test(hintedOrigin) ? hintedOrigin : '')
-          || apiUpstreamOrigin;
+        const hintedOrigin = hinted;
+        const hallOrigin = hallChain
+          ? ((/^https?:\/\/aniw\d*\./i.test(hintedOrigin) ? hintedOrigin : '') || apiUpstreamOrigin)
+          : '';
         if (
           hallOrigin
           && /^\/(?:hall\/)?api\/lobby\//i.test(reqUrl.pathname)
@@ -321,7 +355,8 @@ function createStaticServer(siteDir, options = {}) {
         // GET 的 /api/**/*.json 与 /hall/api/**/*.json：官方 OSS key 带 /hall 前缀；
         // 短 path（/api/...json）直打 oniw 常 AccessDenied，需补 /hall 后再回源（仍禁止 POST）
         if (
-          !isMutating
+          hallChain
+          && !isMutating
           && ossOrigin
           && isHallApiPath(reqUrl.pathname)
           && /\.json$/i.test(reqUrl.pathname)

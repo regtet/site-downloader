@@ -102,5 +102,6 @@ module.exports = {
   mapResponse,
   normalizeApiPath,
   toMemberProfile: memberProfile,
-  applyAdapter
+  applyAdapter,
+  preview: require('./preview')
 };
