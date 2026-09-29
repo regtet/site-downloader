@@ -1,9 +1,11 @@
 const aniwLobby = require('./aniw-lobby');
 const hmsPlatform = require('./hms-platform');
+const boi = require('./boi');
 
 const SERIES = {
   'aniw-lobby': aniwLobby,
-  'hms-platform': hmsPlatform
+  'hms-platform': hmsPlatform,
+  boi
 };
 
 function getSeries(id) {

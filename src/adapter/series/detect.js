@@ -7,7 +7,7 @@ const path = require('path');
 const { SERIES } = require('./index');
 
 const DEFAULT_SERIES_ID = 'aniw-lobby';
-const DETECT_ORDER = ['hms-platform', 'aniw-lobby'];
+const DETECT_ORDER = ['hms-platform', 'boi', 'aniw-lobby'];
 
 function readJson(file) {
   try {
@@ -26,13 +26,14 @@ function readText(file) {
   }
 }
 
-/** 系列无关的抓包索引：主机集合、各 API origin 出现次数、API path → origin */
+/** 系列无关的抓包索引：主机集合、各 API origin 出现次数、API path → origin、同源 API path */
 function buildSeriesContext(siteDir, sourceOrigin) {
   const raw = readJson(path.join(siteDir, 'network.json'));
   const entries = Array.isArray(raw) ? raw : ((raw && (raw.entries || raw.network)) || []);
   const hosts = new Set();
   const apiOrigins = new Map();
   const pathOrigin = Object.create(null);
+  const sourceApiPaths = new Set();
   let source = '';
   try { source = sourceOrigin ? new URL(sourceOrigin).origin : ''; } catch (_) { /* ignore */ }
 
@@ -48,7 +49,10 @@ function buildSeriesContext(siteDir, sourceOrigin) {
     hosts.add(u.hostname.toLowerCase());
     const p = u.pathname || '';
     if (p.indexOf('/api/') !== 0 && p.indexOf('/hall/api/') !== 0) continue;
-    if (u.origin === source) continue;
+    if (u.origin === source) {
+      sourceApiPaths.add(p);
+      continue;
+    }
     apiOrigins.set(u.origin, (apiOrigins.get(u.origin) || 0) + 1);
     if (!pathOrigin[p]) pathOrigin[p] = u.origin;
   }
@@ -60,7 +64,9 @@ function buildSeriesContext(siteDir, sourceOrigin) {
     hosts,
     apiOrigins,
     pathOrigin,
-    html: readText(path.join(siteDir, 'index.html'))
+    sourceApiPaths,
+    html: readText(path.join(siteDir, 'index.html')),
+    configJs: readText(path.join(siteDir, 'config.js'))
   };
 }
 
