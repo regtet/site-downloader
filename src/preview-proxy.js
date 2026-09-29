@@ -1480,7 +1480,10 @@ function copyRequestHeaders(req, refererOrigin, options = {}) {
     out['Accept-Encoding'] = 'identity';
     if (refererOrigin) {
         const origin = String(refererOrigin).replace(/\/$/, '');
-        out.Origin = origin;
+        // originPolicy=browser：同浏览器同源 GET 不带 Origin（boi 等后端带 Origin 会返回空列表）
+        const method = String((req && req.method) || 'GET').toUpperCase();
+        const omitOrigin = options.originPolicy === 'browser' && (method === 'GET' || method === 'HEAD');
+        if (!omitOrigin) out.Origin = origin;
         out.Referer = origin + '/';
     }
     if (!out['User-Agent'] && !out['user-agent']) {
@@ -1696,7 +1699,8 @@ function tryFallbackMissingAsset(req, res, fallbackOrigin, pathname, search, opt
     proxyRequest(req, res, target, referer, {
         stripAuth,
         sanitizeAuthKick,
-        emptyListOnKick: !!options.emptyListOnKick
+        emptyListOnKick: !!options.emptyListOnKick,
+        originPolicy: options.originPolicy || ''
     });
     return true;
 }

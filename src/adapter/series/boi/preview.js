@@ -2,6 +2,7 @@
  * boi 预览回源规则（sweboi 等，Vite 打包 + window.CONFIG{brandId,currentModel}）：
  * 业务 API 与页面同源 /api/*（如 /api/banner/list?client-type=h5），原样回源站，不补 /hall。
  * 回 SPA 的 index.html 会让前端 data.filter/reduce 报错。
+ * 同源 GET 浏览器不带 Origin；带上 Origin 时 /api/banner/list 返回空数组，所以 GET 不补 Origin。
  */
 const MARKER_PATHS = ['/api/config/system', '/api/banner/list', '/api/config/getTenantLogo'];
 
@@ -19,6 +20,6 @@ module.exports = {
   resolveApiUpstream({ pathname, ctx }) {
     const p = String(pathname || '');
     if (p.indexOf('/api/') !== 0 || !ctx.sourceOrigin) return null;
-    return { origin: ctx.sourceOrigin, path: p, refererOrigin: ctx.sourceOrigin + '/' };
+    return { origin: ctx.sourceOrigin, path: p, refererOrigin: ctx.sourceOrigin + '/', originPolicy: 'browser' };
   }
 };

@@ -276,7 +276,8 @@ function createStaticServer(siteDir, options = {}) {
             plan
             && tryFallbackMissingAsset(req, res, plan.origin, plan.path, reqUrl.search, {
               forcePath: plan.path,
-              refererOrigin: plan.refererOrigin || undefined
+              refererOrigin: plan.refererOrigin || undefined,
+              originPolicy: plan.originPolicy || ''
             })
           ) {
             return;
