@@ -19,6 +19,7 @@ const { detectSeries } = require('./adapter/series/detect');
 const { isMockCashierPath, handleMockCashierRequest } = require('./mock-cashier');
 const { isMockAgentPath, handleMockAgentRequest } = require('./mock-agent-api');
 const { isGameLauncherRequest, serveGameLauncher } = require('./game-launcher');
+const { createMirrorOriginResolver } = require('./mirror-origins');
 
 const MIME_TYPES = {
     '.html': 'text/html; charset=utf-8',
@@ -137,6 +138,7 @@ function createStaticServer(siteDir, options = {}) {
   const headerProxy = options.headerProxy !== false && !!sourceOrigin;
   const seriesInfo = detectSeries(root, { sourceOrigin });
   const previewRules = seriesInfo.preview || {};
+  const resolveMirrorOrigin = createMirrorOriginResolver(root, sourceOrigin, fs, path);
   const hallChain = previewRules.hallChain !== false;
   const hintPattern = previewRules.hintHostPattern || null;
   const proxyRules = typeof previewRules.proxyRefererOrigin === 'function'
@@ -208,6 +210,7 @@ function createStaticServer(siteDir, options = {}) {
   } catch (_) { /* ignore */ }
 
   return http.createServer((req, res) => {
+    req.__sdSourceOrigin = sourceOrigin;
     const handle = async () => {
       try {
         const u = new URL(req.url || '/', `http://${host}`);
@@ -423,6 +426,17 @@ function createStaticServer(siteDir, options = {}) {
           ) {
             return;
           }
+        }
+        const mirrorOrigin = !isMutating && isStaticAssetPath(reqUrl.pathname)
+          ? resolveMirrorOrigin(reqUrl.pathname)
+          : '';
+        if (
+          mirrorOrigin
+          && tryFallbackMissingAsset(req, res, mirrorOrigin, reqUrl.pathname, reqUrl.search, {
+            refererOrigin: sourceOrigin ? sourceOrigin.replace(/\/?$/, '/') : undefined
+          })
+        ) {
+          return;
         }
         if (
           sourceOrigin

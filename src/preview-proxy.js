@@ -1554,7 +1554,20 @@ function filterResponseHeaders(headers) {
     return out;
 }
 
+const LOCAL_ORIGIN_IN_TEXT_RE = /https?(?::|%3A)(?:\/\/|%2F%2F)(?:127\.0\.0\.1|localhost)(?:(?::|%3A)\d+)?/gi;
+
+/** 前端把 location.origin 拼进参数（如 kk 系列 domain=http://127.0.0.1:3533/activity），官方 WAF 见本地地址直接 403 */
+function replaceLocalOrigin(text, siteOrigin) {
+    if (!text || !siteOrigin) return text;
+    return String(text).replace(LOCAL_ORIGIN_IN_TEXT_RE, (m) => (/%3A/i.test(m) ? encodeURIComponent(siteOrigin) : siteOrigin));
+}
+
 function proxyRequest(req, res, target, refererOrigin, options = {}) {
+    const siteOrigin = String(req.__sdSourceOrigin || '').replace(/\/+$/, '');
+    if (siteOrigin && target.search) {
+        const search = replaceLocalOrigin(target.search, siteOrigin);
+        if (search !== target.search) target = new URL(target.pathname + search, target.origin);
+    }
     // 默认用目标站 origin 作 Referer（OSS/CDN 防盗链）；可显式传入
     const ref = refererOrigin || (target.origin + '/');
     const headers = copyRequestHeaders(req, ref, options);
@@ -1574,6 +1587,16 @@ function proxyRequest(req, res, target, refererOrigin, options = {}) {
                 req.on('end', () => resolve(Buffer.concat(chunks)));
                 req.on('error', reject);
             });
+            const ct = String(req.headers['content-type'] || '');
+            if (siteOrigin && body.length && body.length < 1024 * 1024 && /json|x-www-form-urlencoded|text\//i.test(ct)) {
+                const raw = body.toString('utf8');
+                const replaced = replaceLocalOrigin(raw, siteOrigin);
+                if (replaced !== raw) {
+                    body = Buffer.from(replaced, 'utf8');
+                    headers['Content-Length'] = String(body.length);
+                    delete headers['content-length'];
+                }
+            }
         }
 
         const guestFirst = /\/api\/active\/(?:categoryV2|category|getByTemplate|isShowV2|get|tasks\/task|tasks\/vitality\/boxs|returnGold\/summary\/v3|returnGold\/ratiotable|cutADeal\/list)$|\/api\/active\/turntable\//i.test(
