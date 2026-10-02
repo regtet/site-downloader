@@ -278,6 +278,9 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
       return labels.length > 2 ? labels.slice(1).join('.') : labels.join('.');
     } catch (e) { return ''; }
   })();
+  var SOURCE_PROTOCOL = (function () {
+    try { return new URL(SOURCE_ORIGIN).protocol; } catch (e) { return 'https:'; }
+  })();
   var LOCAL_HOST_TAILS = (function () {
     var labels = location.hostname.toLowerCase().split('.');
     var out = [labels.join('.')];
@@ -296,10 +299,34 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
       if (host.length <= tail.length + 1 || host.slice(-(tail.length + 1)) !== '.' + tail) continue;
       var sub = host.slice(0, host.length - tail.length - 1);
       if (!/^[a-z][a-z0-9-]*$/.test(sub)) continue;
-      return (m[1] || location.protocol) + '//' + sub + '.' + SOURCE_HOST_TAIL + m[3];
+      // 前端用 location.protocol 拼出的 http: 在官方是 https:；前端自己写死 https: 的保持
+      var proto = (m[1] === 'https:' || SOURCE_PROTOCOL === 'https:') ? 'https:' : 'http:';
+      return proto + '//' + sub + '.' + SOURCE_HOST_TAIL + m[3];
     }
     return str;
   }
+
+  // axios 1.x 发请求前先 new URL(baseURL+url) 判同源，client.127.0.0.1:port 这类推算地址会在这里抛 Invalid URL
+  (function patchUrlCtor() {
+    var NativeURL = window.URL;
+    if (typeof NativeURL !== 'function' || NativeURL.__sdPatched) return;
+    function SdURL(u, b) {
+      try {
+        return arguments.length > 1 ? new NativeURL(u, b) : new NativeURL(u);
+      } catch (e) {
+        var fixed = typeof u === 'string' ? fixDerivedHost(u) : u;
+        if (fixed === u) throw e;
+        return arguments.length > 1 ? new NativeURL(fixed, b) : new NativeURL(fixed);
+      }
+    }
+    SdURL.prototype = NativeURL.prototype;
+    Object.getOwnPropertyNames(NativeURL).forEach(function (k) {
+      if (k in SdURL) return;
+      try { SdURL[k] = NativeURL[k]; } catch (e) {}
+    });
+    SdURL.__sdPatched = true;
+    try { window.URL = SdURL; } catch (e) {}
+  })();
 
   function absUrl(input) {
     try {

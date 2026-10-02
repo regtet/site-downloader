@@ -81,6 +81,26 @@ function upstreamHint(req, hostPattern) {
   }
 }
 
+/**
+ * 源站的 API 子域（如 client.<站点>，前端按 location.host 推算），短 path 回源到它。
+ * 源站主机本身和 www. 不算：aniw 大厅打主站的 /api/lobby 要走下面的 /hall 改写。
+ */
+function sameSiteUpstream(req, sourceOrigin) {
+  try {
+    const u = new URL(rawUpstreamHeader(req));
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';
+    const sourceHost = new URL(sourceOrigin).hostname.toLowerCase();
+    const labels = sourceHost.split('.');
+    const tail = labels.length > 2 ? labels.slice(1).join('.') : labels.join('.');
+    const h = u.hostname.toLowerCase();
+    if (!tail || h === sourceHost || h === `www.${tail}` || !h.endsWith(`.${tail}`)) return '';
+    if (/^(aniw|oniw)\d*\./i.test(h)) return '';
+    return u.origin;
+  } catch (_) {
+    return '';
+  }
+}
+
 /** 本地 wgame 登录会话不能原样带给真实 HTTP 上游，否则会 TOKEN_EXPIRED(-1) */
 function shouldStripAuth(req, adapterCfg) {
   try {
@@ -291,7 +311,7 @@ function createStaticServer(siteDir, options = {}) {
           }
         }
         // 短 path 回源：浏览器请求 /ipacdn.txt?t= ，原始主机在 x-sd-upstream
-        const hinted = hallChain ? upstreamHint(req, hintPattern) : '';
+        const hinted = (hallChain ? upstreamHint(req, hintPattern) : '') || sameSiteUpstream(req, sourceOrigin);
         let hintHost = '';
         try { hintHost = hinted ? new URL(hinted).hostname : ''; } catch (_) { /* ignore */ }
         const hintIsOss = /^oniw\d*\./i.test(hintHost);
