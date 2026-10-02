@@ -267,12 +267,46 @@ function buildBootScript(sourceOrigin, adapterHostsOrCfg) {
     try { API_HOST_REGS.push(new RegExp(String(API_HOST_PATTERNS[pi]), 'i')); } catch (e) {}
   }
 
+  /**
+   * 前端按 location.hostname 推算子域 API（t3：首段换成 api，br.t3-pedra.com → api.t3-pedra.com）。
+   * 在 127.0.0.1 上会得到 api.0.0.1（末段为数字按 IPv4 解析，new URL / xhr.open 直接 Invalid URL），
+   * 按源站同规则换回：<子域>.<源站去首段，两段域名则整段>
+   */
+  var SOURCE_HOST_TAIL = (function () {
+    try {
+      var labels = new URL(SOURCE_ORIGIN).hostname.toLowerCase().split('.');
+      return labels.length > 2 ? labels.slice(1).join('.') : labels.join('.');
+    } catch (e) { return ''; }
+  })();
+  var LOCAL_HOST_TAILS = (function () {
+    var labels = location.hostname.toLowerCase().split('.');
+    var out = [labels.join('.')];
+    if (labels.length > 2) out.push(labels.slice(1).join('.'));
+    return out;
+  })();
+
+  function fixDerivedHost(str) {
+    if (!SOURCE_HOST_TAIL || typeof str !== 'string') return str;
+    var m = /^(https?:)?\\/\\/([^\\/?#]+)([\\s\\S]*)$/i.exec(str);
+    if (!m) return str;
+    var host = m[2].split(':')[0].toLowerCase();
+    if (host === location.hostname.toLowerCase()) return str;
+    for (var i = 0; i < LOCAL_HOST_TAILS.length; i++) {
+      var tail = LOCAL_HOST_TAILS[i];
+      if (host.length <= tail.length + 1 || host.slice(-(tail.length + 1)) !== '.' + tail) continue;
+      var sub = host.slice(0, host.length - tail.length - 1);
+      if (!/^[a-z][a-z0-9-]*$/.test(sub)) continue;
+      return (m[1] || location.protocol) + '//' + sub + '.' + SOURCE_HOST_TAIL + m[3];
+    }
+    return str;
+  }
+
   function absUrl(input) {
     try {
-      if (typeof input === 'string') return new URL(input, location.href).href;
+      if (typeof input === 'string') return new URL(fixDerivedHost(input), location.href).href;
       if (typeof URL !== 'undefined' && input instanceof URL) return input.href;
       if (input && typeof input.href === 'string' && typeof input.hostname === 'string') return String(input.href);
-      if (input && typeof input.url === 'string') return new URL(input.url, location.href).href;
+      if (input && typeof input.url === 'string') return new URL(fixDerivedHost(input.url), location.href).href;
     } catch (e) {}
     return null;
   }
