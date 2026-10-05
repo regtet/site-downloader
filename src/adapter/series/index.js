@@ -5,19 +5,19 @@ const fa = require('./fa');
 const zg = require('./zg');
 
 const SERIES = {
-  'aniw-lobby': aniwLobby,
-  'hms-platform': hmsPlatform,
-  boi,
-  fa,
-  zg
+    'aniw-lobby': aniwLobby,
+    'hms-platform': hmsPlatform,
+    boi,
+    fa,
+    zg
 };
 
 function getSeries(id) {
-  const key = String(id || 'aniw-lobby');
-  return SERIES[key] || null;
+    const key = String(id || 'aniw-lobby');
+    return SERIES[key] || null;
 }
 
 module.exports = {
-  SERIES,
-  getSeries
+    SERIES,
+    getSeries
 };
