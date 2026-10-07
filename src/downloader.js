@@ -4,8 +4,22 @@ const path = require('path');
 const http = require('http');
 const https = require('https');
 const zlib = require('zlib');
-const { applySystemProxy } = require('./system-proxy');
+const { applySystemProxy, getHttpsProxyAgent } = require('./system-proxy');
 applySystemProxy({ log: false });
+
+function envProxyUrl() {
+  return process.env.HTTPS_PROXY || process.env.https_proxy
+    || process.env.HTTP_PROXY || process.env.http_proxy || '';
+}
+
+function isLocalHost(url) {
+  try {
+    const h = new URL(url).hostname;
+    return h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '[::1]';
+  } catch (_) {
+    return false;
+  }
+}
 
 const httpAgent = new http.Agent({ keepAlive: true, maxSockets: 16, maxFreeSockets: 8 });
 const httpsAgent = new https.Agent({
@@ -156,13 +170,23 @@ class Downloader {
     return false;
   }
 
-  async download(url, referer, options = {}) {
-    const maxRetries = options.maxRetries != null ? options.maxRetries : this.maxRetries;
+  routeConfig(url, route) {
+    if (route === 'direct') return { proxy: false };
+    // axios 0.27 对 https 走 HTTP 代理时发的是绝对 URL 转发，部分代理节点会直接 reset；改用 CONNECT 隧道，与浏览器一致
+    if (/^https:/i.test(url)) {
+      const agent = getHttpsProxyAgent();
+      if (agent) return { proxy: false, httpsAgent: agent };
+    }
+    return {};
+  }
+
+  async downloadVia(url, referer, options, route, maxRetries) {
     const retryStatuses = options.retryStatuses || [429, 502, 503, 504];
     let lastError = null;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         const response = await this.client.get(url, {
+          ...this.routeConfig(url, route),
           headers: {
             Referer: referer || url,
             Accept: '*/*',
@@ -201,8 +225,36 @@ class Downloader {
       headers: {},
       data: null,
       contentType: '',
-      error: lastError ? lastError.message : 'unknown error'
+      error: lastError ? lastError.message : 'unknown error',
+      networkError: !!lastError && isTransientNetworkError(lastError)
     };
+  }
+
+  async download(url, referer, options = {}) {
+    const maxRetries = options.maxRetries != null ? options.maxRetries : this.maxRetries;
+    if (!envProxyUrl() || isLocalHost(url)) {
+      const { networkError, ...res } = await this.downloadVia(url, referer, options, 'default', maxRetries);
+      return res;
+    }
+    let host = '';
+    try { host = new URL(url).host; } catch (_) {}
+    if (!this.directHosts) this.directHosts = new Set();
+    const order = this.directHosts.has(host) ? ['direct', 'proxy'] : ['proxy', 'direct'];
+    const first = await this.downloadVia(url, referer, options, order[0], maxRetries);
+    if (first.status || !first.networkError) {
+      const { networkError, ...res } = first;
+      return res;
+    }
+    const second = await this.downloadVia(url, referer, options, order[1], Math.min(1, maxRetries));
+    if (second.status) {
+      if (order[1] === 'direct') this.directHosts.add(host);
+      else this.directHosts.delete(host);
+      const { networkError, ...res } = second;
+      return res;
+    }
+    const { networkError, ...res } = first;
+    res.error = `${first.error}（代理与直连均失败: ${second.error}）`;
+    return res;
   }
 
   saveFile(filePath, buffer) {
