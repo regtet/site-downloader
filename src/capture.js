@@ -52,6 +52,39 @@ class Capture {
     });
   }
 
+  async readHtmlBody(response) {
+    try {
+      const ct = (response.headers()['content-type'] || '').toLowerCase();
+      if (!ct.includes('text/html')) return '';
+      const body = await response.text();
+      return body && body.length > 100 ? body : '';
+    } catch {
+      return '';
+    }
+  }
+
+  /**
+   * 桌面 UA 下首页是 PC 外壳（<iframe src="./index.html">，如 zg 系列 uni-app 站），
+   * 外壳和 iframe 页在本地都落到同一个 index.html，存外壳会让 iframe 套自己；改存 iframe 页。
+   */
+  async pickShellFrameDocument(mainHtml, mainUrl, frameDocs) {
+    if (!mainHtml || !mainUrl || !/<iframe[\s>]/i.test(mainHtml)) return null;
+    const indexKey = (u) => {
+      const x = new URL(u);
+      return x.origin + (x.pathname.endsWith('/') ? `${x.pathname}index.html` : x.pathname).toLowerCase();
+    };
+    let mainKey;
+    try { mainKey = indexKey(mainUrl); } catch { return null; }
+    for (const [frameUrl, bodyPromise] of frameDocs) {
+      let key;
+      try { key = indexKey(frameUrl); } catch { continue; }
+      if (key !== mainKey) continue;
+      const body = await bodyPromise;
+      if (body && body !== mainHtml) return { url: frameUrl, html: body };
+    }
+    return null;
+  }
+
   async captureDocumentHtml(response) {
     try {
       const request = response.request();
@@ -121,13 +154,19 @@ class Capture {
     const page = await context.newPage();
 
     let documentCapturePromise = null;
+    const frameDocs = new Map();
 
     page.on('response', (response) => {
       this.recordResponse(response);
       const request = response.request();
-      if (request.resourceType() === 'document' && !documentCapturePromise) {
+      if (request.resourceType() !== 'document') return;
+      if (!documentCapturePromise) {
         documentCapturePromise = this.captureDocumentHtml(response);
+        return;
       }
+      let isSubFrame = false;
+      try { isSubFrame = request.frame() !== page.mainFrame(); } catch {}
+      if (isSubFrame && !frameDocs.has(response.url())) frameDocs.set(response.url(), this.readHtmlBody(response));
     });
 
     let pageError = null;
@@ -202,11 +241,18 @@ class Capture {
       runtimeAssets = [];
     }
 
+    const shellFrame = await this.pickShellFrameDocument(this.documentHtml, this.documentUrl || url, frameDocs);
+
     await browser.close();
     this._browser = null;
 
-    const htmlSource = this.documentHtml ? 'document-response' : (fallbackHtml ? 'page-content-fallback' : 'empty');
-    const html = this.documentHtml || fallbackHtml;
+    let htmlSource = this.documentHtml ? 'document-response' : (fallbackHtml ? 'page-content-fallback' : 'empty');
+    let html = this.documentHtml || fallbackHtml;
+    if (shellFrame) {
+      if (options.onLog) options.onLog(`首页是 PC 外壳（iframe → ${shellFrame.url}），改存 iframe 页为 index.html`);
+      html = shellFrame.html;
+      htmlSource = 'pc-shell-iframe';
+    }
 
     // merge runtime assets into network-like entries so downstream treats them as discovered
     for (const assetUrl of runtimeAssets) {

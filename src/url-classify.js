@@ -36,6 +36,12 @@ function pathnameExt(url) {
   }
 }
 
+/** 后台上传目录挂在 /api 下（如 /api/uploads/xxx.png），这些扩展名按静态文件下载 */
+const API_PATH_MEDIA_EXTS = new Set([
+  '.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.svg', '.ico',
+  '.woff', '.woff2', '.ttf', '.otf', '.eot', '.mp4', '.webm'
+]);
+
 function isApiLike(resourceType, url) {
   if (resourceType === 'xhr' || resourceType === 'fetch') {
     const ext = pathnameExt(url);
@@ -44,7 +50,7 @@ function isApiLike(resourceType, url) {
   }
   try {
     const parsed = new URL(url);
-    if (parsed.pathname.includes('/api/')) return true;
+    if (parsed.pathname.includes('/api/')) return !API_PATH_MEDIA_EXTS.has(pathnameExt(url));
   } catch {
     return false;
   }

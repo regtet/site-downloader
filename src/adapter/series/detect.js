@@ -7,7 +7,7 @@ const path = require('path');
 const { SERIES } = require('./index');
 
 const DEFAULT_SERIES_ID = 'aniw-lobby';
-const DETECT_ORDER = ['hms-platform', 'boi', 'fa', 'zg', 'xm-cfg', 'aniw-lobby'];
+const DETECT_ORDER = ['hms-platform', 'boi', 'fa', 'zg', 'xm-cfg', 'zg-load', 'aniw-lobby'];
 
 function readJson(file) {
   try {

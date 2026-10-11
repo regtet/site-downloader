@@ -4,6 +4,7 @@ const boi = require('./boi');
 const fa = require('./fa');
 const zg = require('./zg');
 const xmCfg = require('./xm-cfg');
+const zgLoad = require('./zg-load');
 
 const SERIES = {
     'aniw-lobby': aniwLobby,
@@ -11,7 +12,8 @@ const SERIES = {
     boi,
     fa,
     zg,
-    'xm-cfg': xmCfg
+    'xm-cfg': xmCfg,
+    'zg-load': zgLoad
 };
 
 function getSeries(id) {
