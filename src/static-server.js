@@ -633,11 +633,25 @@ class StaticServer {
     }
 }
 
-function startEphemeralServer(siteDir, port = 3460) {
+function startEphemeralServer(siteDir, port = 3460, maxAttempts = 40) {
     return new Promise((resolve, reject) => {
-        const server = createStaticServer(siteDir, { port, host: '127.0.0.1', spaFallback: false });
-        server.on('error', reject);
-        server.listen(port, '127.0.0.1', () => resolve({ server, port }));
+        const tryListen = (p, left) => {
+            const server = createStaticServer(siteDir, { port: p, host: '127.0.0.1', spaFallback: false });
+            let listening = false;
+            server.on('error', (err) => {
+                if (listening) return;
+                if (err.code === 'EADDRINUSE' && left > 1) {
+                    tryListen(p + 1, left - 1);
+                    return;
+                }
+                reject(err);
+            });
+            server.listen(p, '127.0.0.1', () => {
+                listening = true;
+                resolve({ server, port: p });
+            });
+        };
+        tryListen(port, maxAttempts);
     });
 }
 

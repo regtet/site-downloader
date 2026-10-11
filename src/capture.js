@@ -85,6 +85,56 @@ class Capture {
     return null;
   }
 
+  async collectRuntimeAssets(page) {
+    try {
+      return await page.evaluate(() => {
+        const urls = new Set();
+        try {
+          for (const e of performance.getEntriesByType('resource')) {
+            if (e && e.name) urls.add(e.name);
+          }
+        } catch {}
+        try {
+          for (const link of document.querySelectorAll('link[href]')) {
+            if (link.href) urls.add(link.href);
+          }
+        } catch {}
+        try {
+          for (const sheet of document.styleSheets) {
+            if (sheet.href) urls.add(sheet.href);
+          }
+        } catch {}
+        try {
+          for (const s of document.querySelectorAll('script[src]')) {
+            if (s.src) urls.add(s.src);
+          }
+        } catch {}
+        return [...urls];
+      });
+    } catch {
+      return [];
+    }
+  }
+
+  /** SPA 列表常放在内部滚动容器里，window 和所有可滚动元素一起滚，触发懒加载图片 */
+  async scrollToBottom(page, steps = 8) {
+    for (let i = 0; i < steps; i++) {
+      try {
+        await page.evaluate(() => {
+          for (const el of document.querySelectorAll('*')) {
+            const s = getComputedStyle(el);
+            if (/(auto|scroll)/.test(s.overflowY) && el.scrollHeight > el.clientHeight + 10) el.scrollTop += 600;
+          }
+          window.scrollBy(0, 600);
+        });
+      } catch {
+        return;
+      }
+      await page.waitForTimeout(600);
+    }
+    try { await page.waitForLoadState('networkidle', { timeout: 2500 }); } catch {}
+  }
+
   async captureDocumentHtml(response) {
     try {
       const request = response.request();
@@ -211,37 +261,31 @@ class Capture {
       fallbackHtml = '';
     }
 
-    let runtimeAssets = [];
-    try {
-      runtimeAssets = await page.evaluate(() => {
-        const urls = new Set();
-        try {
-          for (const e of performance.getEntriesByType('resource')) {
-            if (e && e.name) urls.add(e.name);
-          }
-        } catch {}
-        try {
-          for (const link of document.querySelectorAll('link[href]')) {
-            if (link.href) urls.add(link.href);
-          }
-        } catch {}
-        try {
-          for (const sheet of document.styleSheets) {
-            if (sheet.href) urls.add(sheet.href);
-          }
-        } catch {}
-        try {
-          for (const s of document.querySelectorAll('script[src]')) {
-            if (s.src) urls.add(s.src);
-          }
-        } catch {}
-        return [...urls];
-      });
-    } catch {
-      runtimeAssets = [];
-    }
+    const runtimeAssetSet = new Set(await this.collectRuntimeAssets(page));
 
     const shellFrame = await this.pickShellFrameDocument(this.documentHtml, this.documentUrl || url, frameDocs);
+
+    const extraRoutes = typeof options.extraRoutes === 'function'
+      ? (options.extraRoutes(shellFrame ? shellFrame.html : (this.documentHtml || fallbackHtml)) || [])
+      : [];
+    for (const route of extraRoutes) {
+      if (this._aborted) break;
+      try {
+        const target = new URL(route, url);
+        new URL(url).searchParams.forEach((v, k) => {
+          if (!target.searchParams.has(k)) target.searchParams.set(k, v);
+        });
+        if (options.onLog) options.onLog(`额外页面: ${target.pathname}${target.search}`);
+        await page.goto(target.toString(), { waitUntil: this.waitUntil, timeout: this.timeout });
+        if (this.extraWait > 0) await page.waitForTimeout(this.extraWait);
+        try { await page.waitForLoadState('networkidle', { timeout: 2500 }); } catch {}
+        await this.scrollToBottom(page);
+        for (const u of await this.collectRuntimeAssets(page)) runtimeAssetSet.add(u);
+      } catch (err) {
+        if (options.onLog) options.onLog(`额外页面失败: ${route} ${err.message}`);
+      }
+    }
+    const runtimeAssets = [...runtimeAssetSet];
 
     await browser.close();
     this._browser = null;

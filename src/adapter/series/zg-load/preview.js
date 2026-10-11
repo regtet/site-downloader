@@ -10,6 +10,7 @@ function hasBootstrapLoad(html) {
 }
 
 module.exports = {
+  hasBootstrapLoad,
   hallChain: false,
   detect(ctx) {
     if (hasBootstrapLoad(ctx.html)) return true;

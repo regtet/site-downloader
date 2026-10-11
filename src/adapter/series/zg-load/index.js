@@ -13,6 +13,10 @@ module.exports = {
   CATALOG: {},
   MIGRATION_MAP: {},
   preview,
+  /** 活动列表图（/api/activityGroupList）只在 Promoções 页出现 */
+  captureRoutes(html) {
+    return preview.hasBootstrapLoad(html) ? ['/promotions'] : [];
+  },
   matchRoute() {
     return null;
   },

@@ -32,6 +32,19 @@ const {
   extractVersionQuery
 } = require('./skin-manifest');
 const { harvestFromLocalJsTree } = require('./asset-harvest');
+const { SERIES } = require('./adapter/series');
+
+/** 系列声明的抓取期额外路由（运营图只在子页面出现，首页抓不到） */
+function captureRoutesForHtml(html) {
+  const routes = new Set();
+  for (const series of Object.values(SERIES)) {
+    if (!series || typeof series.captureRoutes !== 'function') continue;
+    try {
+      for (const r of series.captureRoutes(html) || []) routes.add(String(r));
+    } catch (_) { /* ignore */ }
+  }
+  return [...routes];
+}
 
 class Pipeline {
   constructor(options = {}) {
@@ -276,15 +289,17 @@ class Pipeline {
 
     const hash = this.store.computeHash(result.data);
     const existingByHash = this.store.getLocalByHash(hash);
+    const naturalPath = lobbyAssetLocalPath(usedUrl) || lobbyAssetLocalPath(normalized)
+      ? lobbyAssetSavePath(usedUrl, result.contentType, this.store)
+      : this.store.urlToLocalPath(usedUrl, result.contentType);
     let localPath;
 
-    if (existingByHash) {
+    // 接口 JSON 里的图片地址运行时才拼出来，不经过改写，内容相同也得按原路径各存一份
+    if (existingByHash && (naturalPath === existingByHash || this.savedFiles.has(naturalPath))) {
       localPath = existingByHash;
       this.store.linkUrlToExisting(normalized, localPath);
     } else {
-      localPath = lobbyAssetLocalPath(usedUrl) || lobbyAssetLocalPath(normalized)
-        ? lobbyAssetSavePath(usedUrl, result.contentType, this.store)
-        : this.store.urlToLocalPath(usedUrl, result.contentType);
+      localPath = naturalPath;
       this.downloader.saveFile(path.join(this.outputDir, localPath), result.data);
       this.store.register(normalized, localPath, hash);
       this.store.register(usedUrl, localPath, hash);
@@ -551,7 +566,8 @@ class Pipeline {
     this.throwIfAborted();
     const capture = await this.capture.run(url, {
       multiPage: !!options.multiPage,
-      onLog: (msg) => this.onLog(msg)
+      onLog: (msg) => this.onLog(msg),
+      extraRoutes: captureRoutesForHtml
     });
     this.throwIfAborted();
 
