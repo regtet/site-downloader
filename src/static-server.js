@@ -11,6 +11,7 @@ const {
   isLikelySameOriginApiPath
 } = require('./preview-proxy');
 const { tryHandleAdapter } = require('./adapter');
+const { OP } = require('./adapter/ops');
 const { noteUnmapped, isApiPath } = require('./adapter/unmapped-log');
 const { loadAdapterConfig, isHallApiPath, isOssAssetPath } = require('./adapter/hosts');
 const { hasAdapterPack, inferOriginsFromNetwork, inferOssOriginFromHtml, inferSiteCodeFromSite } = require('./adapter/config');
@@ -252,7 +253,16 @@ function createStaticServer(siteDir, options = {}) {
 
       try {
         const u = new URL(req.url || '/', `http://${host}`);
-        if (adapterEnabled && isApiPath(u.pathname)) noteUnmapped(u.pathname, req.method);
+        const mapped = seriesInfo.series && typeof seriesInfo.series.matchRoute === 'function'
+          ? seriesInfo.series.matchRoute(u.pathname)
+          : null;
+        // UPSTREAM 也是 migration-map 中的显式处理策略，只是由后续回源链执行；
+        // 不要把它记录成“未映射”。
+        if (
+          adapterEnabled
+          && isApiPath(u.pathname)
+          && (!mapped || mapped.op !== OP.UPSTREAM)
+        ) noteUnmapped(u.pathname, req.method);
       } catch (_) { /* ignore */ }
 
       if (headerProxy && tryHandleProxy(req, res, sourceOrigin, bootCfg, proxyRules)) {

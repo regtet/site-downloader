@@ -11,7 +11,7 @@ const path = require('path');
 const { chromium } = require('playwright');
 const { getPlaywrightProxy, applySystemProxy } = require('./system-proxy');
 const { MIGRATION_MAP } = require('./adapter/series/aniw-lobby/migration-map');
-const { memberProfile } = require('./adapter/series/aniw-lobby/adapters');
+const { applyAdapter, memberProfile } = require('./adapter/series/aniw-lobby/adapters');
 
 applySystemProxy({ log: false });
 
@@ -29,7 +29,7 @@ const CRITICAL_FIELDS = {
   nickname: ['nickname', 'username'],
   avatar: ['portrait_id', 'avatar'],
   vip: ['vip_level'],
-  wallet: ['game_gold', 'totalGold', 'availableMargin'],
+  wallet: ['game_gold', 'totalGold'],
   rechargeInit: ['payList', 'list', 'channels', 'types', 'payType'],
   loginConfig: ['session_key', 'jwt_token', 'token', 'user_id', 'userid', 'userkey']
 };
@@ -454,13 +454,31 @@ function decideStatus(row, sourceRow, localRow) {
   const srcKeys = new Set((sourceRow && sourceRow.dataKeys) || []);
   const locKeys = new Set((localRow.dataKeys) || []);
   const criticalKinds = [];
-  if (/user\/info|login|getfastlogin/.test(row.pathname)) criticalKinds.push('nickname', 'avatar', 'vip', 'loginConfig');
+  const lowerPath = String(row.pathname || '').toLowerCase();
+  if (/^\/api\/member\/(login|getfastlogin|user\/info)$/.test(lowerPath)) {
+    criticalKinds.push('nickname', 'avatar', 'vip', 'loginConfig');
+  }
   if (/gold|refreshgold|getplatformbalance/.test(row.pathname)) criticalKinds.push('wallet');
-  if (/paylist|paytype|getpaychannel|payplatform/.test(row.pathname)) criticalKinds.push('rechargeInit');
 
   const missing = [];
   for (const kind of criticalKinds) {
     for (const f of missingCritical(kind, localRow.data)) missing.push(`${kind}:${f}`);
+  }
+  if (/^\/api\/member\/v2\/user\/info$/.test(lowerPath)) {
+    for (const f of ['basic', 'profile', 'kycInfo']) {
+      if (!localRow.data || localRow.data[f] == null) missing.push(`v2Profile:${f}`);
+    }
+  }
+  if (/paylist/i.test(lowerPath) && (!localRow.data || !Array.isArray(localRow.data.list))) {
+    missing.push('rechargeInit:list');
+  }
+  if (/paytypesetting/i.test(lowerPath)) {
+    if (!localRow.data || !Array.isArray(localRow.data.payTypeList)) missing.push('rechargeInit:payTypeList');
+  } else if (/paytype/i.test(lowerPath)) {
+    if (!localRow.data || !localRow.data.payKind) missing.push('rechargeInit:payKind');
+  }
+  if (/getpaychannel|payplatform/i.test(lowerPath) && (!localRow.data || !Array.isArray(localRow.data.list))) {
+    missing.push('rechargeInit:list');
   }
 
   // 源站有、本地完全没有的关键 key
@@ -712,15 +730,24 @@ function analyzeFromDistScan(siteDir) {
       const mapped = lookupMigration(e.pathname);
       let data = null;
       let dataKeys = [];
-      if (mapped && mapped.adapter === 'memberProfile') {
-        data = memberProfile({
-          account: 'u', session: 's', userId: 1, game_gold: 10,
-          nickname: 'n', vip_level: 0, face_id: 1
-        });
-        dataKeys = Object.keys(data || {});
-      } else if (mapped && mapped.adapter === 'walletGold') {
-        data = { game_gold: 10, totalGold: 10, availableMargin: 10 };
-        dataKeys = Object.keys(data);
+      if (mapped && mapped.op !== 'upstream.passthrough') {
+        const providerData = {
+          account: 'u', session: 's', session_key: 's', token: 's',
+          userId: 1, userid: 1, user_id: 1, userkey: 's', game_gold: 10,
+          totalGold: 10, availableMargin: 10, nickname: 'n', vip_level: 0, face_id: 1
+        };
+        if (/paytypesetting/i.test(e.pathname)) {
+          providerData.payTypeList = [];
+          providerData.paymentMode = 0;
+        }
+        try {
+          const adapted = applyAdapter(mapped.adapter, { ok: true, data: providerData }, {
+            routePath: e.pathname,
+            body: {}
+          });
+          data = adapted && adapted.data;
+          dataKeys = data && typeof data === 'object' ? Object.keys(data) : [];
+        } catch (_) { /* report mapping without inferred fields */ }
       }
       return {
         ...e,
@@ -736,37 +763,31 @@ function analyzeFromDistScan(siteDir) {
   report.mode = 'static-dist-scan';
   report.warning = '未提供实网登录抓包：本表来自 dist JS 静态扫描 + migration-map 推断。请用账号跑实网对比以确认「字段缺失/结构不兼容」。';
 
-  // 静态模式补充：已映射但仍会导致已知页面异常的结论
+  // 静态模式只能确认路由/形状；下面列出仍需真实账号或业务后端才能验证的边界。
   report.knownGapsWithoutLiveCapture = [
     {
-      api: '/api/member/login | getFastLogin | user/info',
-      status: STATUS.MISSING_FIELDS,
-      symptom: '个人中心昵称/头像异常',
-      reason: 'Adapter 只映射 wgame 有的 nickname/face_id；目标站头像常依赖 avatars 列表或 CDN URL，且部分 UI 读非 username 的展示名规则'
+      api: '/api/member/login | register',
+      status: STATUS.REPLACED_OK,
+      symptom: '仍需当前 wgame_web 环境的有效账号做实网验证',
+      reason: '静态审计已通过；账号、风控和服务器错误只能由实网响应确认'
     },
     {
-      api: '/api/member/user/avatars',
-      status: STATUS.NOT_REPLACED,
-      symptom: '头像异常',
-      reason: '未进 migration-map'
+      api: '/api/active/blindBox/* | receive* | turntable mutations',
+      status: STATUS.INCOMPATIBLE,
+      symptom: '官方活动入口关闭，领取/开盒操作明确提示不支持',
+      reason: 'WGame 没有对应活动引擎；禁止伪造奖励或成功结果'
     },
     {
-      api: '/api/member/user/vip* /vipInfoV2 /active/allVipLevel',
-      status: STATUS.NOT_REPLACED,
-      symptom: 'VIP 异常',
-      reason: '未进 migration-map；仅有登录包 vip_level 不够撑 VIP 页'
+      api: '/api/agent/credit/* 写操作',
+      status: STATUS.INCOMPATIBLE,
+      symptom: '创建下级、调额、转账等按钮不可执行',
+      reason: 'WGame 只提供代理统计/邀请能力，没有信用代理资金写接口'
     },
     {
-      api: '/api/finance/pay/payList* /payType* /getPayChannel /maxChargeRate',
-      status: STATUS.NOT_REPLACED,
-      symptom: '充值页面无法正常显示 / 支付渠道异常',
-      reason: '整组未替换；本地 session 与 aniw 不互通时上游会鉴权失败或空数据'
-    },
-    {
-      api: '/api/finance/certify/withdraw*',
-      status: STATUS.NOT_REPLACED,
-      symptom: '提现/个人中心资金相关异常',
-      reason: '运行时已见 bridge unmapped；未进 map'
+      api: '/api/member/user/security/thirdUser/* | webauthn/*',
+      status: STATUS.INCOMPATIBLE,
+      symptom: '第三方绑定和 WebAuthn 功能关闭',
+      reason: 'WGame 没有等价凭据体系，不能透传官方账号操作'
     },
     {
       api: '/api/lobby/site/getSiteInfo 等',

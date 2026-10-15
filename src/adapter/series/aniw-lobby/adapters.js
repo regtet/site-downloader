@@ -252,8 +252,7 @@ function adaptEmptyList(providerResult) {
 }
 
 /**
- * 注册成功弹窗 registerPopupDlgInfo：必须是对象（content + buttons），
- * 若回 []，前端仍会打开弹窗但只剩标题（缺正文与 Baixar APP / Deposite agora）。
+ * 注册成功弹窗 registerPopupDlgInfo：保留对象契约；没有真实活动配置时返回关闭态。
  */
 function adaptRegisterPopup(providerResult) {
   if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
@@ -277,13 +276,12 @@ function adaptAppDownload(providerResult) {
 }
 
 /**
- * /api/active/tasks/task：必须是带 rules 的任务对象。
- * emptyRecords 会变成 {list:[]}，dist 的 taskSeries 队列 beforeOpen 直接 false，Diário 弹不起来。
+ * /api/active/tasks/task：保留带 rules 的任务对象契约；没有真实活动时 rules 为空。
  */
 function adaptTaskDetail(providerResult, ctx) {
   const { defaultTaskPayload } = require('../../providers/wgame/popup-config');
   const raw = providerResult && providerResult.data;
-  if (raw && typeof raw === 'object' && !Array.isArray(raw) && Array.isArray(raw.rules) && raw.rules.length) {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw) && Array.isArray(raw.rules)) {
     return envelope(raw);
   }
   const body = (ctx && ctx.body) || {};
@@ -577,7 +575,8 @@ function adaptVipInfoV2(providerResult) {
     vipUpLevelShowStatus: 0,
     receiveDeviceType: '',
     receiveDeviceLoginType: '',
-    taskCondition: ''
+    taskCondition: '',
+    serverTime: Math.floor(Date.now() / 1000)
   });
 }
 
@@ -634,29 +633,77 @@ function adaptPayPending(providerResult) {
 function adaptPayList(providerResult) {
   if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
   const d = providerResult.data || {};
+  const defaultCardIDTypeMap = {
+    ARS: [{ name: 'DNI', value: 29 }],
+    CLP: [{ name: 'ID', value: 12 }],
+    COP: [{ name: 'CC', value: 5 }],
+    PEN: [{ name: 'DNI', value: 0 }],
+    XOF: [{ name: 'IFU', value: 15 }]
+  };
+  const list = (Array.isArray(d.list) ? d.list : []).map((row, index) => {
+    const source = row || {};
+    const id = Number(source.id || source.paymentid || source.payplatformid) || (120000 + index);
+    return {
+      id,
+      name: source.name || source.payment_name || 'Depósito online',
+      icon: source.icon || source.iconUrl || '',
+      type: Number(source.type) || 1,
+      charge_rate: source.charge_rate != null ? String(source.charge_rate) : '',
+      maxPayName: source.maxPayName || '',
+      giftColor: source.giftColor || '',
+      list: Array.isArray(source.list) ? source.list : [],
+      payTypeCnt: Number(source.payTypeCnt) || 1,
+      weight: Number(source.weight) || 0,
+      payCurrency: Array.isArray(source.payCurrency)
+        ? source.payCurrency
+        : [source.payCurrency || 'BRL']
+    };
+  });
   return envelope(Object.assign({
-    cardIDTypeMap: {},
+    cardIDTypeMap: defaultCardIDTypeMap,
     checkCpfRule: 0,
     emailVerify: '',
     mobileVerify: '',
-    list: [],
+    list,
     pageChannelMode: 0,
     pageReduceMode: 0,
     pageRenderMode: 0,
     payTabConfig: '',
     sign_key: 'preview'
   }, d, {
+    cardIDTypeMap: d.cardIDTypeMap && Object.keys(d.cardIDTypeMap).length
+      ? d.cardIDTypeMap
+      : defaultCardIDTypeMap,
     sign_key: d.sign_key || 'preview',
-    list: Array.isArray(d.list) ? d.list : []
+    list
   }));
 }
 
 /** payTypeV4：data.payKind.list */
 function enrichPayTypeRow(row) {
-  const out = Object.assign({}, row || {});
+  const out = Object.assign({
+    payKind: 100,
+    payicon: '',
+    pay_prize: 0,
+    app_type: [null],
+    charge_rate: 0,
+    merge_status: 0,
+    min_per_money: '',
+    max_per_money: '',
+    min_recharge_limit: '',
+    max_recharge_limit: '',
+    weight: 0,
+    payment_type: '0',
+    iconUrl: '',
+    chargeRateConfig: { chargeRate: '', giftColor: '' },
+    giftColor: '',
+    customTag: '',
+    noChannelTopUp: 0
+  }, row || {});
   const name = out.pay_type_name || out.name || out.payment_name || 'PIX';
   out.pay_type_name = name;
   out.payment_name = out.payment_name || name;
+  out.payname = out.payname || name;
   out.name = out.name || name;
   const paymentid = Number(out.paymentid || out.payplatformid || out.id);
   const platform = Number(out.payplatformid || out.paymentid || out.id);
@@ -672,7 +719,19 @@ function adaptPayType(providerResult) {
   const raw = (d.payKind && Array.isArray(d.payKind.list))
     ? d.payKind.list
     : (Array.isArray(d.list) ? d.list : []);
-  const list = raw.map(enrichPayTypeRow);
+  const list = raw.map((row) => {
+    const out = enrichPayTypeRow(row);
+    out.app_type = Array.isArray(out.app_type) && out.app_type.length
+      ? out.app_type.map((item) => item == null ? 11 : Number(item) || 11)
+      : [11];
+    out.noChannelTopUp = Number(out.noChannelTopUp) || 0;
+    // payTypeV4 的官方行不包含分类层的别名字段。
+    delete out.id;
+    delete out.type;
+    delete out.name;
+    delete out.payment_name;
+    return out;
+  });
   const first = list[0] || {};
   const payKind = Object.assign({
     id: 0,
@@ -699,11 +758,21 @@ function adaptPayType(providerResult) {
 function normalizeRecommendListForUi(list) {
   if (!Array.isArray(list)) return [];
   return list.map((row) => {
-    if (row != null && typeof row === 'object' && !Array.isArray(row)) {
-      return row.amount != null ? row : row;
-    }
-    const amount = String(row != null ? row : '').trim();
-    return amount ? { amount } : null;
+    const source = row != null && typeof row === 'object' && !Array.isArray(row)
+      ? row
+      : { amount: row };
+    const amount = source.amount == null ? null : String(source.amount).trim();
+    if (amount === '') return null;
+    const bonusVal = Number(source.bonusVal != null ? source.bonusVal : source.give) || 0;
+    const chargeRateVal = Number(source.chargeRateVal != null ? source.chargeRateVal : source.firstChargeAward) || 0;
+    return {
+      amount,
+      bonus: source.bonus != null ? String(source.bonus) : '',
+      chargeRate: source.chargeRate != null ? String(source.chargeRate) : '',
+      bonusVal: String(bonusVal),
+      bonusScoreVal: String(Number(source.bonusScoreVal) || 0),
+      chargeRateVal: String(chargeRateVal)
+    };
   }).filter(Boolean);
 }
 
@@ -711,7 +780,49 @@ function adaptPayChannels(providerResult) {
   if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
   const d = providerResult.data || {};
   const list = Array.isArray(d.list) ? d.list.map((ch) => {
-    const row = enrichPayTypeRow(ch);
+    const row = enrichPayTypeRow(Object.assign({
+      channel_type: '',
+      channelCode: '',
+      specialCPFSwitch: 0,
+      channelTooltip: '',
+      moneybtns: null,
+      money_btns: [],
+      remark: '',
+      subtitle: '',
+      title: '',
+      min_recharge_limit: 0,
+      max_recharge_limit: 0,
+      app_type: 0,
+      slogan: '',
+      balance_switch: 0,
+      realNameSwitch: 0,
+      currencySign: 'R$',
+      payAddressSwitch: 0,
+      captchaSwitch: 0,
+      downloadUrl: { url: '', text: '' },
+      mobileSupport: 0,
+      emailSupport: 0,
+      chargeRateConfig: null,
+      feeRate: '0',
+      operators: null,
+      merchCode: '',
+      merch_agent_id: 0,
+      walletType: '',
+      moneyList: [],
+      chargeRateList: [],
+      deduceLimit: '0',
+      giftShowMode: 0,
+      recommendList: [],
+      cardIDType: 0,
+      cardIDSupport: 0,
+      cardIDSupportTrigger: '0'
+    }, ch));
+    row.channel_type = row.channel_type == null ? '' : String(row.channel_type);
+    row.payment_type = row.payment_type == null ? '0' : String(row.payment_type);
+    row.min_recharge_limit = Number(row.min_recharge_limit) || 0;
+    row.max_recharge_limit = Number(row.max_recharge_limit) || 0;
+    row.app_type = Number(row.app_type) || 0;
+    row.noChannelTopUp = Number(row.noChannelTopUp) || 0;
     if (Array.isArray(row.recommendList)) {
       row.recommendList = normalizeRecommendListForUi(row.recommendList);
     }
@@ -719,6 +830,14 @@ function adaptPayChannels(providerResult) {
     if (!row.payCurrency) row.payCurrency = 'BRL';
     if (row.openWay == null) row.openWay = 4;
     if (row.combineOpenWay == null) row.combineOpenWay = 0;
+    delete row._wgameUrl;
+    delete row._awardRate;
+    for (const key of [
+      'payKind', 'pay_prize', 'merge_status', 'min_per_money', 'max_per_money',
+      'iconUrl', 'customTag', 'noChannelTopUp', 'paymentMethodId', 'channelId',
+      'channlName', 'orderEffectiveTime', 'pay_type_name', 'payment_name',
+      'payname', 'name', 'url', 'combineOpenWay'
+    ]) delete row[key];
     return row;
   }) : [];
   const first = list[0] || {};
@@ -732,7 +851,16 @@ function adaptPayChannels(providerResult) {
   const min = Number(d.min != null ? d.min : (first.min_recharge_limit != null ? first.min_recharge_limit : 0));
   const max = Number(d.max != null ? d.max : (first.max_recharge_limit != null ? first.max_recharge_limit : 0));
   const channelIds = list.map((row) => Number(row.id || row.payplatformid)).filter(Number.isFinite);
-  return envelope(Object.assign({
+  const calculateChildList = list.map((row) => ({
+    id: Number(row.id || row.payplatformid) || 0,
+    payKind: Number(row.payKind) || 0,
+    OriginMoneyList: (row.recommendList || []).length ? [null] : [],
+    moneyList: [],
+    chargeRateList: [],
+    deduceLimit: '0',
+    channelMerge: Number(row.merge_status) || 0
+  }));
+  const out = Object.assign({
     type: 1,
     name: 'Depósito online',
     payline_type: 1,
@@ -761,7 +889,7 @@ function adaptPayChannels(providerResult) {
       deduceLimit: '0',
       calculateByChildMoneyList: true,
       calculateByChildChargeRate: true,
-      calculateChildList: []
+      calculateChildList
     },
     channelAllocDimension: 1
   }, d, {
@@ -774,19 +902,27 @@ function adaptPayChannels(providerResult) {
     sign_key: d.sign_key || '',
     paymentid: Number.isFinite(paymentid) ? paymentid : 0,
     payplatformid: Number.isFinite(platform) ? platform : 0,
-    payment_ids: list.map((row) => row.payplatformid).filter((id) => id != null && id !== '').join(','),
+    payment_ids: Array.isArray(d.payment_ids)
+      ? JSON.stringify(d.payment_ids)
+      : (typeof d.payment_ids === 'string' && /^\s*\[/.test(d.payment_ids)
+        ? d.payment_ids
+        : JSON.stringify(channelIds)),
     payCurrency: d.payCurrency || first.payCurrency || 'BRL',
     openWay: d.openWay != null ? d.openWay : (first.openWay != null ? first.openWay : 4),
-    combineOpenWay: d.combineOpenWay != null ? d.combineOpenWay : 0,
+    combineOpenWay: d.combineOpenWay != null ? d.combineOpenWay : 4,
     channelIds: Array.isArray(d.channelIds) ? d.channelIds : channelIds
-  }));
+  });
+  for (const key of ['vipAddRate', '_shopItemCount', 'sign_key', 'payplatformid', 'payCurrency', 'openWay']) {
+    delete out[key];
+  }
+  return envelope(out);
 }
 
-/** payInfos：证件/卡列表（可空数组） */
+/** payInfos：官方无已存支付信息时 data=null。 */
 function adaptPayInfos(providerResult) {
   if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
   const d = providerResult.data;
-  return envelope(Array.isArray(d) ? d : []);
+  return envelope(Array.isArray(d) && d.length ? d : null);
 }
 
 /** offlineOrder：二维码/跳转下单结果 */
@@ -856,6 +992,10 @@ function adaptAgentBlob(providerResult, meta) {
   if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
   const d = providerResult.data;
   const route = String((meta && meta.routePath) || '');
+  if (/commissionMarquee/i.test(route)) {
+    if (Array.isArray(d)) return envelope(d);
+    return envelope(Array.isArray(d && d.commissionMarquee) ? d.commissionMarquee : []);
+  }
   if (/userAgentMode$/.test(route)) {
     const src = d && typeof d === 'object' ? d : {};
     return envelope({
@@ -889,7 +1029,29 @@ function adaptAgentBlob(providerResult, meta) {
       isAgent: !!src.isAgent
     });
   }
-  if (/agentCommission|myCommission/i.test(route)) {
+  // 佣金列表页使用分页加载器，必须保留 list/total；缺少 total 时组件会持续触发 loading。
+  if (/report\/(?:reward\/)?myCommission(?:V2)?$/i.test(route)) {
+    const src = d && typeof d === 'object' ? d : {};
+    const direct = Number(src.totalDirectCommission != null ? src.totalDirectCommission : src.lv1Bonus) || 0;
+    const other = Number(src.totalOtherCommission != null ? src.totalOtherCommission : ((Number(src.lv2Bonus) || 0) + (Number(src.lv3Bonus) || 0))) || 0;
+    const totalCommission = Number(src.totalCommission != null ? src.totalCommission : (direct + other)) || 0;
+    const list = Array.isArray(src.list) ? src.list : [];
+    return envelope({
+      list,
+      records: Array.isArray(src.records) ? src.records : list,
+      total: Number(src.total != null ? src.total : list.length) || 0,
+      totalRecords: Number(src.totalRecords != null ? src.totalRecords : (src.total != null ? src.total : list.length)) || 0,
+      totalCommission,
+      totalDirectCommission: direct,
+      totalOtherCommission: other,
+      directNum: Number(src.directNum != null ? src.directNum : src.directMembers) || 0,
+      otherNum: Number(src.otherNum != null ? src.otherNum : src.otherMembers) || 0,
+      settleDuration: Number(src.settleDuration) || 1,
+      settleDurationDays: Number(src.settleDurationDays) || 1,
+      nextSettleTime: src.nextSettleTime != null ? Number(src.nextSettleTime) : null
+    });
+  }
+  if (/agentCommission/i.test(route)) {
     const src = d && typeof d === 'object' ? d : {};
     const direct = Number(src.totalDirectCommission != null ? src.totalDirectCommission : src.lv1Bonus) || 0;
     const other = Number(src.totalOtherCommission != null ? src.totalOtherCommission : ((Number(src.lv2Bonus) || 0) + (Number(src.lv3Bonus) || 0))) || 0;
@@ -898,15 +1060,24 @@ function adaptAgentBlob(providerResult, meta) {
       canTakeCommission: Number(src.canTakeCommission != null ? src.canTakeCommission : total) || 0,
       takenCommission: Number(src.takenCommission) || 0,
       totalCommission: total,
-      totalDirectCommission: direct,
-      totalOtherCommission: other,
-      directPerformance: Number(src.directPerformanceYet != null ? src.directPerformanceYet : src.lv1Running) || 0,
       parentUserIdx: Number(src.parentUserIdx) || 0,
       parentUsername: src.parentUsername || '',
       agentLevel: Number(src.agentLevel) || 0,
       agentLevelName: src.agentLevelName || '',
       currency: src.currency || 'BRL',
       maxCommissionRateList: Array.isArray(src.maxCommissionRateList) ? src.maxCommissionRateList : []
+    });
+  }
+  if (/agentPromotion/.test(route)) {
+    const src = d && typeof d === 'object' ? d : {};
+    const links = Array.isArray(src.linkList) ? src.linkList.map((row) => ({
+      url: row && row.url ? String(row.url) : '',
+      select: !!(row && row.select)
+    })) : [];
+    return envelope({
+      directMember: Number(src.directMember) || 0,
+      linkList: links,
+      inviteCode: src.inviteCode != null ? String(src.inviteCode) : ''
     });
   }
   if (Array.isArray(d)) return envelope(d);
@@ -1151,15 +1322,81 @@ function adaptListAccount(providerResult) {
 function adaptAwardList(providerResult) {
   if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
   const d = providerResult.data || {};
-  const list = Array.isArray(d.list) ? d.list : [];
+  const list = Array.isArray(d.list) && d.list.length ? d.list : null;
   return envelope({
     totalReward: Number(d.totalReward) || 0,
     totalActivity: Number(d.totalActivity) || 0,
-    count: d.count != null ? Number(d.count) : list.length,
-    list,
-    redDotCount: d.redDotCount != null ? Number(d.redDotCount) : 0,
-    redDotAmount: d.redDotAmount != null ? Number(d.redDotAmount) : 0
+    redDotCount: Number(d.redDotCount) || 0,
+    redDotAmount: Number(d.redDotAmount) || 0,
+    count: d.count != null ? Number(d.count) : (list ? list.length : 0),
+    list
   });
+}
+
+/** 配置型接口的安全零态：保留官方形状、关闭不存在的 WGame 功能。 */
+function adaptOfficialZero(providerResult, meta) {
+  if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
+  const route = String((meta && meta.routePath) || '');
+  const data = providerResult.data && typeof providerResult.data === 'object'
+    ? providerResult.data
+    : {};
+  if (/active\/isShowV2/i.test(route)) {
+    return envelope(Object.assign({
+      activePageDisplayAction: 0, activePageDisplayLocation: 0, activePageDisplaySearch: 0,
+      activePageDisplayStyle: 0, activePageHideCategory: 0, activePageSort: '',
+      blindBoxConfig: null, blindBoxConfigV1: null, couponConfig: null,
+      disableReceiveAwardAll: 1, disableReceiveLogPop: 0, displayExpireReward: 0,
+      loanClosed: 1, loanConfig: [], newComerPopStyle: 0, pointConfig: null,
+      rechargeFundClosed: 1, rechargeFundConfig: [], rechargeFundName: '',
+      returnGoldClosed: 1, returnGoldConfig: [], shopConfig: null,
+      surpriseClosed: 1, surpriseConfig: [], svipConfig: null,
+      taskCompleteJumpStyle: 0, taskSetting: [], turntableConfig: null,
+      turntableConfigV1: null, turntableOpened: 0, unreceiveRewardListStyle: 0,
+      vipConfig: null, yueBaoConfig: {}
+    }, data));
+  }
+  if (/financeGiveReward/i.test(route)) return envelope({ activeList: [], autoActiveList: [] });
+  if (/newcomer_benefit_reward/i.test(route)) {
+    return envelope({ currency: 'BRL', list: [], siteCode: '', userLevel: '' });
+  }
+  if (/config\/sensitiveData/i.test(route)) {
+    return envelope({
+      agentLevelDisplaySwitch: 0, commissionEmulatorSwitch: 0, dataList: [],
+      inviteFriendNoDisplayAccountTypes: [], openPromoteRealName: 0,
+      pcAgentExportSwitch: 0, showName: 0, showType: 0
+    });
+  }
+  if (/config\/share/i.test(route)) {
+    return envelope({
+      currency: 'BRL', customizeImage: '', promoteIndexBarrageSwitch: '0',
+      promoteShareAdvertiseSwitch: '0', slogan: '', title: ''
+    });
+  }
+  if (/config\/introduce/i.test(route)) {
+    // 推广说明只用于展示配置。官方 OSS 不可达时返回可渲染零态，
+    // 避免 Promise 一直悬挂导致整个推广页保持 loading。
+    return envelope({ list: [] });
+  }
+  if (/getPromoteStrangerSetting/i.test(route)) {
+    return envelope({ conditionSettings: [], getStrangerIdRule: 0, id: 0, inviteType: [], isShow: false });
+  }
+  if (/getPublicityV3/i.test(route)) return envelope({ jointImage: '', publicityLogo: '' });
+  if (/isApplyOpen/i.test(route)) return envelope({ isApplyOpen: false });
+  if (/getWithdrawFeeSetting/i.test(route)) {
+    return envelope({ exemptWithdrawFeeTime: 0, todayExemptWithdrawFeeTime: 0 });
+  }
+  if (/gameVersion/i.test(route)) return envelope({ c: 0, g: 0, g0: 0, p: 0, p0: 0 });
+  if (/smsCountry/i.test(route)) {
+    const br = {
+      countryCode: 'BR', countryName: 'Brasil', countryPhonePrefix: '0', englishName: 'Brazil',
+      icon: '', id: 9, lang: 'pt', phoneLength: 11, phoneLengthScope: '10,11', phoneNumberSegment: '+55'
+    };
+    return envelope({ countryInfos: [br], defaultCountry: br, ipCheck: 0 });
+  }
+  if (/platformExchange\/findListAll/i.test(route)) {
+    return envelope({ platformCurrencyExchange: {}, memberIntoThirdLimit: {} });
+  }
+  return envelope({});
 }
 
 /** 官方可领取弹窗零态。没有奖励时列表为空，不写活动文案。 */
@@ -1340,7 +1577,8 @@ const ADAPTERS = {
   redDotEmpty: adaptRedDotEmpty,
   fingerprint: adaptFingerprint,
   listAccount: adaptListAccount,
-  featurePending: adaptFeaturePending
+  featurePending: adaptFeaturePending,
+  officialZero: adaptOfficialZero
 };
 
 function applyAdapter(adapterName, providerResult, meta) {

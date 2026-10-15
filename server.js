@@ -289,7 +289,12 @@ async function handleApi(req, res, pathname) {
             return;
         }
         try {
-            const result = migrateFromDist(distDir, { siteId: body.siteId });
+            // Web UI 明确承诺“按当前 wgame_web 替换接口”，因此每次点击都重新绑定。
+            // CLI/export 仍可不传该选项以保留既有站点快照。
+            const result = migrateFromDist(distDir, {
+              siteId: body.siteId,
+              rebindWgame: true
+            });
             invalidateAfterMigrate('migrate:' + result.siteId);
             sendJson(res, 200, {
                 ok: true,

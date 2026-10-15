@@ -178,7 +178,27 @@ async function main() {
   const page = await context.newPage();
   const bucket = [];
   const pageNotes = {};
+  const diagnostics = [];
+  let phase = 'boot';
+  const noteDiagnostic = (type, detail) => {
+    diagnostics.push({ phase, type, detail: String(detail || '').slice(0, 500) });
+    if (diagnostics.length > 200) diagnostics.shift();
+  };
+  page.on('pageerror', (err) => noteDiagnostic('pageerror', err && (err.stack || err.message || err)));
+  page.on('console', (msg) => {
+    if (msg.type() === 'error' || msg.type() === 'warning') {
+      noteDiagnostic('console.' + msg.type(), msg.text());
+    }
+  });
+  page.on('requestfailed', (req) => {
+    const failure = req.failure();
+    noteDiagnostic('requestfailed', `${req.method()} ${req.url()} ${(failure && failure.errorText) || ''}`);
+  });
+  page.on('response', (res) => {
+    if (res.status() >= 400) noteDiagnostic('http.' + res.status(), res.url());
+  });
   try {
+    phase = 'login';
     await page.goto(base + '/', { waitUntil: 'domcontentloaded', timeout: 60000 });
     await loginUi(page);
     await page.screenshot({ path: path.join(outDir, 'after-login.png') });
@@ -186,6 +206,7 @@ async function main() {
     pageNotes.login = logged;
     for (const route of routes) {
       try {
+        phase = 'route:' + route;
         await page.goto(base + route, { waitUntil: 'domcontentloaded', timeout: 45000 });
         await page.waitForTimeout(7000);
         await drain(page, bucket, route);
@@ -195,15 +216,62 @@ async function main() {
       }
     }
     try {
+      phase = 'deposit';
       await page.goto(base + '/', { waitUntil: 'domcontentloaded', timeout: 45000 });
+      // SPA 在 domcontentloaded 后才开始恢复登录态和渲染底部导航，过早点击会落到骨架屏或余额按钮。
+      await page.waitForFunction(() => {
+        const text = String(document.body && document.body.innerText || '');
+        return /Depósito|Depositar|Deposit|Recharge|充值/i.test(text);
+      }, { timeout: 15000 }).catch(() => {});
+      await page.waitForTimeout(1500);
       const depById = page.locator('#depositClick:visible');
-      const dep = (await depById.count())
-        ? depById.first()
-        : page.getByText('Depósito', { exact: true }).last();
-      if (await dep.count()) await dep.click({ timeout: 5000, force: true }).catch(() => {});
+      let depositClick = { clicked: false, strategy: 'none' };
+      if (await depById.count()) {
+        await depById.first().click({ timeout: 5000, force: true });
+        depositClick = { clicked: true, strategy: '#depositClick' };
+      } else {
+        // 不同皮肤会把文字放在 span/svg 里，getByText().last() 可能选中隐藏节点。
+        // 从可见的精确文字反向寻找最近的可点击容器，让事件正常冒泡到 Vue 处理器。
+        depositClick = await page.evaluate(() => {
+          const labels = ['Depósito', 'Depositar', 'Deposit', 'Recharge', '充值'];
+          const visible = (el) => {
+            const rect = el.getBoundingClientRect();
+            const style = getComputedStyle(el);
+            return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+          };
+          const leaf = Array.from(document.querySelectorAll('body *'))
+            .filter((el) => {
+              const text = String(el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+              return visible(el) && labels.some((label) => text.includes(label));
+            })
+            .sort((a, b) => {
+              const aText = String(a.innerText || a.textContent || '').trim();
+              const bText = String(b.innerText || b.textContent || '').trim();
+              return aText.length - bText.length || a.children.length - b.children.length;
+            })[0];
+          if (!leaf) return { clicked: false, strategy: 'visible-label-not-found' };
+          const clickable = leaf.closest('#depositClick,button,a,[role="button"],[data-sensors-click]') || leaf;
+          clickable.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+          return {
+            clicked: true,
+            strategy: 'visible-label',
+            tag: clickable.tagName,
+            id: clickable.id || ''
+          };
+        });
+        // 部分皮肤用伪元素/canvas 绘制顶部入口，DOM 中没有可检索文字。
+        if (!depositClick.clicked) {
+          const viewport = page.viewportSize();
+          if (viewport && viewport.width <= 640) {
+            await page.mouse.click(Math.round(viewport.width * 0.71), viewport.height - 28);
+            depositClick = { clicked: true, strategy: 'mobile-tabbar-coordinate' };
+          }
+        }
+      }
       await page.waitForTimeout(6000);
       await drain(page, bucket, 'deposit-dialog');
       await page.screenshot({ path: path.join(outDir, 'deposit-dialog.png') });
+      pageNotes['deposit-click'] = depositClick;
       pageNotes['deposit-dialog'] = await page.evaluate(
         () => (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 220)
       );
@@ -233,6 +301,7 @@ async function main() {
   const catalog = Object.values(byPath).sort((a, b) => a.path.localeCompare(b.path));
   fs.writeFileSync(path.join(outDir, 'catalog.json'), JSON.stringify(catalog, null, 2));
   fs.writeFileSync(path.join(outDir, 'pages.json'), JSON.stringify(pageNotes, null, 2));
+  fs.writeFileSync(path.join(outDir, 'diagnostics.json'), JSON.stringify(diagnostics, null, 2));
   console.log(JSON.stringify({
     base,
     login: pageNotes.login,

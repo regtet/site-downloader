@@ -1,8 +1,8 @@
 # site-downloader
 
-**Phase-1 目标：** 输入网站 URL → 输出可本地运行的 `dist/` → 自动对比源站效果。
+**目标：** 输入网站 URL → 下载完整前端包 → 自动对比源站效果 → 生成接入自有后端的部署包。
 
-不做：转 Vue、改业务代码、API 替换。
+工具不重写目标站 Vue/React 业务代码。第二步通过 Migration Bridge 做接口映射、响应结构适配、登录态与官方只读配置回源。
 
 ## 环境要求
 
@@ -23,6 +23,7 @@ npm start
 3. 等待：抓取 → 下载 → 路径改写 → **源站对比**
 4. 查看 `dist/<host>/diff.json` 与界面上的对比摘要
 5. 点击「本地预览」打开 dist
+6. 点击「替换接口」生成 `output/<siteId>/` 部署包；原始包会归档到 `input/<siteId>/`
 
 CLI 预览：
 
@@ -48,6 +49,31 @@ dist/example.com/
 ├── errors.json      # 失败资源（如有）
 └── ...              # 按原站路径保存的资源
 ```
+
+执行第二步后：
+
+```text
+input/<siteId>/                 # 原始下载包
+output/<siteId>/                # 可部署的接口替换包
+├── adapter-hosts.json          # 系列、回源与 WGame 冻结连接配置
+├── migration-manifest.json     # 映射清单与生成信息
+├── oss-game-list.json          # 构建时冻结的游戏目录
+└── ...                         # 官方 UI 静态资源
+```
+
+默认会保留该站点上次生成时的 WGame 环境快照，避免工作区切换分支后把已部署站点误绑到别的登录服或游戏域。确实需要重新绑定当前 WGame 环境时，显式设置 `WGAME_REBIND_ON_MIGRATE=1` 后再执行替换接口。
+
+## 回归验证
+
+```bash
+npm run verify-p0 -- 719win
+npm run verify-contract-fixtures
+node scripts/smoke-bridge-routes.js 719win
+node scripts/scan-dist-api-gaps.js 719win
+npm run verify-download-routing
+```
+
+`verify-p0` 默认不会创建外部账号。只有显式设置 `WGAME_REGISTER_PROBE=1` 才运行注册探针；实网登录验证通过 `WGAME_TEST_ACCOUNT` 和 `WGAME_TEST_PASSWORD` 临时传入。
 
 ## 默认策略
 

@@ -24,6 +24,25 @@ function kind(value) {
   return typeof value;
 }
 
+function shapeOf(value, depth) {
+  const level = depth || 0;
+  if (level > 5) return 'deep';
+  if (value == null) return null;
+  if (Array.isArray(value)) {
+    return {
+      type: 'array',
+      len: value.length,
+      item: value.length ? shapeOf(value[0], level + 1) : null
+    };
+  }
+  if (typeof value === 'object') {
+    const out = {};
+    for (const key of Object.keys(value)) out[key] = shapeOf(value[key], level + 1);
+    return out;
+  }
+  return typeof value;
+}
+
 function compareShape(expected, actual, at, out) {
   const leftKind = kind(expected);
   const rightKind = kind(actual);
@@ -82,7 +101,13 @@ function main() {
     }
   }
   contracts.sort((a, b) => b.differences.length - a.differences.length || a.path.localeCompare(b.path));
-  const breakingContracts = contracts.filter((row) => row.differences.some((diff) => diff.kind !== 'extra-field'));
+  // 官方样本有数据、本地测试账号为空列表时，只能说数据状态不同，不是契约破坏。
+  const dataDependentContracts = contracts.filter((row) =>
+    row.differences.some((diff) => diff.kind === 'empty-array')
+  );
+  const breakingContracts = contracts.filter((row) => row.differences.some((diff) =>
+    diff.kind !== 'extra-field' && diff.kind !== 'empty-array'
+  ));
   const additiveContracts = contracts.filter((row) => row.differences.every((diff) => diff.kind === 'extra-field'));
   const report = {
     generatedAt: new Date().toISOString(),
@@ -95,6 +120,7 @@ function main() {
     onlyLocal,
     mismatchedCount: contracts.length,
     breakingMismatchCount: breakingContracts.length,
+    dataDependentMismatchCount: dataDependentContracts.length,
     additiveOnlyCount: additiveContracts.length,
     contracts
   };
@@ -108,15 +134,20 @@ function main() {
     onlyLocal: onlyLocal.length,
     mismatched: contracts.length,
     breakingMismatches: breakingContracts.length,
+    dataDependentMismatches: dataDependentContracts.length,
     additiveOnly: additiveContracts.length,
     largest: contracts.slice(0, 15).map((row) => row.path + ' (' + row.differences.length + ')'),
     outputPath
   }, null, 2));
 }
 
-try {
-  main();
-} catch (err) {
-  console.error(err && err.stack || err);
-  process.exit(1);
+if (require.main === module) {
+  try {
+    main();
+  } catch (err) {
+    console.error(err && err.stack || err);
+    process.exit(1);
+  }
 }
+
+module.exports = { shapeOf, compareShape, kind };

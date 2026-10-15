@@ -1,7 +1,7 @@
 /**
- * 两步流程的第二步：归档原始包 + 按当前 wgame_web 生成接口适配部署包
+ * 两步流程的第二步：归档原始包 + 生成接口适配部署包
  *   input/<siteId>/  ← 从当前 dist 强制同步（官方 UI 壳）
- *   output/<siteId>/ ← 每次整目录重写，不复用旧部署包的 lobby/oss/会话
+ *   output/<siteId>/ ← 每次整目录重写，但默认保留该站点已绑定的 WGame 系列快照
  */
 const fs = require('fs');
 const path = require('path');
@@ -23,6 +23,57 @@ const SKIP_META = [
   'migration-manifest.json',
   '.source-meta.json'
 ];
+
+function deriveRealmFromLobby(lobbyGameUrl) {
+  try {
+    const host = new URL(String(lobbyGameUrl || '')).hostname.replace(/^www\./i, '');
+    if (!host) return null;
+    return {
+      wssUrl: 'wss://server.' + host,
+      loginHttpBase: 'https://login.' + host
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+function deriveLoginFromWss(wssUrl) {
+  try {
+    const u = new URL(String(wssUrl || '').replace(/^ws/i, 'http'));
+    const host = /^server\./i.test(u.hostname)
+      ? u.hostname.replace(/^server\./i, 'login.')
+      : 'login.' + u.hostname;
+    return 'https://' + host;
+  } catch (_) {
+    return '';
+  }
+}
+
+/** 输出包默认固定生产连接；测试连接仅用于 wgame_web 本身的开发调试。 */
+function normalizeWgameSnapshot(raw, source) {
+  const input = raw || {};
+  const lobbyRealm = deriveRealmFromLobby(input.lobbyGameUrl);
+  let wssUrl = input.wssUrl || '';
+  if (input.debug) {
+    wssUrl = input.baseWssUrl || (lobbyRealm && lobbyRealm.wssUrl) || wssUrl;
+  }
+  const loginHttpBase = input.debug
+    ? (deriveLoginFromWss(wssUrl) || (lobbyRealm && lobbyRealm.loginHttpBase) || input.loginHttpBase)
+    : (input.loginHttpBase || deriveLoginFromWss(wssUrl));
+  return {
+    root: input.webRoot || input.root || '',
+    branch: input.branch || '',
+    debug: false,
+    serverMode: 'production',
+    wssUrl,
+    loginHttpBase,
+    packageId: input.packageId,
+    lobbyGameUrl: input.lobbyGameUrl || '',
+    configMtime: input.mtime || input.configMtime || '',
+    connectionSource: source || 'current-wgame-web',
+    snapshottedAt: new Date().toISOString()
+  };
+}
 
 function promoteInput(srcDir, siteId, { force = false } = {}) {
   const id = toSiteId(siteId || srcDir);
@@ -52,7 +103,7 @@ function promoteInput(srcDir, siteId, { force = false } = {}) {
   return { siteId: id, inputDir: dest };
 }
 
-function exportMigrated(siteId) {
+function exportMigrated(siteId, opts = {}) {
   const id = toSiteId(siteId);
   const src = inputDir(id);
   const out = outputDir(id);
@@ -63,8 +114,8 @@ function exportMigrated(siteId) {
   }
 
   const { loadWgameWebConfig } = require('./adapter/providers/wgame/wgame-web-config');
-  const wgameWeb = loadWgameWebConfig();
-  if (!wgameWeb) {
+  const currentWgameWeb = loadWgameWebConfig();
+  if (!currentWgameWeb) {
     const err = new Error(
       '找不到 wgame_web（期望 ../wgame_web 或 WGAME_WEB_PATH）。替换接口必须按当前 wgame_web 配置生成。'
     );
@@ -72,14 +123,29 @@ function exportMigrated(siteId) {
     throw err;
   }
 
-  // 仅保留非 localhost 的 pay/agent 生产钩子；lobby/游戏映射不从旧包回灌
+  // 保留生产钩子和站点自己的 WGame 系列快照，避免重建时被当前开发分支串线。
   let preservedHosts = null;
+  let preservedGameList = null;
   const prevHostsPath = path.join(out, 'adapter-hosts.json');
+  const prevGameListPath = path.join(out, 'oss-game-list.json');
   if (fs.existsSync(prevHostsPath)) {
     try {
       preservedHosts = JSON.parse(fs.readFileSync(prevHostsPath, 'utf8'));
     } catch (_) { /* ignore */ }
   }
+  if (fs.existsSync(prevGameListPath)) {
+    try {
+      preservedGameList = JSON.parse(fs.readFileSync(prevGameListPath, 'utf8'));
+    } catch (_) { /* ignore */ }
+  }
+
+  const shouldRebind = opts.rebindWgame === true || process.env.WGAME_REBIND_ON_MIGRATE === '1';
+  const pinnedWgameWeb = !shouldRebind && preservedHosts && preservedHosts.wgameWeb;
+  const wgameWeb = pinnedWgameWeb || currentWgameWeb;
+  const wgameSnapshot = normalizeWgameSnapshot(
+    wgameWeb,
+    pinnedWgameWeb ? 'pinned-output' : 'current-wgame-web'
+  );
 
   emptyDir(out);
   copyRecursive(src, out, { skip: SKIP_META });
@@ -113,24 +179,26 @@ function exportMigrated(siteId) {
     provider: 'wgame',
     providerOptions: {
       mode: 'wgame',
-      fallbackMockOnIpLimit: true,
+      // 生产转换包绝不能在 WGame 注册失败时伪造本地成功，否则前端会弹出假成功提示，
+      // 后续登录、余额和代理接口又因远端没有该账号而全部异常。
+      fallbackMockOnIpLimit: false,
       pay: {
         enabled: true,
         source: 'wgame',
         allowPlaceholderFallback: false,
         createOrder: {
-          mode: 'http',
+          mode: 'wgame',
           useBuiltinMock: false,
-          httpUrl: 'http://127.0.0.1:3000/api/dev/mock-cashier/create',
+          httpUrl: '',
           httpMethod: 'POST'
         },
-        note: 'wgame charge first; fallback HTTP cashier at createOrder.httpUrl.'
+        note: 'Use WGame shopItemList/payCharge. Set PAY_HTTP_URL only for an explicit external cashier.'
       },
       agent: {
         enabled: true,
         source: 'wgame',
         useBuiltinMock: false,
-        httpBase: 'http://127.0.0.1:3000/api/dev/mock-agent',
+        httpBase: '',
         httpMethod: 'POST',
         routes: {
           agentMode: '/agentMode',
@@ -155,7 +223,7 @@ function exportMigrated(siteId) {
           memberInfo: '/memberInfo',
           bindingReport: '/bindingReport'
         },
-        note: 'HTTP agent at httpBase+routes; replace with your production agent API.'
+        note: 'Use WGame proxyStatistics/proxyUserList/proxySubBetConfig. Set AGENT_HTTP_BASE only for an explicit external agent API.'
       },
       game: {
         enabled: true,
@@ -187,25 +255,22 @@ function exportMigrated(siteId) {
     ossOrigin: inferred.ossOrigin || '',
     siteCode: siteCode || '',
     mapSize: Object.keys(MIGRATION_MAP).length,
-    wgameWeb: {
-      root: wgameWeb.webRoot,
-      branch: wgameWeb.branch,
-      debug: wgameWeb.debug,
-      serverMode: wgameWeb.serverMode,
-      wssUrl: wgameWeb.wssUrl,
-      loginHttpBase: wgameWeb.loginHttpBase,
-      packageId: wgameWeb.packageId,
-      lobbyGameUrl: wgameWeb.lobbyGameUrl || '',
-      configMtime: wgameWeb.mtime,
-      snapshottedAt: new Date().toISOString()
-    }
+    wgameWeb: wgameSnapshot
   };
   const { mergePreservedProductionHooks } = require('./production-hooks');
   mergePreservedProductionHooks(adapterHosts, preservedHosts);
   fs.writeFileSync(path.join(out, 'adapter-hosts.json'), JSON.stringify(adapterHosts, null, 2), 'utf8');
 
-  // 每次重建 oss 列表，禁止复用旧 output 里的 oss-game-list.json
-  try {
+  // 固定站点系列时同步保留其游戏映射；只有新站点或显式 rebind 才从当前 wgame_web 重建。
+  if (pinnedWgameWeb && preservedGameList && Array.isArray(preservedGameList.games)) {
+    preservedGameList.preservedAt = new Date().toISOString();
+    preservedGameList.connectionSource = 'pinned-output';
+    fs.writeFileSync(
+      path.join(out, 'oss-game-list.json'),
+      JSON.stringify(preservedGameList, null, 2),
+      'utf8'
+    );
+  } else try {
     const {
       buildOssGameListForSite,
       clearOssGameListCache
@@ -276,13 +341,13 @@ function exportMigrated(siteId) {
 /**
  * 从 dist 一键：同步到 input（覆盖）并生成 output
  * @param {string} distDir
- * @param {{ siteId?: string }} [opts]
+ * @param {{ siteId?: string, rebindWgame?: boolean }} [opts]
  */
 function migrateFromDist(distDir, opts = {}) {
   const src = path.resolve(distDir);
   const id = toSiteId(opts.siteId || src);
   const promoted = promoteInput(src, id, { force: true });
-  const exported = exportMigrated(promoted.siteId);
+  const exported = exportMigrated(promoted.siteId, opts);
   return {
     ...exported,
     sourceDist: src
@@ -326,5 +391,7 @@ module.exports = {
   outputDir,
   INPUT_ROOT,
   OUTPUT_ROOT,
-  ROOT
+  ROOT,
+  deriveRealmFromLobby,
+  normalizeWgameSnapshot
 };

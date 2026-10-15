@@ -31,6 +31,10 @@
     "verify-download-routing": "node scripts/verify-download-routing.js",
     "capture-api-shapes": "node scripts/capture-official-shapes.js",
     "compare-contract-shapes": "node scripts/compare-contract-shapes.js",
+    "verify-contract-fixtures": "node scripts/verify-contract-fixtures.js",
+    "audit-official-contract": "node scripts/audit-official-contract.js",
+    "smoke-bridge": "node scripts/smoke-bridge-routes.js",
+    "scan-api-gaps": "node scripts/scan-dist-api-gaps.js",
     "analyze-post-login": "node scripts/analyze-post-login.js"
   },
   "engines": {

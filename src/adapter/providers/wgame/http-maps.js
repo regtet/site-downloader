@@ -121,20 +121,25 @@ function mapWithdrawInfo({ enableRes, chRes, paywayRes, vipRes, defaultAccountId
       typeId: LOBBY_TYPE_PIX,
       withdrawType: wayId,
       withdrawTypeName: code,
+      addWithdrawTypeName: 'Adicionar ' + code,
+      cryptoCurrency: false,
+      currencyCode: 'BRL',
+      protocol: '',
       bindEnabled: true,
       accountLimit: 1,
+      accountLimitList: null,
       withdrawMax: maxAmount,
       withdrawMin: minAmount,
       normalWithdrawEnabled: true,
       walletWithdrawEnabled: false,
       deleteEnabled: true,
-      requiredSelectBank: false,
-      requiredIFSC: false,
+      withdrawalFeeRule: '',
+      requiredSelectBank: 0,
+      requiredIFSC: 0,
       subTypes: [code],
       logo: '',
       kindTips: '',
       addAccountKindTips: '',
-      options: [],
       withdrawMoneyRule: { formatAmounts: [], moneyType: 0 }
     };
   });
@@ -142,16 +147,16 @@ function mapWithdrawInfo({ enableRes, chRes, paywayRes, vipRes, defaultAccountId
   const withdrawType = {
     typeId: LOBBY_TYPE_PIX,
     typeName: 'PIX',
-    typeShowName: 'PIX',
-    addTypeName: 'PIX',
+    addTypeName: 'Adicionar PIX',
     withdrawMax: maxAmount,
     withdrawMin: minAmount,
+    cryptoCurrency: false,
     logo: '',
     subTypes: methods.map((m) => m.withdrawTypeName),
-    currencyCodes: [],
-    showKeyList: [],
+    currencyCodes: ['BRL'],
     withdrawMethod: methods,
-    withdrawMethods: methods
+    guideBadgeColor: 0,
+    guideBadge: ''
   };
 
   const channelById = new Map(channels.map((c) => [Number(c.wayId || c.id) || 0, c]));
@@ -190,25 +195,37 @@ function mapWithdrawInfo({ enableRes, chRes, paywayRes, vipRes, defaultAccountId
 
   return {
     accounts,
-    accountsV2: accounts,
+    accountsV2: null,
     cryptoList: [],
     withdrawTypes: [withdrawType],
-    withdrawTypesV2: [withdrawType],
-    withdrawTaskInfo: { pendingCount: 0 },
+    withdrawTypesV2: null,
+    tabSort: [{
+      tabName: 'Saque normal',
+      tabCode: 'normal',
+      tabIndex: 2,
+      awardConfig: null,
+      withdrawTaskInfo: { iconType: 1, status: false },
+      withdrawTypeIds: [1],
+      disableShowTab: null,
+      multilingualText: null
+    }],
+    tabSortV2: null,
+    withdrawTaskInfo: {
+      switch: false,
+      pendingCount: 0,
+      stats: {
+        needWithdrawAmount: 0,
+        withdrawTypeIdName: [],
+        withdrawTypeName: [],
+        withdrawTaskId: 0
+      }
+    },
     auditCancelStatus: 0,
-    auditCancelMode: 0,
-    cancelAmount: '0',
+    auditCancelMode: 1,
+    cancelAmount: '0.01',
     checkCpfRule: 0,
     pendingCount: 0,
     isEnableChannel: true,
-    enableWithdraw: setting.enableWithdraw,
-    withdrawable: setting.withdrawable,
-    available: setting.available,
-    lockGiveMoney: setting.lockGiveMoney,
-    curWageRequired: setting.curWageRequired,
-    needWageRequired: setting.needWageRequired,
-    minAmount,
-    maxAmount,
     withdrawMin: minAmount,
     withdrawMax: maxAmount,
     withdrawTimes: 0,
@@ -216,18 +233,18 @@ function mapWithdrawInfo({ enableRes, chRes, paywayRes, vipRes, defaultAccountId
     requireBet: Number(setting.needWageRequired) || 0,
     cpf: '',
     auditModeInfo: {
-      auditMode: 0,
-      withdrawResetBonus: 0,
-      bonusTransferInRule: 0,
-      bonus: '0',
-      bonusAvailable: '0',
-      bonusRequireBet: '0',
+      auditMode: 1,
+      withdrawResetBonus: 2,
+      bonusTransferInRule: 2,
+      bonus: '',
+      bonusAvailable: '',
+      bonusRequireBet: '',
       bonusTransferIn: false,
       withdrawNeedBet: false,
       undoneResetBonus: false
     },
     withdrawClose: {
-      channelSwitch: false,
+      channelSwitch: true,
       closeType: 0,
       dailyCycle: 0,
       startTime: 0,
@@ -236,10 +253,25 @@ function mapWithdrawInfo({ enableRes, chRes, paywayRes, vipRes, defaultAccountId
       closingTimes: 0,
       isEnableChannel: true
     },
-    fee: setting.fee || 0,
-    feeRate: setting.feeRate || 0,
-    channels,
-    list: channels
+    pinNumber: '',
+    pinNumberType: 0,
+    activeParticipation: 0,
+    withdrawToRechargePaySettingId: 0,
+    activeChargeRateMode: 0,
+    withdrawalPagePopup: {
+      popType: 0,
+      intervalDays: 7,
+      popMode: 1,
+      popScene: [1],
+      lang: 'pt',
+      title: '',
+      content: ''
+    },
+    maxChargeRate: '0',
+    withdrawTabDisplayType: 0,
+    discourageInfo: { amount: '0', status: false, currency: '' },
+    withdrawToRechargeAmountLimit: null,
+    withdrawToRechargeKindTip: ''
   };
 }
 
@@ -333,6 +365,14 @@ function mapProxyStatistics(res) {
   const directMembers = count('lv1PersonCount');
   const otherMembers = count('lv2PersonCount') + count('lv3PersonCount');
   return {
+    // aniw 佣金列表是分页接口；即使 WGame 仅提供聚合统计，也必须明确结束分页。
+    list: [],
+    records: [],
+    total: 0,
+    totalRecords: 0,
+    settleDuration: 1,
+    settleDurationDays: 1,
+    nextSettleTime: null,
     totalDeposit: money('totalDeposit'),
     totalWithdraw: money('totalWithdraw'),
     totalTax: money('totalTax'),

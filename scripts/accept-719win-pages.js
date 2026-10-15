@@ -60,9 +60,9 @@ function routes() {
   const getRow = matchRoute('/api/active/get');
   assert(getRow && getRow.op === 'upstream.passthrough', 'active/get upstream');
   const credit = matchRoute('/api/agent/credit/agentCenter/indexInfoV2');
-  assert(credit && credit.path === '/api/agent/promote/index/indexInfoV2', 'credit index alias');
+  assert(credit && credit.op === 'agent.index' && credit.adapter === 'agentBlob', 'credit index route');
   const comm = matchRoute('/api/agent/credit/agentCenter/agentCommission');
-  assert(comm && comm.path === '/api/agent/promote/index/agentCommission', 'credit commission alias');
+  assert(comm && comm.op === 'agent.commission' && comm.adapter === 'agentBlob', 'credit commission route');
 }
 
 function agentScale() {
@@ -90,9 +90,15 @@ function agentScale() {
   const pay = applyAdapter('agentBlob', { ok: true, data: st }, {
     routePath: '/api/agent/promote/index/agentCommission'
   });
-  assert(pay && pay.data && pay.data.totalDirectCommission === 1.5, 'commission direct');
-  assert(pay.data.totalOtherCommission === 0.5, 'commission other');
+  assert(pay && pay.data && pay.data.totalCommission === 2, 'commission summary total');
   assert(pay.data.canTakeCommission === 2, 'canTakeCommission');
+  const commissionPage = applyAdapter('agentBlob', { ok: true, data: st }, {
+    routePath: '/api/agent/promote/report/myCommissionV2'
+  });
+  assert(commissionPage && commissionPage.data && Array.isArray(commissionPage.data.list), 'commission page list');
+  assert(commissionPage.data.total === 0 && commissionPage.data.totalRecords === 0, 'commission page pagination ends');
+  assert(commissionPage.data.totalDirectCommission === 1.5, 'commission page direct');
+  assert(commissionPage.data.totalOtherCommission === 0.5, 'commission page other');
   const fin = applyAdapter('agentFinance', { ok: true, data: st }, {
     routePath: '/api/agent/promote/report/directFinV4'
   });
@@ -111,7 +117,7 @@ function agentScale() {
   const intro = matchRoute('/api/agent/promote/config/introduce');
   assert(order && order.adapter === 'agentReportEmpty' && order.op !== 'feature.pending', 'directOrder not pending');
   assert(coupon && coupon.adapter === 'agentReportEmpty', 'directCoupon empty');
-  assert(intro && intro.op === 'upstream.passthrough', 'introduce upstream');
+  assert(intro && intro.adapter === 'officialZero' && intro.op !== 'upstream.passthrough', 'introduce local zero-state');
 }
 
 function withdrawShape() {
@@ -119,7 +125,7 @@ function withdrawShape() {
     enableRes: { enableWithdraw: 5000, needWageRequired: 1000, minRunning: 10000 }
   });
   assert(Array.isArray(info.accounts) && info.accounts.length === 0, 'withdraw accounts');
-  assert(info.enableWithdraw === 5, 'withdraw amount /1000');
+  assert(info.withdrawMax === 5, 'withdraw available amount /1000');
   assert(info.withdrawMin === 10, 'withdraw min');
   assert(info.withdrawMax === 5, 'withdraw max from balance');
   assert(Array.isArray(info.withdrawTypes) && info.withdrawTypes[0].typeName === 'PIX', 'withdraw pix');
@@ -165,10 +171,14 @@ async function activity() {
   routes();
   agentScale();
   withdrawShape();
-  try {
-    await activity();
-  } catch (err) {
-    assert(false, 'activity fetch ' + (err && err.message));
+  if (process.env.RUN_LIVE_719WIN === '1') {
+    try {
+      await activity();
+    } catch (err) {
+      assert(false, 'activity fetch ' + (err && err.message));
+    }
+  } else {
+    console.log('  SKIP live 719win activity fetch (set RUN_LIVE_719WIN=1 to enable)');
   }
   console.log('passed=' + passed + ' failed=' + failed);
   process.exit(failed ? 1 : 0);

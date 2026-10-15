@@ -93,10 +93,18 @@ const DEFAULT_AGENT = {
   myCommission: {
     list: [],
     total: 0,
+    totalRecords: 0,
     records: [],
     sum: '0',
     totalCommission: '0',
     totalCommissionNum: 0,
+    totalDirectCommission: 0,
+    totalOtherCommission: 0,
+    directNum: 0,
+    otherNum: 0,
+    settleDuration: 1,
+    settleDurationDays: 1,
+    nextSettleTime: null,
     clubCommission: '0',
     clubCommissionNum: 0
   },
@@ -242,7 +250,7 @@ function mapProxyInviteToAgent(invite, base) {
   return out;
 }
 
-/** mock/零态时补邀请码与分享链接，避免代理页空白 */
+/** 零态时补邀请码与分享链接；分享域名必须来自 WGame 大厅，不能使用上游 API 域名。 */
 function enrichAgentFromSession(agent, sessionUser, siteDir) {
   if (!agent || !sessionUser) return agent;
   const out = Object.assign({}, agent);
@@ -257,7 +265,8 @@ function enrichAgentFromSession(agent, sessionUser, siteDir) {
   try {
     if (siteDir) {
       const hosts = JSON.parse(fs.readFileSync(path.join(siteDir, 'adapter-hosts.json'), 'utf8'));
-      baseUrl = String((hosts && hosts.upstreamOrigin) || '').replace(/\/$/, '');
+      const lobbyGameUrl = hosts && hosts.wgameWeb && hosts.wgameWeb.lobbyGameUrl;
+      if (lobbyGameUrl) baseUrl = new URL(String(lobbyGameUrl)).origin;
     }
   } catch (_) { /* ignore */ }
   const code = String(promo.inviteCode || sessionUser.userId || sessionUser.account || '');

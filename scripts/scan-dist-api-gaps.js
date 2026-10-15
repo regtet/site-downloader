@@ -48,12 +48,13 @@ for (const base of roots) {
 }
 
 const gaps = [...found].filter((p) => !mapped.has(p)).sort();
-const actionable = gaps.filter(
-  (p) =>
-    !/\.json$/i.test(p)
-    && !/\/lobby\//i.test(p)
-    && !/\/agent\//i.test(p)
-);
+const ignored = {
+  jsonResource: gaps.filter((p) => /\.json$/i.test(p)),
+  lobbyUpstream: gaps.filter((p) => !/\.json$/i.test(p) && /\/lobby\//i.test(p)),
+  agentUnmapped: gaps.filter((p) => !/\.json$/i.test(p) && /\/agent\//i.test(p))
+};
+const ignoredSet = new Set(Object.values(ignored).flat());
+const actionable = gaps.filter((p) => !ignoredSet.has(p));
 
 const buckets = {
   member: [],
@@ -82,8 +83,10 @@ const out = {
   found: found.size,
   mapped: mapped.size,
   gaps: gaps.length,
+  gapPaths: gaps,
   actionableCount: actionable.length,
   actionable,
+  ignored,
   buckets
 };
 

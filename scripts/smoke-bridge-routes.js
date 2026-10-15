@@ -7,6 +7,8 @@ const path = require('path');
 const { createStaticServer } = require('../src/static-server');
 const { loadAdapterConfig } = require('../src/adapter/config');
 const { getProvider } = require('../src/adapter/providers');
+const { loadWgameConfig } = require('../src/adapter/providers/wgame/config');
+const { OP } = require('../src/adapter/ops');
 const { MIGRATION_MAP } = require('../src/adapter/series/aniw-lobby/migration-map');
 
 const siteId = process.argv[2] || '679win';
@@ -71,6 +73,7 @@ async function main() {
   const port = server.address().port;
 
   const provider = getProvider('wgame');
+  const wgameCfg = loadWgameConfig(siteDir);
   const fake = {
     account: 'smoke_user',
     session: 'sk_smoke_' + Date.now(),
@@ -79,7 +82,12 @@ async function main() {
     nickname: '',
     vip_level: 0,
     account_type: 2,
-    device_id: 'fp_smoke'
+    device_id: 'fp_smoke',
+    authRealm: [
+      String(wgameCfg.loginHttpBase || '').replace(/\/$/, ''),
+      String(wgameCfg.packageId != null ? wgameCfg.packageId : ''),
+      String(wgameCfg.wssUrl || '')
+    ].join('|')
   };
   provider.sessions.set(fake.account, { user: fake, at: Date.now() });
   provider.sessions.set('sk:' + fake.session, { user: fake, at: Date.now() });
@@ -111,17 +119,24 @@ async function main() {
   for (const p of sample) {
     try {
       const res = await request(port, p, fake.session);
+      const mapping = MIGRATION_MAP[p] || {};
+      const isUpstream = mapping.op === OP.UPSTREAM;
+      // UPSTREAM 是 migration-map 中的显式决策：可能命中本地 HAR，也可能由
+      // static-server 真实回源，因此不应强制要求 migration-bridge 响应头。
       const ok =
         res.status === 200
-        && res.adapter === 'migration-bridge'
         && res.json
-        && res.json.code != null;
+        && res.json.code != null
+        && (isUpstream || res.adapter === 'migration-bridge');
       if (!ok) fail += 1;
       results.push({
         path: p,
         ok,
         code: res.json && res.json.code,
-        adapter: MIGRATION_MAP[p] && MIGRATION_MAP[p].adapter
+        op: mapping.op || null,
+        routeAdapter: mapping.adapter || null,
+        responseAdapter: res.adapter || null,
+        mode: isUpstream ? 'upstream' : 'bridge'
       });
     } catch (err) {
       fail += 1;

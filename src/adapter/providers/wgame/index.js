@@ -93,6 +93,49 @@ function vipPayload(row, mapped) {
   } : {});
 }
 
+function publicActiveFallback(routePath) {
+  const p = String(routePath || '');
+  if (/\/api\/active\/(categoryV2|category|getByTemplate)$/i.test(p)) return [];
+  if (/\/api\/active\/isShowV2$/i.test(p)) {
+    return {
+      activePageDisplayAction: 0,
+      activePageDisplayLocation: 0,
+      activePageDisplaySearch: 0,
+      activePageDisplayStyle: 0,
+      activePageHideCategory: 0,
+      activePageSort: '',
+      blindBoxConfig: null,
+      blindBoxConfigV1: null,
+      couponConfig: null,
+      disableReceiveAwardAll: 1,
+      disableReceiveLogPop: 0,
+      displayExpireReward: 0,
+      loanClosed: 1,
+      loanConfig: [],
+      newComerPopStyle: 0,
+      pointConfig: null,
+      rechargeFundClosed: 1,
+      rechargeFundConfig: [],
+      rechargeFundName: '',
+      returnGoldClosed: 1,
+      returnGoldConfig: [],
+      shopConfig: null,
+      surpriseClosed: 1,
+      surpriseConfig: [],
+      svipConfig: null,
+      taskCompleteJumpStyle: 0,
+      taskSetting: [],
+      turntableConfig: null,
+      turntableConfigV1: null,
+      turntableOpened: 0,
+      unreceiveRewardListStyle: 0,
+      vipConfig: null,
+      yueBaoConfig: {}
+    };
+  }
+  return null;
+}
+
 async function loadPublicActive(siteDir, routePath, headers) {
   const oss = resolveOssOrigin(siteDir);
   if (!oss) return null;
@@ -120,9 +163,11 @@ async function loadPublicActive(siteDir, routePath, headers) {
   }
   const axios = require('axios');
   const { getDirectHttpsAgent } = require('../../../system-proxy');
+  let stale = null;
   for (const rel of rels) {
     const cached = publicActiveCache.get(rel);
     if (cached && Date.now() - cached.at < 60000 && cached.data != null) return cached.data;
+    if (!stale && cached && cached.data != null) stale = cached.data;
     try {
       const res = await axios.get(oss + rel, {
         httpsAgent: getDirectHttpsAgent(),
@@ -144,7 +189,12 @@ async function loadPublicActive(siteDir, routePath, headers) {
       console.warn('[provider:wgame] public active failed', rel, (err && err.message) || err);
     }
   }
-  return null;
+  if (stale != null) {
+    try { console.warn('[provider:wgame] public active using stale cache', p); } catch (_) { /* ignore */ }
+    return stale;
+  }
+  // 冷启动且 OSS 暂时不可用：返回关闭态，页面可继续渲染并在后续请求自动恢复。
+  return publicActiveFallback(p);
 }
 
 function resolveApiOrigin(siteDir) {
@@ -928,10 +978,10 @@ async function execute(op, ctx) {
         try {
           console.info('[provider:wgame] payTypeSetting via shop', 'types=' + payTypeList.length);
         } catch (_) { /* ignore */ }
-        return ok({ payTypeList }, 'ok');
+        return ok({ payTypeList, paymentMode: 0 }, 'ok');
       } catch (err) {
         console.warn('[provider:wgame] payTypeSetting failed:', (err && err.message) || err);
-        return ok({ payTypeList: [] }, 'ok');
+        return ok({ payTypeList: [], paymentMode: 0 }, 'ok');
       }
     }
 
@@ -944,7 +994,24 @@ async function execute(op, ctx) {
       try {
         const live = await loadLiveShopPack(cfg, shopToken, ctx && ctx.siteDir);
         const { shopAwardToDisplay } = require('./pay-config');
-        recommend = (live.pack && live.pack.recommendList) || [];
+        recommend = ((live.pack && live.pack.recommendList) || []).map((row) => {
+          const source = row && typeof row === 'object' ? row : { amount: row };
+          const itemAmount = source.amount == null ? '' : String(source.amount);
+          return {
+            amount: itemAmount,
+            bonus: source.bonus != null ? String(source.bonus) : '',
+            chargeRate: source.chargeRate != null ? String(source.chargeRate) : '',
+            bonusVal: String(Number(source.bonusVal != null ? source.bonusVal : source.give) || 0),
+            bonusScoreVal: String(Number(source.bonusScoreVal) || 0),
+            chargeRateVal: String(Number(source.chargeRateVal != null ? source.chargeRateVal : source.firstChargeAward) || 0),
+            chargeScore: Number(source.chargeScore != null ? source.chargeScore : itemAmount) || 0,
+            channelGiftScore: String(Number(source.channelGiftScore) || 0),
+            clickActiveGiveReward: String(Number(source.clickActiveGiveReward) || 0),
+            totalGiveReward: String(Number(source.totalGiveReward) || 0),
+            giftMemberCurrencyAmount: String(Number(source.giftMemberCurrencyAmount) || 0),
+            giftPayCurrencyAmount: String(Number(source.giftPayCurrencyAmount) || 0)
+          };
+        });
         let matched = null;
         for (const it of live.items) {
           const rm = Number(it && (it.realMoney != null ? it.realMoney : it.nRealMoney)) || 0;
@@ -1991,17 +2058,9 @@ async function execute(op, ctx) {
     }
 
     if (token && /financeGiveReward|dayRechargeBonus/i.test(routePath)) {
-      try {
-        const { httpDayRechargeBonus } = require('./http-api');
-        const res = await httpDayRechargeBonus({ token, cfg, timeoutMs: cfg.timeoutMs });
-        const mapped = maps.mapDayRechargeBonus(res);
-        try {
-          console.info('[provider:wgame] dayRechargeBonus', 'n=' + ((mapped.list && mapped.list.length) || 0));
-        } catch (_) { /* ignore */ }
-        return ok(mapped, 'ok');
-      } catch (err) {
-        console.warn('[provider:wgame] dayRechargeBonus failed:', (err && err.message) || err);
-      }
+      // WGame 的 dayRechargeBonus 是历史返奖记录，不等同大厅的充值活动配置。
+      // 不把历史记录伪装成活动；没有对应活动源时返回官方兼容的空集合。
+      return ok({ activeList: [], autoActiveList: [] }, 'ok');
     }
 
     // 代理统计/下级列表 → HTTP
@@ -2116,6 +2175,7 @@ module.exports = {
   normalizeBody,
   loadWgameConfig,
   clearLocalAuth: clearAllLocalAuth,
+  publicActiveFallback,
   isOurSession,
   isMockSession,
   CATALOG: require('./catalog').CATALOG

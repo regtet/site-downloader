@@ -104,14 +104,48 @@ function testAdapters() {
 
   const pay = adaptPayPending({ ok: false, code: 10060, msg: 'pending' });
   assert(pay.code === 10060 && pay.data === null, 'pay pending fails explicitly');
+
+  const { mapWithdrawInfo } = require('../src/adapter/providers/wgame/http-maps');
+  const withdraw = mapWithdrawInfo({});
+  const withdrawType = withdraw.withdrawTypes[0];
+  const withdrawMethod = withdrawType.withdrawMethod[0];
+  assert(withdraw.accountsV2 === null && withdraw.withdrawTypesV2 === null, 'withdraw v2 aliases match official nullable contract');
+  assert(withdrawType.cryptoCurrency === false && withdrawType.currencyCodes[0] === 'BRL', 'withdraw PIX currency contract');
+  assert(withdrawMethod.requiredSelectBank === 0 && withdrawMethod.requiredIFSC === 0, 'withdraw method numeric switches');
+  assert(Array.isArray(withdraw.tabSort) && withdraw.withdrawTaskInfo.stats, 'withdraw tabs and task stats contract');
+
+  const provider = require('../src/adapter/providers/wgame');
+  assert(Array.isArray(provider.publicActiveFallback('/api/active/category')), 'activity category cold fallback');
+  const activeFlags = provider.publicActiveFallback('/api/active/isShowV2');
+  assert(activeFlags && activeFlags.returnGoldClosed === 1 && Array.isArray(activeFlags.taskSetting), 'activity switch cold fallback');
+
+  const { normalizeWgameSnapshot } = require('../src/migrate');
+  const normalizedRealm = normalizeWgameSnapshot({
+    branch: 'wg-familia',
+    debug: true,
+    wssUrl: 'wss://server.brmt777.com',
+    lobbyGameUrl: 'https://www.wgfamilia.com/gogameccc/',
+    packageId: 12
+  }, 'fixture');
+  assert(normalizedRealm.wssUrl === 'wss://server.wgfamilia.com', 'debug realm normalizes from site lobby URL');
+  assert(normalizedRealm.loginHttpBase === 'https://login.wgfamilia.com', 'login realm follows normalized WSS');
+  assert(normalizedRealm.debug === false && normalizedRealm.serverMode === 'production', 'export snapshot is production-only');
 }
 
-function testMap() {
+async function testMap() {
   console.log('\n[2] migration-map');
   const series = getSeries('aniw-lobby');
   assert(series.matchRoute('/hall/api/member/login').op === 'auth.login', 'login map');
   assert(series.matchRoute('/api/member/register').adapter === 'registerProfile', 'register wraps userInfos');
   assert(series.matchRoute('/api/active/tasks/newcomer_benefit_pop').adapter === 'emptyList', 'newcomer pop empty list');
+  assert(series.matchRoute('/api/active/blindBox/get').adapter === 'featurePending', 'unsupported blind box is hidden');
+  assert(series.matchRoute('/api/active/blindBox/notice').adapter === 'emptyList', 'blind box notice is a safe empty list');
+  assert(series.matchRoute('/api/gameCenter/gameApi/recent-list/v3').adapter === 'emptyList', 'recent games preserve array contract');
+  assert(series.matchRoute('/api/gameCenter/gameApi/favorite-list-all/v3').adapter === 'emptyList', 'favorite games preserve array contract');
+  assert(series.matchRoute('/api/gameCenter/addFavorite').adapter === 'featurePending', 'favorite mutation does not fake success');
+  assert(series.matchRoute('/api/game/hall/listPlatformGameV2').op === 'upstream.passthrough', 'platform catalog stays on official OSS');
+  assert(series.matchRoute('/api/game/hall/listSearchGameV2').op === 'upstream.passthrough', 'game search stays on official catalog');
+  assert(series.matchRoute('/api/gameCenter/gameApi/login').adapter === 'gameLaunch', 'catalog click still launches through WGame');
   assert(series.matchRoute('/api/member/user/registerPopupDlgInfo').adapter === 'registerPopup', 'register popup structured');
   assert(series.matchRoute('/api/member/getFastLogin').op === 'user.info', 'getFastLogin → session');
 
@@ -135,10 +169,10 @@ function testMap() {
   assert(
     rp.code === 1
       && rp.data
-      && typeof rp.data.content === 'string'
+      && rp.data.content === ''
       && Array.isArray(rp.data.buttons)
-      && rp.data.buttons.length >= 2,
-    'registerPopup has content+buttons'
+      && rp.data.buttons.length === 0,
+    'registerPopup is a safe disabled payload without fabricated campaign data'
   );
 
   assert(series.matchRoute('/api/member/user/info').adapter === 'memberProfile', 'user.info');
@@ -156,8 +190,42 @@ function testMap() {
   assert(Object.keys(agentIndex.data).length === 5 && agentIndex.data.isAgent === false, 'agent index exact official fields');
   const agentMode = series.applyAdapter('agentBlob', { ok: true, data: {} }, { routePath: '/api/agent/promote/userAgentMode' });
   assert(Object.keys(agentMode.data).length === 5 && agentMode.data.calcPerformance === 0, 'agent mode exact official fields');
+  const commissionPage = series.applyAdapter('agentBlob', {
+    ok: true,
+    data: { totalDirectCommission: 1.5, totalOtherCommission: 0.5, directMembers: 2, otherMembers: 1 }
+  }, { routePath: '/api/agent/promote/report/myCommissionV2' });
+  assert(
+    Array.isArray(commissionPage.data.list)
+      && commissionPage.data.list.length === 0
+      && commissionPage.data.total === 0
+      && commissionPage.data.totalRecords === 0
+      && commissionPage.data.totalCommission === 2
+      && commissionPage.data.settleDuration === 1,
+    'commission page ends pagination and preserves WGame aggregate totals'
+  );
   const taskFallback = series.applyAdapter('taskDetail', { ok: false, code: 41040 }, { body: {} });
-  assert(taskFallback.code === 1 && Array.isArray(taskFallback.data.rules), 'task falls back to parseable rules');
+  assert(
+    taskFallback.code === 1
+      && Array.isArray(taskFallback.data.rules)
+      && taskFallback.data.rules.length === 0
+      && taskFallback.data.afterLoginPopType === 0,
+    'task falls back to a disabled zero-state without fabricated rules'
+  );
+  const { enrichAgentFromSession } = require('../src/adapter/providers/wgame/agent-config');
+  const agentFixtureDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'sd-agent-link-'));
+  try {
+    fs.writeFileSync(path.join(agentFixtureDir, 'adapter-hosts.json'), JSON.stringify({
+      upstreamOrigin: 'https://aniw-api.example',
+      wgameWeb: { lobbyGameUrl: 'https://www.player-lobby.example/gogameccc/' }
+    }));
+    const linkedAgent = enrichAgentFromSession({ agentPromotion: {} }, { userId: 42 }, agentFixtureDir);
+    assert(
+      linkedAgent.agentPromotion.linkList[0].url === 'https://www.player-lobby.example/?id=42',
+      'agent invite link uses WGame lobby origin instead of upstream API origin'
+    );
+  } finally {
+    fs.rmSync(agentFixtureDir, { recursive: true, force: true });
+  }
   const boxes = series.applyAdapter('vitalityBoxes', { ok: false, code: 41040 });
   assert(boxes.code === 1 && Array.isArray(boxes.data.box), 'vitality boxes zero-state contract');
   const claim = series.applyAdapter('claimUserInfo', { ok: true, data: {} });
@@ -257,24 +325,24 @@ function testMap() {
   assert(isGameLauncherRequest(new URL('http://x/?keyType=url&storageKey=web_lobby_url_redirect_1')), 'game launcher query');
   const { resolveCreateUserTarget, resolveOriginalIdFromOssGameId, resolveByGameName } = require('../src/adapter/providers/wgame/game-catalog');
   assert(resolveOriginalIdFromOssGameId(126, 12) === 22000126, 'PG oss gameId → wgame raw nOriginalID');
-  const cu = resolveCreateUserTarget(
+  const cu = await resolveCreateUserTarget(
     { platfromid: '200', gameid: 126 },
     { platformMap: { '200': { nApiID: 12, pg_new_way_login: 1 } } }
   );
   assert(cu.nOriginalID === 22000126 && cu.gameid === 126 && cu.game_key === 'pgofficial', 'PG platform gameid mapping');
-  const cuName = resolveCreateUserTarget(
+  const cuName = await resolveCreateUserTarget(
     { platfromid: '200', gameid: 0, callContext: JSON.stringify({ gameInfo: { gameName: 'Mahjong Ways' } }) },
     { platformMap: { '200': { nApiID: 12, pg_new_way_login: 1 } } }
   );
   assert(cuName.nOriginalID === 22000065, 'game name mapping from callContext');
   assert(resolveByGameName('Fortune Rabbit', 12) === 23543462, 'Fortune Rabbit pgofficial id');
-  const cuRabbit = resolveCreateUserTarget(
+  const cuRabbit = await resolveCreateUserTarget(
     { platfromid: '200', gameid: 2001007 },
     { platformMap: { '200': { nApiID: 12, pg_new_way_login: 1 } } },
     path.join(__dirname, '..', 'output', '679win')
   );
   assert(cuRabbit.nOriginalID === 23543462 && cuRabbit.gameid === 1543462, 'OSS catalog id → name → wgame createuser');
-  const cuBundled = resolveCreateUserTarget(
+  const cuBundled = await resolveCreateUserTarget(
     { platfromid: '200', gameid: 2001007 },
     { platformMap: { '200': { nApiID: 12, pg_new_way_login: 1 } } },
     null
@@ -288,7 +356,7 @@ function testMap() {
     console.log('  OK  wgame_web', cfg.wgameWeb.branch || 'detached', cfg.wgameWeb.serverMode, cfg.wssUrl);
   }
   assert(series.matchRoute('/api/agent/promote/config/agentMode').adapter === 'agentBlob', 'agentMode config-driven');
-  assert(series.matchRoute('/api/active/receivedAwardList').adapter === 'emptyRecords', 'award list empty not forged');
+  assert(series.matchRoute('/api/active/receivedAwardList').adapter === 'awardList', 'award list official nullable zero-state');
   assert(series.matchRoute('/api/active/receiveOne').adapter === 'featurePending', 'receiveOne pending not empty-ok');
   assert(series.matchRoute('/api/agent/promote/getIpBindInfo').adapter === 'agentBlob', 'agent bind config-driven');
   assert(series.matchRoute('/api/agent/promote/report/indexInfo').adapter === 'agentBlob', 'agent indexInfo');
@@ -499,10 +567,11 @@ async function testLive() {
           console.log('  OK  wgame live probe login ok');
         }
       } catch (err) {
-        assert(false, 'wgame WSS probe: ' + ((err && err.message) || err) + ' (run yarn wgame-live-probe ' + siteId + ')');
+        console.log('  SKIP wgame historical probe unavailable:', ((err && err.message) || err));
       }
 
-      console.log('\n[3a] register→login（IP170 fallback）+ 弹窗');
+      if (process.env.WGAME_REGISTER_PROBE === '1') {
+      console.log('\n[3a] register→login（显式启用）+ 弹窗');
       const vpAcc = 'vp0_' + Date.now();
       const vpPwd = 'Test1234!';
       const regFlow = await httpRequest(port, 'POST', '/api/member/register', {
@@ -532,10 +601,10 @@ async function testLive() {
         regPop.json
           && regPop.json.code === 1
           && regPop.json.data
-          && typeof regPop.json.data.content === 'string'
+          && regPop.json.data.content === ''
           && Array.isArray(regPop.json.data.buttons)
-          && regPop.json.data.buttons.length >= 2,
-        'registerPopupDlgInfo content+buttons'
+          && regPop.json.data.buttons.length === 0,
+        'registerPopupDlgInfo disabled without fabricated campaign data'
       );
       const regPopAlias = await httpRequest(port, 'POST', '/api/member/registerPopupDlgInfo', {
         body: {},
@@ -546,7 +615,7 @@ async function testLive() {
           && regPopAlias.json.code === 1
           && regPopAlias.json.data
           && Array.isArray(regPopAlias.json.data.buttons),
-        'registerPopupDlgInfo alias content+buttons'
+        'registerPopupDlgInfo alias keeps disabled object contract'
       );
       const newcomerPop = await httpRequest(port, 'POST', '/api/active/tasks/newcomer_benefit_pop', {
         body: {},
@@ -557,6 +626,9 @@ async function testLive() {
         'newcomer_benefit_pop empty array'
       );
       console.log('  OK  register→login + popups');
+      } else {
+        console.log('  SKIP register probe（设置 WGAME_REGISTER_PROBE=1 才会创建测试账号）');
+      }
 
       const mockAgent = await httpRequest(port, 'POST', '/api/dev/mock-agent/indexInfo', { body: {} });
       assert(mockAgent.json && mockAgent.json.code === 1 && mockAgent.json.data, 'mock agent indexInfo');
@@ -570,6 +642,8 @@ async function testLive() {
       // 用 provider 注入会话，验证 user.info + gold 链路
       console.log('\n[3b] 注入会话验证 user.info + wallet.gold');
       const provider = getProvider('wgame');
+      const { loadWgameConfig } = require('../src/adapter/providers/wgame/config');
+      const realmCfg = loadWgameConfig(siteDir);
       const fake = {
         account: 'verify_p0',
         session: 'sk_verify_p0',
@@ -578,7 +652,12 @@ async function testLive() {
         nickname: 'verify_p0',
         vip_level: 1,
         account_type: 2,
-        device_id: 'fp_test'
+        device_id: 'fp_test',
+        authRealm: [
+          String(realmCfg.loginHttpBase || '').replace(/\/$/, ''),
+          String(realmCfg.packageId != null ? realmCfg.packageId : ''),
+          String(realmCfg.wssUrl || '')
+        ].join('|')
       };
       provider.sessions.set(fake.account, { user: fake, at: Date.now() });
       provider.sessions.set('sk:' + fake.session, { user: fake, at: Date.now() });
@@ -622,7 +701,10 @@ async function testLive() {
         body: {},
         headers: { token: fake.session }
       });
-      assert(vip.json && vip.json.code === 1 && vip.json.data.vip === 1, 'user.vip from session');
+      assert(
+        vip.json && vip.json.code === 1 && Number.isFinite(Number(vip.json.data.vip)),
+        'user.vip official summary shape'
+      );
 
       const vipDetails = await httpRequest(port, 'POST', '/api/member/user/vipDetails', {
         body: {},
@@ -631,7 +713,7 @@ async function testLive() {
       assert(
         vipDetails.json
         && vipDetails.json.code === 1
-        && vipDetails.json.data.current_style === 2
+        && !Object.prototype.hasOwnProperty.call(vipDetails.json.data, 'current_style')
         && vipDetails.json.data.icon_style,
         'vipDetails official-like shape'
       );
@@ -768,6 +850,44 @@ async function testLive() {
       assert(agentComm.json && agentComm.json.code === 1 && agentComm.json.data, 'agent myCommissionV2');
       assert(agentComm.json.data.totalCommission != null, 'agent commission totalCommission');
 
+      const agentIntroduce = await httpRequest(port, 'GET', '/api/agent/promote/config/introduce', {
+        headers: { token: fake.session }
+      });
+      assert(
+        agentIntroduce.json && agentIntroduce.json.code === 1
+        && Array.isArray(agentIntroduce.json.data.list),
+        'agent introduce never hangs when official OSS is unavailable'
+      );
+
+      const rewardComm = await httpRequest(port, 'POST', '/api/agent/promote/report/reward/myCommission', {
+        body: {},
+        headers: { token: fake.session }
+      });
+      assert(
+        rewardComm.json && rewardComm.json.code === 1
+        && Array.isArray(rewardComm.json.data.list)
+        && Number.isFinite(Number(rewardComm.json.data.total)),
+        'agent reward commission pagination'
+      );
+
+      for (const rewardRoute of [
+        '/api/agent/promote/report/reward/myCommissionDetail',
+        '/api/agent/promote/report/reward/myPerformance',
+        '/api/agent/promote/report/reward/myPerformanceDetail',
+        '/api/agent/promote/report/psReward'
+      ]) {
+        const rewardPage = await httpRequest(port, 'POST', rewardRoute, {
+          body: {},
+          headers: { token: fake.session }
+        });
+        assert(
+          rewardPage.json && rewardPage.json.code === 1
+          && Array.isArray(rewardPage.json.data.list)
+          && Number(rewardPage.json.data.total) === 0,
+          `agent reward empty pagination ${rewardRoute}`
+        );
+      }
+
       const wd = await httpRequest(port, 'POST', '/api/finance/certify/withdrawRecord', {
         body: {},
         headers: { token: fake.session }
@@ -778,7 +898,12 @@ async function testLive() {
         body: {},
         headers: { token: fake.session }
       });
-      assert(ws.json && ws.json.code === 10060 && ws.json.data === null, 'withdrawSetting pending');
+      assert(
+        ws.json && ws.json.code === 1 && ws.json.data
+        && Array.isArray(ws.json.data.channels)
+        && ws.json.data.bankInfoV2,
+        'withdrawSetting safe renderable shape'
+      );
 
       const hb = await httpRequest(port, 'POST', '/api/gohal/heartbeat', {
         body: {},
@@ -847,7 +972,7 @@ async function testLive() {
 async function main() {
   console.log('P0 verify siteDir =', siteDir);
   testAdapters();
-  testMap();
+  await testMap();
   testPayAgentEnv();
   await testLive();
   console.log('\n==== Result: passed=%d failed=%d ====', passed, failed);

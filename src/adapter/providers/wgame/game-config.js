@@ -54,17 +54,18 @@ function deriveLobbyGameUrlFromWss(wssUrl) {
 }
 
 function resolveLobbyGameUrl(cfg, siteDir) {
-  // 优先级：显式 env → 当前 wgame_web → adapter-hosts → 由 wss 推导
+  // 优先级：显式 env → 调用/站点配置 → 站点冻结连接 → 当前 wgame_web。
+  // 已生成站点不能被工作区中另一个 wgame_web 分支悄悄改到错误游戏域名。
   if (process.env.GAME_LOBBY_URL) {
     return String(process.env.GAME_LOBBY_URL).replace(/\/?$/, '/');
   }
-  const web = loadWgameWebConfig();
-  if (web && web.lobbyGameUrl) return String(web.lobbyGameUrl).replace(/\/?$/, '/');
   if (cfg && cfg.lobbyGameUrl) return String(cfg.lobbyGameUrl).replace(/\/?$/, '/');
   const wg = loadWgameConfig(siteDir);
   if (wg && wg.wgameWeb && wg.wgameWeb.lobbyGameUrl) {
     return String(wg.wgameWeb.lobbyGameUrl).replace(/\/?$/, '/');
   }
+  const web = loadWgameWebConfig();
+  if (web && web.lobbyGameUrl) return String(web.lobbyGameUrl).replace(/\/?$/, '/');
   return deriveLobbyGameUrlFromWss(wg && wg.wssUrl);
 }
 

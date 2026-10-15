@@ -13,9 +13,11 @@ const fs = require('fs');
 const path = require('path');
 const { runPostLoginAnalysis, loadNetworkDump, analyzePair } = require('../src/post-login-deps');
 const { assessCaptureQuality } = require('../src/post-login-capture');
+const { toSiteId } = require('./site-paths');
 
 function parseArgs(argv) {
   const out = {
+    siteId: '',
     site: '',
     sourceHar: '',
     localHar: '',
@@ -25,9 +27,11 @@ function parseArgs(argv) {
     const a = argv[i];
     const n = argv[i + 1];
     if (a === '--site' && n) { out.site = path.resolve(n); i++; }
+    else if (a === '--site-id' && n) { out.siteId = toSiteId(n); i++; }
     else if (a === '--source-har' && n) { out.sourceHar = path.resolve(n); i++; }
     else if (a === '--local-har' && n) { out.localHar = path.resolve(n); i++; }
     else if (a === '--out' && n) { out.out = path.resolve(n); i++; }
+    else if (!a.startsWith('-') && !out.siteId) { out.siteId = toSiteId(a); }
   }
   return out;
 }
@@ -66,11 +70,12 @@ async function main() {
     return;
   }
 
-  const siteDir = opts.site || path.join(__dirname, '..', 'dist', '679win.com');
+  const selectedId = opts.siteId || '679win';
+  const siteDir = opts.site || path.join(__dirname, '..', 'dist', selectedId + '.com');
   const report = await runPostLoginAnalysis({
     mode: 'static',
     siteDir,
-    outPath: opts.out || path.join(__dirname, '..', 'output', '679win', 'post-login-deps.json'),
+    outPath: opts.out || path.join(__dirname, '..', 'output', selectedId, 'post-login-deps.json'),
     allowStaticFallback: true
   });
   printSummary(report);

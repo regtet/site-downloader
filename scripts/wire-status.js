@@ -23,6 +23,8 @@ function readJson(p) {
 }
 
 function main() {
+  const hosts = readJson(path.join(siteDir, 'adapter-hosts.json')) || {};
+  const providerOptions = hosts.providerOptions || hosts.wgame || {};
   const pay = loadPayConfig(siteDir, {});
   const agent = loadAgentConfig(siteDir, {});
   const payUrl = pay.createOrder && pay.createOrder.httpUrl;
@@ -33,24 +35,34 @@ function main() {
   const harAgent = readJson(path.join(siteDir, 'har-agent-snapshot.json'));
   const agentKeys = harAgent && harAgent.agent ? Object.keys(harAgent.agent) : [];
 
-  const productionPay = payUrl && !isLocalDevUrl(payUrl);
-  const productionAgent = agentBase && !isLocalDevUrl(agentBase);
+  const paySource = String(pay.source || '').toLowerCase();
+  const agentSource = String(agent.source || '').toLowerCase();
+  const wgamePay = pay.enabled !== false && paySource === 'wgame' && !pay.allowPlaceholderFallback;
+  const wgameAgent = agent.enabled !== false && agentSource === 'wgame';
+  const productionPay = !!((payUrl && !isLocalDevUrl(payUrl)) || wgamePay);
+  const productionAgent = !!((agentBase && !isLocalDevUrl(agentBase)) || wgameAgent);
 
   const wgameProbe = readJson(path.join(root, 'logs', `wgame-live-probe-${siteId}.json`));
 
   const status = {
     siteId,
     at: new Date().toISOString(),
-    authPopups: 'dev-ok (IP170 mock + emptyList popups)',
+    authPopups: providerOptions.fallbackMockOnIpLimit
+      ? 'unsafe fallback enabled (registration errors may be mocked)'
+      : 'production-safe (registration failures are returned to the UI)',
     pay: {
       devMock: !!(payUrl && isLocalDevUrl(payUrl)),
-      productionUrl: productionPay ? payUrl : null,
+      source: paySource || null,
+      backend: wgamePay ? 'wgame shopItemList/payCharge' : (productionPay ? 'external-http' : null),
+      productionUrl: payUrl && !isLocalDevUrl(payUrl) ? payUrl : null,
       env: process.env.PAY_HTTP_URL || null,
       harChannels: readJson(path.join(siteDir, 'har-pay-snapshot.json'))?.channelsByPayKind?.['100']?.list?.length || 0
     },
     agent: {
       devMock: !!(agentBase && isLocalDevUrl(agentBase)),
-      productionBase: productionAgent ? agentBase : null,
+      source: agentSource || null,
+      backend: wgameAgent ? 'wgame proxyStatistics/proxyUserList/proxySubBetConfig' : (productionAgent ? 'external-http' : null),
+      productionBase: agentBase && !isLocalDevUrl(agentBase) ? agentBase : null,
       env: process.env.AGENT_HTTP_BASE || null,
       harAgentKeys: agentKeys,
       captureFiles: captureCount
@@ -81,7 +93,7 @@ function main() {
     status.next.push('或: yarn start → 登录 → 代理页抓包 → yarn import-capture-agent ' + siteId);
   }
   if (!status.wgameTestAccount) {
-    status.blocked.push('wgame live: set WGAME_TEST_ACCOUNT + WGAME_TEST_PASSWORD');
+    status.next.push('可选实网验证：设置 WGAME_TEST_ACCOUNT + WGAME_TEST_PASSWORD');
     status.next.push('$env:WGAME_TEST_ACCOUNT="账号"; $env:WGAME_TEST_PASSWORD="密码"; yarn wgame-live-probe ' + siteId);
   }
   if (productionPay || productionAgent) {
