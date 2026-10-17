@@ -155,6 +155,10 @@ function exportMigrated(siteId, opts = {}) {
   } catch (_) { /* ignore */ }
 
   const logRoot = path.join(ROOT, 'logs');
+  const localSrc = path.join(logRoot, 'local-public-api', id);
+  if (fs.existsSync(localSrc)) {
+    copyRecursive(localSrc, path.join(out, 'local-api'));
+  }
   for (const name of [
     `har-oss-snapshot-${id}.json`,
     `har-pay-snapshot-${id}.json`

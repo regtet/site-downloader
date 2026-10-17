@@ -105,6 +105,7 @@ function parseWgameWebConfigText(text) {
   const apiKey = String(extractScalar(text, 'apiKey') || '');
   const httpSignSecret = String(extractScalar(text, 'httpSignSecret') || '');
   const proxyShareUrlList = extractStringArray(text, 'proxyShareUrlList');
+  const appDownPath = String(extractScalar(text, 'appDownPath') || '');
   const httpBase = debug && mockUrl ? mockUrl : (baseUrl || mockUrl);
   const wssUrl = debug && mockWssUrl ? mockWssUrl : (baseWssUrl || mockWssUrl || '');
   const lobbyGameUrl = deriveLobbyGameUrlFromProxyList(proxyShareUrlList);
@@ -131,6 +132,7 @@ function parseWgameWebConfigText(text) {
     otherGameApiKey,
     apiKey,
     proxyShareUrlList,
+    appDownPath,
     lobbyGameUrl
   };
 }

@@ -315,9 +315,17 @@ async function testMap() {
     const frozenHosts = JSON.parse(fs.readFileSync(frozenHostsPath, 'utf8'));
     if (frozenHosts.wgameWeb && frozenHosts.wgameWeb.snapshottedAt) {
       const frozenCfg = loadWgameConfig(siteDir);
-      assert(frozenCfg.wgameWeb.source === 'site-snapshot', 'generated site uses frozen wgame connection');
-      assert(frozenCfg.loginHttpBase === frozenHosts.wgameWeb.loginHttpBase, 'generated site login origin is stable');
-      assert(frozenCfg.packageId === Number(frozenHosts.wgameWeb.packageId), 'generated site packageId is stable');
+      const { loadWgameWebConfig } = require('../src/adapter/providers/wgame/wgame-web-config');
+      const live = loadWgameWebConfig();
+      if (live) {
+        assert(frozenCfg.wgameWeb.source === 'live-wgame-web', 'local wgame_web overrides the site snapshot');
+        assert(frozenCfg.loginHttpBase === live.loginHttpBase, 'login origin follows wgame_web');
+        assert(frozenCfg.packageId === Number(live.packageId), 'packageId follows wgame_web');
+      } else {
+        assert(frozenCfg.wgameWeb.source === 'site-snapshot', 'generated site uses frozen wgame connection');
+        assert(frozenCfg.loginHttpBase === frozenHosts.wgameWeb.loginHttpBase, 'generated site login origin is stable');
+        assert(frozenCfg.packageId === Number(frozenHosts.wgameWeb.packageId), 'generated site packageId is stable');
+      }
     }
   }
   const { isGameLauncherRequest } = require('../src/game-launcher');

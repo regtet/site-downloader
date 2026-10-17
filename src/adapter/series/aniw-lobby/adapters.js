@@ -325,8 +325,17 @@ function adaptFeedbackInfo() {
 
 function adaptMessageList(providerResult) {
   const d = providerResult && providerResult.data;
-  const marqueeList = d && Array.isArray(d.marqueeList) ? d.marqueeList : [];
-  return envelope({ marqueeList });
+  const list = (key) => (d && Array.isArray(d[key]) ? d[key] : []);
+  return envelope({
+    marqueeList: list('marqueeList'),
+    noticeMsgList: list('noticeMsgList'),
+    announcementMsgList: list('announcementMsgList'),
+    announcementFrameMsgList: [],
+    noticeFrameMsgList: [],
+    publicityMsgList: [],
+    unreadNoticeCount: 0,
+    unreadAnnouncementCount: 0
+  });
 }
 
 function adaptCheckRegister(providerResult) {
@@ -350,6 +359,17 @@ function adaptWalletGold(providerResult) {
     bonusRequireBet: '0',
     auditMode: 1
   });
+}
+
+function vipClaimLog(kind, vip, amount) {
+  const awardType = kind === 'gift' ? 3 : kind === 'day' ? 0 : kind === 'week' ? 1 : 2;
+  return {
+    id: 'wgame:' + awardType + ':' + vip,
+    canReceiveTime: 0,
+    status: 0,
+    amount,
+    reward: amount
+  };
 }
 
 function vipNum(value) {
@@ -388,10 +408,10 @@ function toOfficialVipSetting(it) {
     max_day_bonus: 0,
     icon_card: '',
     icon_final_image: '',
-    vip_gift_status: 0,
-    week_bonus_status: 0,
-    month_bonus_status: 0,
-    day_bonus_status: 0,
+    vip_gift_status: vipNum(row.vip_gift_status),
+    week_bonus_status: vipNum(row.week_bonus_status),
+    month_bonus_status: vipNum(row.month_bonus_status),
+    day_bonus_status: vipNum(row.day_bonus_status),
     maximumDailyWithdrawalAmount: vipNum(row.maximumDailyWithdrawalAmount != null ? row.maximumDailyWithdrawalAmount : row.dayMaxWithdrawMoney),
     maximumDailyWithdrawalFreeOfFee: 0,
     maximumDailyWithdrawalNumber: vipNum(row.maximumDailyWithdrawalNumber != null ? row.maximumDailyWithdrawalNumber : row.withdrawTimes),
@@ -413,10 +433,10 @@ function toOfficialVipSetting(it) {
     wTimeDay: 0,
     mTimeType: 0,
     mTimeDay: 0,
-    giftlogs: null,
-    weeklogs: null,
-    monthlogs: null,
-    daylogs: null,
+    giftlogs: vipNum(row.vip_gift_status) === 1 ? [vipClaimLog('gift', vip, vipNum(row.vip_gift))] : null,
+    weeklogs: vipNum(row.week_bonus_status) === 1 ? [vipClaimLog('week', vip, vipNum(row.week_bonus))] : null,
+    monthlogs: vipNum(row.month_bonus_status) === 1 ? [vipClaimLog('month', vip, vipNum(row.month_bonus))] : null,
+    daylogs: vipNum(row.day_bonus_status) === 1 ? [vipClaimLog('day', vip, vipNum(row.day_bonus))] : null,
     birthdaylogs: null,
     receivedgiftlogs: null,
     vgRcedStatus: 0,
@@ -533,10 +553,10 @@ function adaptVipDetails(providerResult) {
     day_bonus: cur.day_bonus,
     keep_level_bet: 0,
     keep_level_deposit: 0,
-    vip_gift_status: 0,
-    week_bonus_status: 0,
-    month_bonus_status: 0,
-    day_bonus_status: 0,
+    vip_gift_status: cur.vip_gift_status,
+    week_bonus_status: cur.week_bonus_status,
+    month_bonus_status: cur.month_bonus_status,
+    day_bonus_status: cur.day_bonus_status,
     icon_style: DEFAULT_VIP_ICON_STYLE,
     icon_color: DEFAULT_VIP_ICON_COLOR,
     icon_color_value: DEFAULT_VIP_ICON_COLOR_VALUE,
@@ -710,6 +730,7 @@ function enrichPayTypeRow(row) {
   out.paymentid = Number.isFinite(paymentid) ? paymentid : 0;
   out.payplatformid = Number.isFinite(platform) ? platform : out.paymentid;
   if (!out.id) out.id = out.paymentid;
+  if (out.openWay == null) out.openWay = 4;
   return out;
 }
 
@@ -829,14 +850,14 @@ function adaptPayChannels(providerResult) {
     row.url = '/api/finance/pay/paysubmit';
     if (!row.payCurrency) row.payCurrency = 'BRL';
     if (row.openWay == null) row.openWay = 4;
-    if (row.combineOpenWay == null) row.combineOpenWay = 0;
+    if (row.combineOpenWay == null) row.combineOpenWay = 4;
     delete row._wgameUrl;
     delete row._awardRate;
     for (const key of [
       'payKind', 'pay_prize', 'merge_status', 'min_per_money', 'max_per_money',
       'iconUrl', 'customTag', 'noChannelTopUp', 'paymentMethodId', 'channelId',
       'channlName', 'orderEffectiveTime', 'pay_type_name', 'payment_name',
-      'payname', 'name', 'url', 'combineOpenWay'
+      'payname', 'name', 'url'
     ]) delete row[key];
     return row;
   }) : [];
@@ -957,6 +978,7 @@ function adaptPayCreate(providerResult) {
     outTradeNo: d.outTradeNo || d.orderNo || '',
     order_no: d.order_no || d.orderNo || '',
     qrCode: d.qrCode || d.qrcode_url || '',
+    urlData: d.qrCode || d.qrcode_url || d.url || '',
     url: d.url || '',
     createTime: d.createTime || Math.floor(Date.now() / 1000),
     orderEffectiveTime: d.orderEffectiveTime != null ? Number(d.orderEffectiveTime) : 900,
@@ -970,7 +992,9 @@ function adaptPayCreate(providerResult) {
 
 function adaptPayOrderInfo(providerResult) {
   if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
-  return envelope(providerResult.data != null ? providerResult.data : {});
+  const d = providerResult.data && typeof providerResult.data === 'object' ? providerResult.data : {};
+  const channelAmount = d.channelAmount != null ? String(d.channelAmount) : (d.money != null ? String(d.money) : '0');
+  return envelope(Object.assign({}, d, { channelAmount }));
 }
 
 /** gameApi/login → { game_url, gameName, direction, gameid, platfromid } */
@@ -1341,7 +1365,7 @@ function adaptOfficialZero(providerResult, meta) {
     ? providerResult.data
     : {};
   if (/active\/isShowV2/i.test(route)) {
-    return envelope(Object.assign({
+    const merged = Object.assign({
       activePageDisplayAction: 0, activePageDisplayLocation: 0, activePageDisplaySearch: 0,
       activePageDisplayStyle: 0, activePageHideCategory: 0, activePageSort: '',
       blindBoxConfig: null, blindBoxConfigV1: null, couponConfig: null,
@@ -1353,7 +1377,12 @@ function adaptOfficialZero(providerResult, meta) {
       taskCompleteJumpStyle: 0, taskSetting: [], turntableConfig: null,
       turntableConfigV1: null, turntableOpened: 0, unreceiveRewardListStyle: 0,
       vipConfig: null, yueBaoConfig: {}
-    }, data));
+    }, data);
+    // 官方公开配置会把转盘打开。wgame 没有转盘奖品，页签会画出空奖项。
+    merged.turntableConfig = null;
+    merged.turntableConfigV1 = null;
+    merged.turntableOpened = 0;
+    return envelope(merged);
   }
   if (/financeGiveReward/i.test(route)) return envelope({ activeList: [], autoActiveList: [] });
   if (/newcomer_benefit_reward/i.test(route)) {
@@ -1441,11 +1470,26 @@ function adaptReturnGoldSummary(providerResult) {
   });
 }
 
-/** 官方余额宝首页零态。开关关闭，不写规则文案。 */
+/** 余额宝首页。没有理财配置时开关关闭；有配置时只填利率、本金和天数，不写规则文案。 */
 function adaptYuebaoIndex(providerResult) {
   if (!providerResult || !providerResult.ok) return failEnvelope(providerResult);
-  const gold = Number(providerResult.data && providerResult.data.game_gold) || 0;
-  return envelope({
+  const src = providerResult.data && typeof providerResult.data === 'object' ? providerResult.data : {};
+  const gold = Number(src.game_gold != null ? src.game_gold : src.gameGold) || 0;
+  const ruleTextData = {
+    auditType: 0,
+    billPeriod: '',
+    dynamic: '',
+    income: String(src.curIncome || 0),
+    interestTop: 0,
+    minCapital: String(src.minSave || 0),
+    platformTxt: '',
+    receiveType: 0,
+    startYear: 0,
+    time: '',
+    validBetTimes: '0',
+    yearRate: String(src.yearRate || 0)
+  };
+  const base = {
     switchStatus: 0,
     yuebaoGold: 0,
     curIncome: 0,
@@ -1468,21 +1512,15 @@ function adaptYuebaoIndex(providerResult) {
     interestTop: 0,
     ruleText: '',
     list: [],
-    ruleTextData: {
-      auditType: 0,
-      billPeriod: '',
-      dynamic: '',
-      income: '0',
-      interestTop: 0,
-      minCapital: '0',
-      platformTxt: '',
-      receiveType: 0,
-      startYear: 0,
-      time: '',
-      validBetTimes: '0',
-      yearRate: '0'
-    }
-  });
+    ruleTextData
+  };
+  if (!Number(src.switchStatus)) return envelope(base);
+  return envelope(Object.assign(base, src, {
+    gameGold: gold,
+    isPop: 0,
+    ruleText: '',
+    ruleTextData
+  }));
 }
 
 function adaptUnreadCount(providerResult) {

@@ -50,9 +50,20 @@ async function loadVipMapped(token, cfg) {
   }
   if (vipLoadInflight && vipLoadInflight.key === key) return vipLoadInflight.promise;
   const promise = (async () => {
-    const { httpVipList } = require('./http-api');
+    const { httpVipList, httpValidAwardInfo } = require('./http-api');
+    const maps = require('./http-maps');
     const vipRes = await httpVipList({ token, cfg, timeoutMs: cfg.timeoutMs });
-    const mapped = require('./http-maps').mapVipDetail(vipRes);
+    let mapped = maps.mapVipDetail(vipRes);
+    if (token) {
+      try {
+        mapped = maps.applyVipClaimFlags(
+          mapped,
+          await httpValidAwardInfo({ token, cfg, timeoutMs: cfg.timeoutMs })
+        );
+      } catch (err) {
+        console.warn('[provider:wgame] validAwardInfo failed:', (err && err.message) || err);
+      }
+    }
     if (mapped && Array.isArray(mapped.VipSettings) && mapped.VipSettings.length) {
       vipLoadCache = { at: Date.now(), key, value: mapped };
     }
@@ -137,11 +148,30 @@ function publicActiveFallback(routePath) {
 }
 
 async function loadPublicActive(siteDir, routePath, headers) {
+  const p = String(routePath || '');
+  try {
+    const { findLocalPublicBody } = require('./local-public-api');
+    const local = findLocalPublicBody(siteDir, p, null);
+    if (local && local.body) {
+      const json = JSON.parse(local.body);
+      if (json && json.data != null && (Number(json.code) === 1 || Number(json.code) === 0)) {
+        const data = json.data;
+        if (/\/api\/active\/(categoryV2|category)$/i.test(p)) {
+          const { dropOfficialCampaigns } = require('./public-brand');
+          dropOfficialCampaigns(data);
+        }
+        const n = Array.isArray(data.activeList) ? data.activeList.length : 0;
+        try { console.info('[provider:wgame] public active local', p, 'n=' + n); } catch (_) { /* ignore */ }
+        return data;
+      }
+    }
+  } catch (err) {
+    console.warn('[provider:wgame] public active local failed', p, (err && err.message) || err);
+  }
   const oss = resolveOssOrigin(siteDir);
   if (!oss) return null;
   const lang = langPrimary(headers && headers.language);
   const cur = 'BRL';
-  const p = String(routePath || '');
   const rels = [];
   if (/\/api\/active\/categoryV2$/i.test(p)) {
     const langs = lang === 'pt' ? ['pt'] : [lang, 'pt'];
@@ -183,6 +213,10 @@ async function loadPublicActive(siteDir, routePath, headers) {
           ? data.activeList.length
           : (Array.isArray(data.taskSetting) ? data.taskSetting.length : (Array.isArray(data) ? data.length : 0));
         try { console.info('[provider:wgame] public active', p, 'n=' + n); } catch (_) { /* ignore */ }
+        if (/\/api\/active\/(categoryV2|category)$/i.test(p)) {
+          const { dropOfficialCampaigns } = require('./public-brand');
+          dropOfficialCampaigns(data);
+        }
         return data;
       }
     } catch (err) {
@@ -191,60 +225,14 @@ async function loadPublicActive(siteDir, routePath, headers) {
   }
   if (stale != null) {
     try { console.warn('[provider:wgame] public active using stale cache', p); } catch (_) { /* ignore */ }
+    if (/\/api\/active\/(categoryV2|category)$/i.test(p)) {
+      const { dropOfficialCampaigns } = require('./public-brand');
+      dropOfficialCampaigns(stale);
+    }
     return stale;
   }
   // 冷启动且 OSS 暂时不可用：返回关闭态，页面可继续渲染并在后续请求自动恢复。
   return publicActiveFallback(p);
-}
-
-function resolveApiOrigin(siteDir) {
-  try {
-    const { loadAdapterConfig } = require('../../config');
-    const adapterCfg = loadAdapterConfig(siteDir, fs, path);
-    if (adapterCfg && adapterCfg.upstreamOrigin) return String(adapterCfg.upstreamOrigin).replace(/\/$/, '');
-  } catch (_) { /* fall through */ }
-  try {
-    const html = fs.readFileSync(path.join(siteDir, 'index.html'), 'utf8');
-    const m = html.match(/https?:\/\/aniw\d*\.[^"'&\s/]+/i);
-    if (m) return m[0];
-  } catch (_) { /* ignore */ }
-  return '';
-}
-
-async function replayOfficialActive(siteDir, routePath, body, headers) {
-  const origin = resolveApiOrigin(siteDir);
-  if (!origin) return null;
-  const pathName = '/hall' + String(routePath || '').replace(/^\/hall/, '');
-  const payload = Object.assign({}, body || {});
-  for (const key of ['token', 'jwt', 'newJwt', 'newjwt', 'session_key', 'userkey', 'authorization']) {
-    delete payload[key];
-  }
-  const axios = require('axios');
-  const { getDirectHttpsAgent } = require('../../../system-proxy');
-  try {
-    const res = await axios.post(origin + pathName, JSON.stringify(payload), {
-      httpsAgent: getDirectHttpsAgent(),
-      proxy: false,
-      timeout: 8000,
-      validateStatus: () => true,
-      headers: {
-        Accept: 'application/json,text/plain,*/*',
-        'Content-Type': 'application/json',
-        'x-data-mode': 'plain',
-        currency: 'BRL',
-        language: langPrimary(headers && headers.language),
-        'User-Agent': 'Mozilla/5.0'
-      }
-    });
-    const parsed = res.data;
-    if (res.status < 400 && parsed && Number(parsed.code) === 1 && parsed.data != null) return parsed.data;
-    try {
-      console.info('[provider:wgame] active replay miss', routePath, res.status, parsed && (parsed.errorCode || parsed.code));
-    } catch (_) { /* ignore */ }
-  } catch (err) {
-    console.warn('[provider:wgame] active replay failed', routePath, (err && err.message) || err);
-  }
-  return null;
 }
 
 async function loadLiveShopPack(cfg, token, siteDir) {
@@ -1301,14 +1289,17 @@ async function execute(op, ctx) {
     }
     if (op === OP.PAY_ORDER_INFO) {
       const orderNo = body && (body.orderNo || body.order_no || body.outTradeNo);
-      const row = getOrder(orderNo);
+      const all = listOrders();
+      const row = getOrder(orderNo) || (all.length ? all[all.length - 1] : null);
       if (!row) {
         return ok({
-          list: listOrders().slice(-20),
-          total: listOrders().length,
+          list: [],
+          total: 0,
           orderNo: orderNo || '',
           status: 'unknown',
-          success: false
+          success: false,
+          channelAmount: '0',
+          money: '0'
         }, 'ok');
       }
       return ok(Object.assign({}, row, { success: row.status === 'paid' }), 'ok');
@@ -1318,8 +1309,9 @@ async function execute(op, ctx) {
       const amount = body && (body.money != null ? body.money : body.amount);
       const channelId = body && (
         body.channelId != null ? body.channelId
-          : (body.paymentid != null ? body.paymentid
-            : (body.payplatformid != null ? body.payplatformid : body.paymentMethodId))
+          : (body.payplatformid != null ? body.payplatformid
+            : (body.paymentid != null ? body.paymentid
+              : (body.paytype != null ? body.paytype : body.paymentMethodId)))
       );
       const orderNo = 'WG' + Date.now() + Math.floor(Math.random() * 1000);
       let qrCode = co.qrCodeUrl || '';
@@ -1339,12 +1331,13 @@ async function execute(op, ctx) {
             }
             url = charge.szChargeUrl || url;
             const info = charge.orderInfo || {};
-            if (info.qrcode || info.qrCode) qrCode = String(info.qrcode || info.qrCode);
+            const pix = info.qrcode || info.qrCode || info.qr_code || info.payCode || '';
+            if (pix) qrCode = String(pix);
+            else if (!qrCode && url) qrCode = String(url);
             if (info.orderid || info.orderNo || info.order_no) {
               remoteOrderNo = String(info.orderid || info.orderNo || info.order_no);
             }
-            if (qrCode && !url) urlOpenWay = 4;
-            else if (url && !qrCode) urlOpenWay = 1;
+            if (qrCode) urlOpenWay = 4;
           }
         } catch (err) {
           console.warn('[provider:wgame] payCharge failed:', (err && err.message) || err);
@@ -1455,6 +1448,7 @@ async function execute(op, ctx) {
         currencySign: pay.currencySign || 'R$',
         channlName: (body && (body.channlName || body.merch_desc)) || 'PIX',
         money: amount != null ? String(amount) : '0',
+        channelAmount: amount != null ? String(amount) : '0',
         urlOpenWay,
         status: 'wait'
       };
@@ -1482,6 +1476,24 @@ async function execute(op, ctx) {
     }
 
     // 优先 wgame HTTP 代理统计（对齐 proxyStatistics）
+    if (op === OP.AGENT_PROMOTION) {
+      const row = findSession(body, headers);
+      const { sessionHttpToken, httpProxyStatistics } = require('./http-api');
+      const token = row && row.user ? sessionHttpToken(row.user) : '';
+      let directMember = 0;
+      if (token) {
+        try {
+          const res = await httpProxyStatistics({ token, body, cfg, timeoutMs: cfg.timeoutMs });
+          directMember = require('./http-maps').mapProxyStatistics(res).lv1PersonCount || 0;
+        } catch (err) {
+          console.warn('[provider:wgame] agentPromotion count failed:', (err && err.message) || err);
+        }
+      }
+      const enriched = enrichAgentFromSession(agent, row && row.user, ctx && ctx.siteDir);
+      const promo = Object.assign({}, enriched.agentPromotion || {}, { directMember });
+      return ok(promo, 'ok');
+    }
+
     if (op === OP.AGENT_INDEX || op === OP.AGENT_TOTAL || op === OP.AGENT_PERIOD || op === OP.AGENT_COMMISSION) {
       const row = findSession(body, headers);
       const { sessionHttpToken, httpProxyStatistics } = require('./http-api');
@@ -1494,6 +1506,8 @@ async function execute(op, ctx) {
           return ok(mapped, 'ok');
         } catch (err) {
           console.warn('[provider:wgame] proxyStatistics failed:', (err && err.message) || err);
+          // 失败后不要再开一条新的大厅 websocket。那条登录会和正在进行的统计抢同一个账号，并再等一次网关超时。
+          return ok(require('./http-maps').mapProxyStatistics(null), 'ok');
         }
       }
     }
@@ -1519,10 +1533,11 @@ async function execute(op, ctx) {
 
     async function resolveWgameAgentViaInvite() {
       if (agentSource !== 'wgame') return null;
-      if (!(op === OP.AGENT_INDEX || op === OP.AGENT_TOTAL || op === OP.AGENT_PROMOTION)) return null;
+      if (!(op === OP.AGENT_INDEX || op === OP.AGENT_TOTAL)) return null;
       if (!sessionUserEarly || !sessionUserEarly.account || !sessionUserEarly.password) return null;
       try {
-        const res = await wgameAuth({
+        const { withAccountGate, proxyAccountKey, sessionHttpToken } = require('./http-api');
+        const res = await withAccountGate(proxyAccountKey(sessionHttpToken(sessionUserEarly)), () => wgameAuth({
           action: 'login',
           account: sessionUserEarly.account,
           password: sessionUserEarly.password,
@@ -1532,7 +1547,7 @@ async function execute(op, ctx) {
           nGmType: cfg.nGmType,
           hallAction: 'proxyInvite',
           deviceId: sessionUserEarly.device_id
-        });
+        }));
         if (res && res.proxyInvite) {
           let mapped = mapProxyInviteToAgent(res.proxyInvite, agent);
           mapped = enrichAgentFromSession(mapped, sessionUserEarly, ctx && ctx.siteDir);
@@ -1801,7 +1816,21 @@ async function execute(op, ctx) {
           timeoutMs: cfg.timeoutMs
         });
         if (res && Number(res.ret) !== 0) {
-          return fail(10064, 'withdraw ret=' + res.ret);
+          const code = Number(res.ret);
+          const known = {
+            1: 'another account is already bound',
+            2: 'player data is not loaded',
+            3: 'account status is abnormal',
+            4: 'below the minimum withdraw amount',
+            5: 'above the maximum withdraw amount',
+            6: 'withdraw amount is invalid',
+            7: 'bank information is abnormal',
+            8: 'withdraw amount exceeds the available balance',
+            9: 'payment method is incorrect',
+            10: 'wagering requirement is not met',
+            23: 'daily withdraw count exceeded'
+          };
+          return fail(10064, known[code] || ('withdraw ret=' + code));
         }
         return ok({ success: true, ret: 0 }, 'ok');
       } catch (err) {
@@ -1977,8 +2006,7 @@ async function execute(op, ctx) {
       return fail(41000, 'activity public json unavailable');
     }
     if (routePath && /\/api\/active\/(tasks\/task|tasks\/vitality\/boxs)$/i.test(String(routePath))) {
-      const data = await replayOfficialActive(ctx && ctx.siteDir, routePath, body, headers);
-      if (data != null) return ok(data, 'ok');
+      // 官方这条没有我们的登录态，实测只会 41040、code 0 或等满超时。本地零态已经能让任务页渲染，不再打上游。
       return fail(41040, 'mission unavailable');
     }
     if (routePath && /^\/api\/platform\//i.test(routePath)) {
@@ -2009,9 +2037,194 @@ async function execute(op, ctx) {
         return ok({ chargeRate: '0', charge_rate: 0 }, 'ok');
       }
     }
+    if (routePath && /\/api\/member\/user\/giftRecvV2$/i.test(String(routePath))) {
+      const row = findSession(body, headers);
+      const { sessionHttpToken, httpGetDaySignAward } = require('./http-api');
+      const token = row && row.user ? sessionHttpToken(row.user) : '';
+      if (!token) return fail(41000, 'login required');
+      const ids = String(body && body.receiveId || '').split(',').map((id) => id.trim()).filter(Boolean);
+      const ours = ids.filter((id) => /^wgame:\d+:\d+$/.test(id));
+      if (!ours.length) return fail(10060, 'reward claim is not a vip sign award');
+      const received = [];
+      try {
+        for (const id of ours) {
+          const parts = id.split(':');
+          const res = await httpGetDaySignAward({
+            token,
+            awardType: parts[1],
+            vipLevel: parts[2],
+            cfg,
+            timeoutMs: cfg.timeoutMs
+          });
+          if (!res || Number(res.ret) !== 0) {
+            return fail(10064, 'getDaySignAward ret=' + (res && res.ret));
+          }
+          const reward = Math.round(Number(res.signAward) || 0) / 1000;
+          received.push({ id, reward });
+        }
+      } catch (err) {
+        console.warn('[provider:wgame] getDaySignAward failed:', (err && err.message) || err);
+        return fail(10064, (err && err.message) || 'getDaySignAward failed');
+      }
+      vipLoadCache = { at: 0, key: '', value: null };
+      const amount = received.reduce((sum, row) => sum + row.reward, 0);
+      return ok({
+        receiveList: received,
+        amount,
+        failedList: [],
+        receiveTS: 0,
+        isAllLargeAmount: false
+      }, 'ok');
+    }
+    if (routePath && /\/api\/gohal\/staffAllV3$/i.test(String(routePath))) {
+      const row = findSession(body, headers);
+      const { sessionHttpToken, httpCustomService } = require('./http-api');
+      const maps = require('./http-maps');
+      const token = row && row.user ? sessionHttpToken(row.user) : '';
+      try {
+        const res = await httpCustomService({
+          token,
+          packageId: cfg.packageId,
+          cfg,
+          timeoutMs: cfg.timeoutMs
+        });
+        return ok(maps.mapStaff(res), 'ok');
+      } catch (err) {
+        console.warn('[provider:wgame] customService failed:', (err && err.message) || err);
+        return ok(maps.mapStaff(null), 'ok');
+      }
+    }
+    if (routePath && /\/api\/yuebao\/getSetting$/i.test(String(routePath))) {
+      const row = findSession(body, headers);
+      const { sessionHttpToken, httpBalanceInterestConfig } = require('./http-api');
+      const maps = require('./http-maps');
+      const token = row && row.user ? sessionHttpToken(row.user) : '';
+      try {
+        const mapped = maps.mapYuebao(
+          await httpBalanceInterestConfig({ token, cfg, timeoutMs: cfg.timeoutMs }),
+          null,
+          0
+        );
+        return ok({
+          yearRate: mapped.yearRate || 0,
+          dayRate: mapped.dayRate || 0,
+          isPop: 0,
+          switchStatus: mapped.switchStatus || 0,
+          minSave: mapped.minSave || 0,
+          cycleTime: mapped.cycleTime || 0
+        }, 'ok');
+      } catch (err) {
+        console.warn('[provider:wgame] yuebao setting failed:', (err && err.message) || err);
+        return ok({ yearRate: 0, isPop: 0, switchStatus: 0 }, 'ok');
+      }
+    }
+    if (routePath && /\/api\/yuebao\/(saveGold|takeoutGold|profitRecord|profitCount)$/i.test(String(routePath))) {
+      const row = findSession(body, headers);
+      const {
+        sessionHttpToken,
+        httpBalanceInterestConfig,
+        httpSetBalanceInterest,
+        httpGetBalanceInterest,
+        httpVerifyWithdrawPwd,
+        httpBalanceInterestHistory
+      } = require('./http-api');
+      const maps = require('./http-maps');
+      const { COIN_RATE } = require('./protocol');
+      const token = row && row.user ? sessionHttpToken(row.user) : '';
+      if (!token) return fail(41000, 'login required');
+      const timeoutMs = cfg.timeoutMs;
+      try {
+        if (/profitRecord|profitCount/i.test(routePath)) {
+          const mapped = maps.mapBalanceHistory(await httpBalanceInterestHistory({
+            token, body, cfg, timeoutMs
+          }));
+          if (/profitCount/i.test(routePath)) {
+            return ok({ count: mapped.total, totalIncome: mapped.totalIncome }, 'ok');
+          }
+          return ok(mapped, 'ok');
+        }
+        const config = await httpBalanceInterestConfig({ token, cfg, timeoutMs });
+        const product = (maps.mapYuebao(config, null, 0).list || [])[0];
+        if (!product) return fail(10060, 'no balance interest product');
+        if (/takeoutGold/i.test(routePath)) {
+          const pwd = body && (body.passwd || body.password || body.withdrawPass);
+          if (!pwd) return fail(10064, 'withdraw password required');
+          const alreadySet = !!(row.user && (
+            row.user.hasWithdrawPasswd
+            || (row.user.permissionOpt && row.user.permissionOpt.hasWithdrawPasswd)
+          ));
+          if (!alreadySet) return fail(10064, 'withdraw password is not set');
+          const check = await httpVerifyWithdrawPwd({ token, password: pwd, cfg, timeoutMs });
+          if (!check || Number(check.res) !== 0) {
+            return fail(10064, 'verifyWithdrawPwd res=' + (check && check.res));
+          }
+          const res = await httpGetBalanceInterest({
+            token,
+            balanceType: product.balanceType,
+            returnSeedMoney: 1,
+            cfg,
+            timeoutMs
+          });
+          if (!res || Number(res.res) !== 0) {
+            return fail(10064, 'getBalanceInterest res=' + (res && res.res));
+          }
+          return ok({ interest: Math.round(Number(res.interestMoney) || 0) / (COIN_RATE || 1000) }, 'ok');
+        }
+        const display = Number(body && body.accessGold);
+        if (!Number.isFinite(display) || display <= 0) return fail(10064, 'amount required');
+        const res = await httpSetBalanceInterest({
+          token,
+          balanceType: product.balanceType,
+          seedMoney: Math.round(display * (COIN_RATE || 1000)),
+          cfg,
+          timeoutMs
+        });
+        if (!res || Number(res.res) !== 0) {
+          return fail(10064, 'setBalanceInterest res=' + (res && res.res));
+        }
+        return ok({}, 'ok');
+      } catch (err) {
+        console.warn('[provider:wgame] yuebao action failed:', (err && err.message) || err);
+        return fail(10064, (err && err.message) || 'yuebao action failed');
+      }
+    }
+    if (routePath && /\/api\/yuebao\/index$/i.test(String(routePath))) {
+      const row = findSession(body, headers);
+      const {
+        sessionHttpToken,
+        httpBalanceInterestConfig,
+        httpBalanceInterestList,
+        httpMoney
+      } = require('./http-api');
+      const maps = require('./http-maps');
+      const token = row && row.user ? sessionHttpToken(row.user) : '';
+      let config = null;
+      let holdings = null;
+      let gold = 0;
+      try {
+        config = await httpBalanceInterestConfig({ token, cfg, timeoutMs: cfg.timeoutMs });
+      } catch (err) {
+        console.warn('[provider:wgame] balanceInterestConfig failed:', (err && err.message) || err);
+      }
+      if (token) {
+        try {
+          holdings = await httpBalanceInterestList({ token, cfg, timeoutMs: cfg.timeoutMs });
+        } catch (err) {
+          console.warn('[provider:wgame] balanceInterestList failed:', (err && err.message) || err);
+        }
+        try {
+          gold = maps.mapMoney(await httpMoney({ token, cfg, timeoutMs: cfg.timeoutMs }));
+        } catch (_) { /* 余额拿不到时首页仍用 0 */ }
+      }
+      return ok(maps.mapYuebao(config, holdings, gold), 'ok');
+    }
     // 注册成功弹窗等已由专用 adapter 处理；默认空对象
     if (routePath && /registerPopupDlgInfo/i.test(String(routePath))) {
       // fall through — adapter registerPopup 读 provider data；若到此说明未走专用分支
+    }
+    if (routePath && /\/api\/lobby\/config\/getAppDownloadInfo$/i.test(String(routePath))) {
+      const { appDownloadPayload } = require('./popup-config');
+      return ok(appDownloadPayload(), 'ok');
     }
     return ok({}, 'ok');
   }
@@ -2023,12 +2236,72 @@ async function execute(op, ctx) {
     const token = row && row.user ? sessionHttpToken(row.user) : '';
     const maps = require('./http-maps');
 
+    if (/\/api\/message\/list\/all$/i.test(routePath)) {
+      const requestPath = String((ctx && ctx.requestPath) || routePath);
+      const typeMatch = requestPath.match(/\/type\/([^/]+)/);
+      const type = body && body.type != null ? body.type : (typeMatch ? typeMatch[1] : 99);
+      if (!token) return ok(maps.mapNotices(null, type), 'ok');
+      try {
+        const { httpNotice } = require('./http-api');
+        const res = await httpNotice({ token, cfg, timeoutMs: cfg.timeoutMs });
+        return ok(maps.mapNotices(res, type), 'ok');
+      } catch (err) {
+        console.warn('[provider:wgame] notice failed:', (err && err.message) || err);
+        return ok(maps.mapNotices(null, type), 'ok');
+      }
+    }
+    if (/\/api\/message\/details$/i.test(routePath)) {
+      const noticeId = body && (body.id != null ? body.id : body.noticeId);
+      if (!token) return ok(maps.mapNoticeDetail(null, noticeId), 'ok');
+      try {
+        const { httpNotice } = require('./http-api');
+        const res = await httpNotice({ token, cfg, timeoutMs: cfg.timeoutMs });
+        return ok(maps.mapNoticeDetail(res, noticeId), 'ok');
+      } catch (err) {
+        console.warn('[provider:wgame] notice detail failed:', (err && err.message) || err);
+        return ok(maps.mapNoticeDetail(null, noticeId), 'ok');
+      }
+    }
+
     // 充值/提现流水 → HTTP
     if (token && /pay\/orderList|chargeRecord|finance\/pay\/order/i.test(routePath)) {
       try {
         const { httpChargeRecord } = require('./http-api');
         const res = await httpChargeRecord({ token, body, cfg, timeoutMs: cfg.timeoutMs });
         const mapped = maps.mapChargeRecords(res);
+        const { listOrders } = require('./pay-orders');
+        const seen = new Set((mapped.list || []).map((row) => String(row.orderNo || '')));
+        const pending = listOrders()
+          .filter((row) => row && row.orderNo && !seen.has(String(row.orderNo)) && row.status !== 'paid')
+          .map((row) => {
+            const money = Number(row.money != null ? row.money : row.channelAmount) || 0;
+            const created = Number(row.createTime) || Math.floor((row.createdAt || Date.now()) / 1000);
+            return {
+              orderNo: String(row.orderNo),
+              order: String(row.orderNo),
+              amount: money,
+              chargeMoney: money,
+              channelAmount: String(money),
+              gameMoney: 0,
+              giveMoney: 0,
+              extraMoney: 0,
+              times: created,
+              createTime: created,
+              status: 0,
+              orderStatus: 0,
+              payStatus: 0,
+              channlName: row.channlName || 'PIX'
+            };
+          });
+        if (pending.length) {
+          mapped.list = pending.concat(mapped.list || []);
+          mapped.records = mapped.list;
+          mapped.rows = mapped.list;
+          mapped.total = mapped.list.length;
+          mapped.totalCount = mapped.list.length;
+          mapped.count = mapped.list.length;
+          mapped.totalRecords = mapped.list.length;
+        }
         try {
           console.info('[provider:wgame] chargeRecord', 'n=' + ((mapped.list && mapped.list.length) || 0));
         } catch (_) { /* ignore */ }
@@ -2036,6 +2309,101 @@ async function execute(op, ctx) {
       } catch (err) {
         console.warn('[provider:wgame] chargeRecord failed:', (err && err.message) || err);
       }
+    }
+    if (token && /accountPageList|accountTotalV2|accountDetailInfo/i.test(routePath)) {
+      try {
+        const { httpChargeWithdrawList } = require('./http-api');
+        const query = Object.assign({}, body || {});
+        if (query.queryType == null && query.query_type == null) query.queryType = 6;
+        const res = await httpChargeWithdrawList({ token, body: query, cfg, timeoutMs: cfg.timeoutMs });
+        const mapped = maps.mapChargeWithdrawRecords(res);
+        const { listOrders } = require('./pay-orders');
+        const seen = new Set((mapped.data || []).map((item) => String(item.orderNo || '')));
+        const pending = listOrders()
+          .filter((item) => item && item.orderNo && !seen.has(String(item.orderNo)) && item.status !== 'paid')
+          .map((item) => {
+            const money = Number(item.money != null ? item.money : item.channelAmount) || 0;
+            const created = Number(item.createTime) || Math.floor((item.createdAt || Date.now()) / 1000);
+            const finishMs = created > 1e12 ? created : created * 1000;
+            return {
+              id: String(item.orderNo),
+              orderNo: String(item.orderNo),
+              uuid: String(item.orderNo),
+              opt_type_name: 'Depósito',
+              optTypeName: 'Depósito',
+              deal_type_name: 'PIX',
+              dealTypeName: 'PIX',
+              deal_type: 1,
+              walletTypeName: 'Saldo',
+              item_count: money,
+              changeGold: money,
+              money: String(money),
+              beforeGold: 0,
+              afterGold: 0,
+              createTime: finishMs,
+              finish_game_time: finishMs,
+              status: 0,
+              remark: String(item.orderNo),
+              type: 0
+            };
+          });
+        if (pending.length) {
+          mapped.data = pending.concat(mapped.data || []);
+          mapped.list = mapped.data;
+          mapped.records = mapped.data;
+          mapped.rows = mapped.data;
+          mapped.total = mapped.data.length;
+          mapped.totalCount = mapped.data.length;
+          mapped.count = mapped.data.length;
+          mapped.totalRecords = mapped.data.length;
+        }
+        if (/accountDetailInfo/i.test(routePath)) {
+          const orderNo = String((body && (body.orderNo || body.order_no || body.id)) || '');
+          const hit = (mapped.data || []).find((item) => String(item.orderNo) === orderNo) || null;
+          return ok(hit || {
+            orderNo,
+            optTypeName: '',
+            dealTypeName: '',
+            changeGold: 0,
+            beforeGold: 0,
+            afterGold: 0,
+            createTime: 0,
+            walletTypeName: 'Saldo'
+          }, 'ok');
+        }
+        if (/accountTotalV2/i.test(routePath)) {
+          return ok({
+            totalChargeAmount: mapped.totalChargeAmount,
+            totalWithdrawAmount: mapped.totalWithdrawAmount,
+            totalTaskAmount: '0',
+            totalYuebaoAmount: '0',
+            totalDiscountAmount: '0',
+            totalReturnGoldAmount: '0',
+            totalEventAmount: '0',
+            totalValidBet: '0',
+            totalItemCount: String(mapped.total || 0),
+            totalSettle: '0',
+            balance: '0',
+            betitemNum: 0,
+            totalTax: '0',
+            totalValidAmount: '0'
+          }, 'ok');
+        }
+        return ok(mapped, 'ok');
+      } catch (err) {
+        console.warn('[provider:wgame] chargeWithdrawList failed:', (err && err.message) || err);
+      }
+    }
+    if (/bet_report\/personal\/_query|betrecords\/_query|reportByCategoryType/i.test(routePath)) {
+      return ok(maps.emptyPersonalReport(), 'ok');
+    }
+    if (/dealTypes$/i.test(routePath)) {
+      return ok({
+        opt_type_list: [
+          { id: 1, name: 'Depósito' },
+          { id: 2, name: 'Saque' }
+        ]
+      }, 'ok');
     }
     if (token && /withdrawRecord|withdrawRecords|claim\/withdrawRecord/i.test(routePath)) {
       try {
@@ -2071,22 +2439,79 @@ async function execute(op, ctx) {
           const res = await httpProxyStatistics({ token, body, cfg, timeoutMs: cfg.timeoutMs });
           return ok(maps.mapProxyStatistics(res), 'ok');
         }
-        if (/memberInfo|directReport|teamData|userAgentMode/i.test(routePath)) {
+        if (/directCouponV3$/i.test(routePath)) {
+          const { httpProxyReceivePaymentList } = require('./http-api');
+          const res = await httpProxyReceivePaymentList({ token, body, cfg, timeoutMs: cfg.timeoutMs });
+          return ok(maps.mapReceivePayments(res), 'ok');
+        }
+        if (/directReport/i.test(routePath)) {
+          const { httpProxyChargeRunningList } = require('./http-api');
+          const res = await httpProxyChargeRunningList({ token, body, cfg, timeoutMs: cfg.timeoutMs });
+          return ok(maps.mapDirectData(res), 'ok');
+        }
+        if (/directFinV4$/i.test(routePath)) {
+          const { httpProxyChargeRunningList } = require('./http-api');
+          const res = await httpProxyChargeRunningList({ token, body, cfg, timeoutMs: cfg.timeoutMs });
+          return ok(maps.mapChargeRunningList(res), 'ok');
+        }
+        if (/memberInfo$/i.test(routePath)) {
+          const { httpProxyUserDetail } = require('./http-api');
+          const roleId = Number(body.userIdx || body.roleId || body.account || body.userId) || 0;
+          let res = null;
+          try {
+            res = await httpProxyUserDetail({ token, roleId, cfg, timeoutMs: cfg.timeoutMs });
+          } catch (err) {
+            console.warn('[provider:wgame] proxyUserDetail failed:', (err && err.message) || err);
+          }
+          return ok(maps.mapMemberDetail(res, roleId), 'ok');
+        }
+        if (/directOrderDetailV3$/i.test(routePath)) {
+          const { httpProxyUserDetail } = require('./http-api');
+          const roleId = Number(body.account || body.userIdx || body.roleId || body.userId) || 0;
+          let res = null;
+          try {
+            res = await httpProxyUserDetail({ token, roleId, cfg, timeoutMs: cfg.timeoutMs });
+          } catch (err) {
+            console.warn('[provider:wgame] proxyUserDetail failed:', (err && err.message) || err);
+          }
+          return ok(maps.mapBetDetail(res, body), 'ok');
+        }
+        if (/teamData/i.test(routePath)) {
+          const { httpProxyStatistics, proxyStatBodyFromLobby } = require('./http-api');
+          const res = await httpProxyStatistics({
+            token,
+            body: proxyStatBodyFromLobby(body),
+            cfg,
+            timeoutMs: cfg.timeoutMs
+          });
+          return ok(maps.mapTeamData(res), 'ok');
+        }
+        if (/userAgentMode/i.test(routePath)) {
           const { httpProxyUserList } = require('./http-api');
           const res = await httpProxyUserList({ token, cfg, timeoutMs: cfg.timeoutMs });
-          const list = (res && (res.item || res.items)) || [];
-          const rows = Array.isArray(list) ? list : [];
-          return ok({
-            list: rows,
-            records: rows,
-            rows,
-            total: rows.length,
-            totalCount: rows.length,
-            count: rows.length,
-            totalRecords: rows.length
-          }, 'ok');
+          return ok(maps.mapProxyUsers(res), 'ok');
         }
-        if (/myPerformance|clubCommission|clubPerformance/i.test(routePath)) {
+        if (/directOrderV3$/i.test(routePath)) {
+          const { httpProxyWinList } = require('./http-api');
+          const res = await httpProxyWinList({ token, body, cfg, timeoutMs: cfg.timeoutMs });
+          return ok(maps.mapProxyWinList(res), 'ok');
+        }
+        if (/myPerformance/i.test(routePath) && !/Detail/i.test(routePath)) {
+          const { httpProxyBetList } = require('./http-api');
+          const res = await httpProxyBetList({ token, body, cfg, timeoutMs: cfg.timeoutMs });
+          return ok(maps.mapProxyBetList(res), 'ok');
+        }
+        if (/clubComRateV1$/i.test(routePath)) {
+          try {
+            const { httpProxySubBetConfig } = require('./http-api');
+            const res = await httpProxySubBetConfig({ token, cfg, timeoutMs: cfg.timeoutMs });
+            return ok(maps.mapBetRates(res), 'ok');
+          } catch (err) {
+            console.warn('[provider:wgame] proxySubBetConfig failed:', (err && err.message) || err);
+            return ok(maps.mapBetRates(null), 'ok');
+          }
+        }
+        if (/clubCommission|clubPerformance/i.test(routePath)) {
           const { httpProxyStatistics } = require('./http-api');
           const res = await httpProxyStatistics({ token, body, cfg, timeoutMs: cfg.timeoutMs });
           const stat = maps.mapProxyStatistics(res);
@@ -2099,7 +2524,12 @@ async function execute(op, ctx) {
             totalRecords: 0
           }, stat), 'ok');
         }
-        if (/settleTime|proxySubBetConfig|myCommissionDetail/i.test(routePath)) {
+        if (/myCommissionDetail/i.test(routePath)) {
+          const { httpProxyBetBonus } = require('./http-api');
+          const res = await httpProxyBetBonus({ token, body, cfg, timeoutMs: cfg.timeoutMs });
+          return ok(maps.mapCommissionDetail(res), 'ok');
+        }
+        if (/settleTime|proxySubBetConfig/i.test(routePath)) {
           const { httpProxySubBetConfig } = require('./http-api');
           const res = await httpProxySubBetConfig({ token, cfg, timeoutMs: cfg.timeoutMs });
           const list = (res && (res.item || res.items)) || [];

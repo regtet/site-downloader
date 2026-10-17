@@ -1641,7 +1641,9 @@ function proxyRequest(req, res, target, refererOrigin, options = {}) {
     // 走 axios：自动尊重 HTTPS_PROXY / 系统代理（浏览器能开、Node https 直连常 ECONNRESET）
     const run = async () => {
         let body = undefined;
-        if (method !== 'GET' && method !== 'HEAD') {
+        if (Buffer.isBuffer(req.__sdBufferedBody)) {
+            body = req.__sdBufferedBody;
+        } else if (method !== 'GET' && method !== 'HEAD') {
             body = await new Promise((resolve, reject) => {
                 const chunks = [];
                 req.on('data', (c) => chunks.push(c));

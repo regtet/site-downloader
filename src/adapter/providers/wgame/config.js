@@ -45,27 +45,15 @@ function loadWgameConfig(siteDir) {
     }
   } catch (_) { /* ignore */ }
 
-  // 已生成站点必须固定到构建时连接配置，不能被工作区外 wgame_web 后续切分支污染。
   const snapshot = siteHosts && siteHosts.wgameWeb
     && (siteHosts.wgameWeb.snapshottedAt || siteHosts.wgameWeb.configMtime)
     ? siteHosts.wgameWeb
     : null;
 
-  // ① 构建快照优先；当前 wgame_web 仍提供 proto 路径及未落盘的签名密钥。
+  // ① 本机 wgame_web 就是 8080 那个项目，渠道、分包和登录域以它为准。
+  // 站点里的旧快照只在旁边没有 wgame_web 时使用。
   const web = loadWgameWebConfig();
-  if (snapshot) {
-    applyBlock(out, {
-      wssUrl: snapshot.wssUrl,
-      packageId: snapshot.packageId,
-      loginHttpBase: snapshot.loginHttpBase
-    });
-    if (web) applyBlock(out, { httpSignSecret: web.httpSignSecret }, { skipConnection: true });
-    out.wgameWeb = Object.assign({}, snapshot, {
-      root: web ? web.webRoot : snapshot.root,
-      configPath: web ? web.configPath : undefined,
-      source: 'site-snapshot'
-    });
-  } else if (web) {
+  if (web) {
     applyBlock(out, {
       wssUrl: web.wssUrl,
       packageId: web.packageId,
@@ -81,10 +69,26 @@ function loadWgameConfig(siteDir) {
       baseWssUrl: web.baseWssUrl,
       mockWssUrl: web.mockWssUrl,
       loginHttpBase: web.loginHttpBase,
+      packageId: web.packageId,
+      wssUrl: web.wssUrl,
       lobbyGameUrl: web.lobbyGameUrl,
       mtime: web.mtime,
-      source: 'live-wgame-web'
+      source: 'live-wgame-web',
+      previousSnapshot: snapshot
+        ? {
+          wssUrl: snapshot.wssUrl,
+          loginHttpBase: snapshot.loginHttpBase,
+          packageId: snapshot.packageId
+        }
+        : undefined
     };
+  } else if (snapshot) {
+    applyBlock(out, {
+      wssUrl: snapshot.wssUrl,
+      packageId: snapshot.packageId,
+      loginHttpBase: snapshot.loginHttpBase
+    });
+    out.wgameWeb = Object.assign({}, snapshot, { source: 'site-snapshot' });
   }
 
   // ② 站点 provider 选项；连接信息已由快照/当前 wgame_web 决定。

@@ -250,7 +250,31 @@ function mapProxyInviteToAgent(invite, base) {
   return out;
 }
 
-/** 零态时补邀请码与分享链接；分享域名必须来自 WGame 大厅，不能使用上游 API 域名。 */
+function shareBases(siteDir) {
+  const bases = [];
+  const push = (raw) => {
+    const text = String(raw || '').trim();
+    if (!text) return;
+    try {
+      const origin = new URL(text).origin;
+      if (origin && bases.indexOf(origin) === -1) bases.push(origin);
+    } catch (_) { /* 跳过无法解析的分享地址 */ }
+  };
+  try {
+    const live = require('./wgame-web-config').loadWgameWebConfig();
+    const list = live && live.proxyShareUrlList;
+    if (Array.isArray(list)) list.forEach(push);
+  } catch (_) { /* 没有实时配置时再用站点快照 */ }
+  if (!bases.length && siteDir) {
+    try {
+      const hosts = JSON.parse(fs.readFileSync(path.join(siteDir, 'adapter-hosts.json'), 'utf8'));
+      push(hosts && hosts.wgameWeb && hosts.wgameWeb.lobbyGameUrl);
+    } catch (_) { /* ignore */ }
+  }
+  return bases;
+}
+
+/** 零态时补邀请码与分享链接。域名用 wgame_web 的 proxyShareUrlList，邀请码用当前账号。 */
 function enrichAgentFromSession(agent, sessionUser, siteDir) {
   if (!agent || !sessionUser) return agent;
   const out = Object.assign({}, agent);
@@ -261,25 +285,17 @@ function enrichAgentFromSession(agent, sessionUser, siteDir) {
   const looksLocal = /^(https?:\/\/)?(127\.0\.0\.1|localhost)(:\d+)?/i.test(selectedUrl);
   if (selectedUrl && promo.inviteCode && !looksLocal) return out;
 
-  let baseUrl = '';
-  try {
-    if (siteDir) {
-      const hosts = JSON.parse(fs.readFileSync(path.join(siteDir, 'adapter-hosts.json'), 'utf8'));
-      const lobbyGameUrl = hosts && hosts.wgameWeb && hosts.wgameWeb.lobbyGameUrl;
-      if (lobbyGameUrl) baseUrl = new URL(String(lobbyGameUrl)).origin;
-    }
-  } catch (_) { /* ignore */ }
+  const bases = shareBases(siteDir);
   const code = String(promo.inviteCode || sessionUser.userId || sessionUser.account || '');
-  const inviteUrl = baseUrl && code ? `${baseUrl}/?id=${encodeURIComponent(code)}` : (baseUrl || '');
   promo.inviteCode = code;
-  promo.linkList = [
-    {
-      select: true,
-      url: inviteUrl,
+  promo.linkList = bases.length
+    ? bases.map((base, index) => ({
+      select: index === 0,
+      url: code ? `${base}/?id=${encodeURIComponent(code)}` : base,
       name: 'invite',
       code
-    }
-  ];
+    }))
+    : [{ select: true, url: '', name: 'invite', code }];
   out.agentPromotion = promo;
   return out;
 }

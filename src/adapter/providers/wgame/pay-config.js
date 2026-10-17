@@ -193,7 +193,7 @@ function resolvePayTypeMeta(pay, har, siteDir) {
   return { paymentId, payTypeName, iconUrl, payKind: 100 };
 }
 
-/** dist 充值页 Método de Pagamento 读 pay_type_name + iconUrl */
+/** 支付方式只有一层。渠道行才对应 wgame 的 channelItem，不能把渠道拆成多个方式。 */
 function buildPayTypeList(meta) {
   const id = Number(meta && meta.paymentId) || 570082;
   const name = (meta && meta.payTypeName) || 'PIX';
@@ -202,6 +202,7 @@ function buildPayTypeList(meta) {
     id,
     paymentid: id,
     payplatformid: id,
+    openWay: 4,
     payKind: (meta && meta.payKind != null) ? meta.payKind : 100,
     type: 1,
     iconUrl,
@@ -277,6 +278,8 @@ function mapWgameChannelsToPack(list, pay, har, siteDir, shopItems) {
       id,
       payplatformid: id,
       paymentid: paymentId,
+      openWay: 4,
+      combineOpenWay: 4,
       paymentMethodId: id,
       channelId: id,
       channelCode: String(id),
@@ -290,8 +293,11 @@ function mapWgameChannelsToPack(list, pay, har, siteDir, shopItems) {
       max_recharge_limit: max,
       recommendList: shopItemsToRecommendList(shopItems, min, max, pay),
       iconUrl: meta.iconUrl || '',
-      channelTooltip: 'HOT',
-      payicon: '9',
+      channelTooltip: '',
+      chargeRateConfig: Number(c.nAwardRate) > 0
+        ? { chargeRate: String(c.nAwardRate), giftColor: '' }
+        : null,
+      payicon: '',
       orderEffectiveTime: 900,
       realNameSwitch: c.kycFlag ? 1 : 0,
       payment_type: 0,

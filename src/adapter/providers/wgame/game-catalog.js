@@ -52,11 +52,16 @@ function normalizeName(s) {
     .trim();
 }
 
+let gameNameCache = null;
+
 function loadGameNameIndex() {
   const root = resolveWgameWebRoot();
   if (!root) return { byName: new Map(), byId: new Map() };
   const p = path.join(root, 'src', 'game', 'Command', 'Config', 'GameName.js');
   if (!fs.existsSync(p)) return { byName: new Map(), byId: new Map() };
+  let mtime = 0;
+  try { mtime = fs.statSync(p).mtimeMs; } catch (_) { mtime = 0; }
+  if (gameNameCache && gameNameCache.mtime === mtime && gameNameCache.index) return gameNameCache.index;
   const text = fs.readFileSync(p, 'utf8');
   const byName = new Map();
   const byId = new Map();
@@ -71,7 +76,34 @@ function loadGameNameIndex() {
     if (!byName.has(name)) byName.set(name, []);
     byName.get(name).push(id);
   }
-  return { byName, byId };
+  const index = { byName, byId };
+  gameNameCache = { mtime, index };
+  return index;
+}
+
+/** 官方卡片名能在 GameName.js 里精确对上，才保留。对不上的点进去没有我们的游戏。 */
+function canLaunchNamedGame(name) {
+  const norm = normalizeName(name);
+  if (!norm) return false;
+  const { byName } = loadGameNameIndex();
+  return byName.has(norm);
+}
+
+function filterLaunchableOssCatalog(raw) {
+  const text = String(raw == null ? '' : raw);
+  let json;
+  try { json = JSON.parse(text); } catch (_) { return text; }
+  const data = json && json.data;
+  if (!Array.isArray(data)) return text;
+  const next = data.filter((row) => {
+    if (!row || typeof row !== 'object') return false;
+    const gid = row.g0 != null ? row.g0 : row.gameId;
+    if (gid == null || gid === '' || Number(gid) === 0) return true;
+    return canLaunchNamedGame(row.g1 || row.gameName || row.name || '');
+  });
+  if (next.length === data.length) return text;
+  json.data = next;
+  return JSON.stringify(json);
 }
 
 function pickOriginalId(candidates, nApiID) {
@@ -378,5 +410,7 @@ module.exports = {
   resolveCreateUserTarget,
   fixGameId,
   computeCreateGameId,
+  canLaunchNamedGame,
+  filterLaunchableOssCatalog,
   DEFAULT_PLATFORM_MAP
 };

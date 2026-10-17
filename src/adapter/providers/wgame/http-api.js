@@ -341,8 +341,90 @@ function sessionHttpToken(user) {
   return String(user.httpToken || (user.authTransport === 'http' ? user.session : '') || '');
 }
 
+async function httpBalanceInterestConfig({ token, cfg, timeoutMs }) {
+  return postProtoEmpty(
+    userOrGuestPath(token, 'balanceInterestConfig'),
+    protoType('TCmd_BalanceInterestList'),
+    { cfg, token, timeoutMs }
+  );
+}
+
+async function httpBalanceInterestList({ token, cfg, timeoutMs }) {
+  return postProtoEmpty(
+    '/api/user/balanceInterestList',
+    protoType('TCmd_UserBalanceInterestList'),
+    { cfg, token, timeoutMs }
+  );
+}
+
+async function httpSetBalanceInterest({ token, balanceType, seedMoney, cfg, timeoutMs }) {
+  return postProto(
+    '/api/user/setBalanceInterest',
+    protoType('TCmd_SetUserBalanceInterestReq'),
+    {
+      balanceType: Number(balanceType) || 0,
+      seedMoney: Math.round(Number(seedMoney) || 0)
+    },
+    protoType('TCmd_SetUserBalanceInterestRes'),
+    { cfg, token, timeoutMs }
+  );
+}
+
+async function httpGetBalanceInterest({ token, balanceType, returnSeedMoney, cfg, timeoutMs }) {
+  return postProto(
+    '/api/user/getBalanceInterest',
+    protoType('TCmd_GetUserBalanceInterestReq'),
+    {
+      balanceType: Number(balanceType) || 0,
+      returnSeedMoney: Number(returnSeedMoney) ? 1 : 0
+    },
+    protoType('TCmd_GetUserBalanceInterestRes'),
+    { cfg, token, timeoutMs }
+  );
+}
+
+async function httpBalanceInterestHistory({ token, body, cfg, timeoutMs }) {
+  const q = lobbyTimeToBetQuery(body || {});
+  const sentType = body && (body.timeEnum != null || body.queryType != null || body.query_type != null);
+  return postProto(
+    '/api/user/balanceInterestHistory',
+    protoType('TCmd_UserBalanceHistoryReq'),
+    {
+      beginTime: q.beginTime,
+      endTime: q.endTime,
+      queryType: sentType ? q.queryType : 99,
+      bussnessType: 0,
+      pageNum: q.pageNum,
+      pageSize: q.pageSize
+    },
+    protoType('TCmd_UserBalanceHistoryList'),
+    { cfg, token, timeoutMs }
+  );
+}
+
 async function httpMoney({ token, cfg, timeoutMs }) {
   return postProtoEmpty('/api/user/money', protoType('TCmd_Money'), { cfg, token, timeoutMs });
+}
+
+async function httpGetDaySignAward({ token, awardType, vipLevel, cfg, timeoutMs }) {
+  return postProto(
+    '/api/user/getDaySignAward',
+    protoType('TCmd_DaySignAwardReq'),
+    {
+      awardType: Number(awardType) || 0,
+      vipLevel: Number(vipLevel) || 0
+    },
+    protoType('TCmd_DaySignAwardRes'),
+    { cfg, token, timeoutMs }
+  );
+}
+
+async function httpValidAwardInfo({ token, cfg, timeoutMs }) {
+  return postProtoEmpty(
+    '/api/user/validAwardInfo',
+    protoType('TCmd_ValidAwardInfo'),
+    { cfg, token, timeoutMs }
+  );
 }
 
 async function httpVipList({ token, cfg, timeoutMs }) {
@@ -557,32 +639,248 @@ async function httpChargeWithdrawList({ token, body, cfg, timeoutMs }) {
   );
 }
 
-async function httpProxyStatistics({ token, body, cfg, timeoutMs }) {
+const UINT32_MAX = 0xffffffff;
+const proxyStatCache = new Map();
+const accountGates = new Map();
+
+function unixSeconds(value) {
+  let n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  if (n > 1e12) n = Math.floor(n / 1000);
+  n = Math.floor(n);
+  if (n <= 0 || n > UINT32_MAX) return 0;
+  return n;
+}
+
+/**
+ * 大厅日期单选换成 proxyStatistics 的 queryType。
+ * 0全部 1今天 2本周 3上周 4上月 5区间 6昨天 7本月。
+ */
+function proxyStatBodyFromLobby(body) {
   const b = body || {};
+  const timeEnum = Number(b.timeEnum != null ? b.timeEnum : b.time_enum);
+  const lobbyToStat = { 1: 6, 2: 1, 3: 2, 4: 3, 5: 7, 6: 4, 7: 0, 8: 5 };
+  if (!Number.isFinite(timeEnum) || lobbyToStat[timeEnum] == null) return b;
+  return {
+    queryType: lobbyToStat[timeEnum],
+    beginTime: b.beginTime != null ? b.beginTime : b.begin_time,
+    endTime: b.endTime != null ? b.endTime : b.end_time
+  };
+}
+
+/** 对齐 HallKernel.queryProxyStatistics_Req：缺省是全量且不展开三级。三级查询会让内部服务等到超时。 */
+function normalizeProxyStatisticsQuery(body) {
+  const b = body || {};
+  let queryType = Number(b.queryType != null ? b.queryType : b.query_type);
+  if (!Number.isFinite(queryType) || queryType < 0 || queryType > 7) queryType = 0;
+  let beginTime = unixSeconds(b.beginTime != null ? b.beginTime : b.begin_time);
+  let endTime = unixSeconds(b.endTime != null ? b.endTime : b.end_time);
+  if (queryType !== 5) {
+    beginTime = 0;
+    endTime = 0;
+  }
+  // 大厅有时会带 showThree=1。wgame 的 HallKernel 默认是 0；展开三级会让内部服务等到超时。
+  return { queryType, beginTime, endTime, showThree: 0 };
+}
+
+function proxyAccountKey(token) {
+  return 'proxy:' + String(token || '').slice(-24);
+}
+
+function withAccountGate(key, fn) {
+  const gateKey = String(key || '');
+  const prev = accountGates.get(gateKey) || Promise.resolve();
+  const run = prev.catch(() => {}).then(fn);
+  const tail = run.then(() => {}, () => {});
+  accountGates.set(gateKey, tail);
+  return run;
+}
+
+function isInnerWaitTimeout(err) {
+  return /wait response timeout|inner server/i.test(String(err && err.message || err || ''));
+}
+
+async function httpProxyStatistics({ token, body, cfg, timeoutMs }) {
+  const payload = normalizeProxyStatisticsQuery(body);
+  const cacheKey = String(token || '').slice(-24) + ':' + JSON.stringify(payload);
+  const cached = proxyStatCache.get(cacheKey);
+  if (cached && cached.expires > Date.now() && cached.value) return cached.value;
+  if (cached && cached.pending) return cached.pending;
+  const pending = withAccountGate(proxyAccountKey(token), async () => {
+    const runOnce = () => postProto(
+      '/api/user/proxyStatistics',
+      protoType('TCmd_ProxyStatisticsReq'),
+      payload,
+      protoType('TCmd_ProxyStatisticsRes'),
+      { cfg, token, timeoutMs }
+    );
+    try {
+      return await runOnce();
+    } catch (err) {
+      if (!isInnerWaitTimeout(err)) throw err;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return runOnce();
+    }
+  }).then((res) => {
+    proxyStatCache.set(cacheKey, { expires: Date.now() + 8000, value: res });
+    return res;
+  }).catch((err) => {
+    const cur = proxyStatCache.get(cacheKey);
+    if (cur && cur.pending === pending) proxyStatCache.delete(cacheKey);
+    throw err;
+  });
+  proxyStatCache.set(cacheKey, { pending, expires: 0 });
+  return pending;
+}
+
+/** 大厅日期单选（commonChunk）：1昨天 2今天 3本周 4上周 5本月 6上月 7全部 8自定义。 */
+function lobbyTimeToBetQuery(body) {
+  const b = body || {};
+  const beginTime = unixSeconds(b.beginTime != null ? b.beginTime : b.begin_time);
+  const endTime = unixSeconds(b.endTime != null ? b.endTime : b.end_time);
+  let pageNum = Number(b.pageNum != null ? b.pageNum : (b.page != null ? b.page : 1));
+  if (!Number.isFinite(pageNum) || pageNum < 1) pageNum = 1;
+  let pageSize = Number(b.pageSize != null ? b.pageSize : b.page_size);
+  if (!Number.isFinite(pageSize) || pageSize < 1) pageSize = 20;
+  if (pageSize > 50) pageSize = 50;
+  const targetRoleId = Number(b.targetRoleId != null ? b.targetRoleId : (b.userIdx != null ? b.userIdx : 0)) || 0;
+  const timeEnum = Number(b.timeEnum != null ? b.timeEnum : b.time_enum);
+  const lobbyToWgame = {
+    1: 2,
+    2: 1,
+    3: 10,
+    4: 11,
+    5: 7,
+    6: 8,
+    7: 99,
+    8: 4
+  };
+  let queryType = lobbyToWgame[timeEnum];
+  if (queryType == null) {
+    queryType = Number(b.queryType != null ? b.queryType : b.query_type);
+    if (!Number.isFinite(queryType) || queryType <= 0) queryType = 1;
+  }
+  if (queryType !== 4) {
+    return { beginTime: 0, endTime: 0, queryType, targetRoleId, pageNum, pageSize };
+  }
+  return { beginTime, endTime, queryType, targetRoleId, pageNum, pageSize };
+}
+
+async function httpProxyBetList({ token, body, cfg, timeoutMs }) {
+  return withAccountGate(proxyAccountKey(token), () => postProto(
+    '/api/user/proxyBetList',
+    protoType('TCmd_ProxySubUserBetItemReq'),
+    lobbyTimeToBetQuery(body),
+    protoType('TCmd_ProxySubUserBetItemList'),
+    { cfg, token, timeoutMs }
+  ));
+}
+
+async function httpProxyWinList({ token, body, cfg, timeoutMs }) {
+  return withAccountGate(proxyAccountKey(token), () => postProto(
+    '/api/user/proxyWinList',
+    protoType('TCmd_ProxySubUserWinItemReq'),
+    lobbyTimeToBetQuery(body),
+    protoType('TCmd_ProxySubUserWinItemList'),
+    { cfg, token, timeoutMs }
+  ));
+}
+
+function chargeRunningQuery(body) {
+  const base = lobbyTimeToBetQuery(body);
+  const sort = String((body && (body.sortField || body.sort || body.orderBy)) || '');
+  const sortMap = { depositAmount: 3, rechargeAmount: 3, validBet: 4 };
+  return Object.assign(base, {
+    proxyLevel: 0,
+    roleId: 0,
+    sortType: sortMap[sort] || 0
+  });
+}
+
+function betBonusQuery(body) {
+  const base = lobbyTimeToBetQuery(body);
+  const day = Number(body && (body.settleDay != null ? body.settleDay : body.settleDayUnix));
+  if (!Number.isFinite(day) || day <= 0) return base;
+  const start = day > 1e12 ? Math.floor(day / 1000) : Math.floor(day);
+  return {
+    beginTime: start,
+    endTime: start + 86400 - 1,
+    queryType: 4,
+    pageNum: base.pageNum,
+    pageSize: base.pageSize
+  };
+}
+
+async function httpProxyBetBonus({ token, body, cfg, timeoutMs }) {
+  return withAccountGate(proxyAccountKey(token), () => postProto(
+    '/api/user/proxyBetBonus',
+    protoType('TCmd_ProxySubBetBonusReq'),
+    betBonusQuery(body),
+    protoType('TCmd_ProxySubBetBonusItemList'),
+    { cfg, token, timeoutMs }
+  ));
+}
+
+async function httpProxyReceivePaymentList({ token, body, cfg, timeoutMs }) {
+  return withAccountGate(proxyAccountKey(token), () => postProto(
+    '/api/user/proxyReceivePaymentList',
+    protoType('TCmd_ProxySubUserReceivePaymentReq'),
+    lobbyTimeToBetQuery(body),
+    protoType('TCmd_ProxySubUserReceivePaymentList'),
+    { cfg, token, timeoutMs }
+  ));
+}
+
+async function httpProxyChargeRunningList({ token, body, cfg, timeoutMs }) {
+  return withAccountGate(proxyAccountKey(token), () => postProto(
+    '/api/user/proxyChargeRunningList',
+    protoType('TCmd_ProxyChargeRunningReq'),
+    chargeRunningQuery(body),
+    protoType('TCmd_ProxyChargeRunningItemList'),
+    { cfg, token, timeoutMs }
+  ));
+}
+
+async function httpProxyUserDetail({ token, roleId, cfg, timeoutMs }) {
+  return withAccountGate(proxyAccountKey(token), () => postProto(
+    '/api/user/proxyUserDetail',
+    protoType('TCmd_ProxySubUserDetailItemReq'),
+    { roleId: Number(roleId) || 0 },
+    protoType('TCmd_ProxySubUserDetailItemList'),
+    { cfg, token, timeoutMs }
+  ));
+}
+
+async function httpProxyUserList({ token, cfg, timeoutMs }) {
+  return withAccountGate(proxyAccountKey(token), () => postProtoEmpty(
+    '/api/user/proxyUserList',
+    protoType('TCmd_ProxySubUserItemList'),
+    { cfg, token, timeoutMs }
+  ));
+}
+
+async function httpProxySubBetConfig({ token, cfg, timeoutMs }) {
+  return withAccountGate(proxyAccountKey(token), () => postProtoEmpty(
+    userOrGuestPath(token, 'proxySubBetConfig'),
+    protoType('TCmd_ProxySubBetConfig'),
+    { cfg, token, timeoutMs }
+  ));
+}
+
+async function httpCustomService({ token, packageId, cfg, timeoutMs }) {
   return postProto(
-    '/api/user/proxyStatistics',
-    protoType('TCmd_ProxyStatisticsReq'),
-    {
-      queryType: Number(b.queryType != null ? b.queryType : b.query_type) || 0,
-      beginTime: Number(b.beginTime || b.begin_time) || 0,
-      endTime: Number(b.endTime || b.end_time) || 0,
-      showThree: Number(b.showThree != null ? b.showThree : 1) || 0
-    },
-    protoType('TCmd_ProxyStatisticsRes'),
+    userOrGuestPath(token, 'customService'),
+    protoType('TCmd_CustomServiceReq'),
+    { packageId: Number(packageId) || 0 },
+    protoType('TCmd_CustomServiceList'),
     { cfg, token, timeoutMs }
   );
 }
 
-async function httpProxyUserList({ token, cfg, timeoutMs }) {
-  return postProtoEmpty('/api/user/proxyUserList', protoType('TCmd_ProxySubUserItemList'), {
-    cfg, token, timeoutMs
-  });
-}
-
-async function httpProxySubBetConfig({ token, cfg, timeoutMs }) {
+async function httpNotice({ token, cfg, timeoutMs }) {
   return postProtoEmpty(
-    userOrGuestPath(token, 'proxySubBetConfig'),
-    protoType('TCmd_ProxySubBetConfig'),
+    '/api/user/notice',
+    protoType('TCmd_NoticeInfo'),
     { cfg, token, timeoutMs }
   );
 }
@@ -628,7 +926,14 @@ module.exports = {
   httpShopItemList,
   httpGuestShopItemList,
   httpMoney,
+  httpBalanceInterestConfig,
+  httpBalanceInterestList,
+  httpSetBalanceInterest,
+  httpGetBalanceInterest,
+  httpBalanceInterestHistory,
   httpVipList,
+  httpValidAwardInfo,
+  httpGetDaySignAward,
   httpPaywayList,
   httpEnableWithdraw,
   httpDrawChannelCode,
@@ -641,9 +946,22 @@ module.exports = {
   httpWithdrawRecord,
   httpChargeWithdrawList,
   httpProxyStatistics,
+  normalizeProxyStatisticsQuery,
+  proxyStatBodyFromLobby,
+  withAccountGate,
+  proxyAccountKey,
+  httpProxyBetList,
+  httpProxyWinList,
+  httpProxyUserDetail,
+  httpProxyChargeRunningList,
+  httpProxyReceivePaymentList,
+  httpProxyBetBonus,
+  lobbyTimeToBetQuery,
   httpProxyUserList,
   httpProxySubBetConfig,
   httpProxyAchieveConfig,
+  httpCustomService,
+  httpNotice,
   toLongNumber,
   protoList
 };

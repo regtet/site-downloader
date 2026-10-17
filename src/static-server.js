@@ -230,6 +230,18 @@ function createStaticServer(siteDir, options = {}) {
     if (ossOrigin) bootCfg.ossHosts.push(new URL(ossOrigin).hostname);
   } catch (_) { /* ignore */ }
 
+  function prepareHtml(html) {
+    let out = String(html || '');
+    if (headerProxy) out = injectBootIntoHtml(out, sourceOrigin, bootCfg);
+    if (adapterEnabled) {
+      try {
+        const { rewriteHtmlShell } = require('./adapter/providers/wgame/public-brand');
+        out = rewriteHtmlShell(out);
+      } catch (_) { /* 站名替换失败时仍返回原页面 */ }
+    }
+    return out;
+  }
+
   return http.createServer((req, res) => {
     req.__sdSourceOrigin = sourceOrigin;
     const handle = async () => {
@@ -244,6 +256,15 @@ function createStaticServer(siteDir, options = {}) {
           return;
         }
       } catch (_) { /* ignore */ }
+
+      if (adapterEnabled) {
+        try {
+          const payUrl = new URL(req.url || '/', `http://${host}`);
+          if (payUrl.pathname.indexOf('/pay/paysubmit') === 0 || payUrl.pathname.indexOf('/dragon/phoenix') === 0) {
+            req.url = '/api/finance/pay/paysubmit' + payUrl.search;
+          }
+        } catch (_) { /* 保持原路径 */ }
+      }
 
       if (adapterEnabled && await tryHandleAdapter(req, res, {
         adapterHosts: bootCfg,
@@ -300,6 +321,23 @@ function createStaticServer(siteDir, options = {}) {
           });
           res.end(probeBody);
           return;
+        }
+        const { findLocalPublicBody, shouldServeFrozen } = require('./adapter/providers/wgame/local-public-api');
+        if (shouldServeFrozen(reqUrl.pathname)) {
+          const frozen = findLocalPublicBody(root, reqUrl.pathname);
+          if (frozen && frozen.body) {
+            const { rewritePublicPayload } = require('./adapter/providers/wgame/public-brand');
+            const payload = Buffer.from(rewritePublicPayload(reqUrl.pathname, frozen.body));
+            res.writeHead(200, {
+              'Content-Type': frozen.contentType || 'application/json; charset=utf-8',
+              'Content-Length': String(payload.length),
+              'Cache-Control': 'no-store',
+              'Access-Control-Allow-Origin': '*',
+              'X-SD-Adapter': 'local-public-api'
+            });
+            res.end(payload);
+            return;
+          }
         }
         // 非 aniw 系列：由系列规则决定 API 上游与 path
         if (typeof previewRules.resolveApiUpstream === 'function') {
@@ -491,7 +529,7 @@ function createStaticServer(siteDir, options = {}) {
           const indexPath = path.join(root, 'index.html');
           if (fs.existsSync(indexPath)) {
             let html = fs.readFileSync(indexPath, 'utf8');
-            if (headerProxy) html = injectBootIntoHtml(html, sourceOrigin, bootCfg);
+            html = prepareHtml(html);
             res.writeHead(200, {
               'Content-Type': 'text/html; charset=utf-8',
               'Cache-Control': 'no-store, no-cache, must-revalidate',
@@ -520,7 +558,7 @@ function createStaticServer(siteDir, options = {}) {
             return;
           }
           if (headerProxy && (ext === '.html' || ext === '.htm')) {
-            const html = injectBootIntoHtml(data.toString('utf8'), sourceOrigin, bootCfg);
+            const html = prepareHtml(data.toString('utf8'));
             res.writeHead(200, {
               'Content-Type': 'text/html; charset=utf-8',
               'Cache-Control': 'no-store, no-cache, must-revalidate',

@@ -31,8 +31,8 @@ function defaultAppDownloadPayload() {
     androidBackupLink: '',
     androidList: [],
     appIcon: '',
-    appNameLanguage: '',
-    installTutorial: '',
+    appNameLanguage: [],
+    installTutorial: [],
     iosBackupLink: '',
     onlineService: '',
     pwaPromoImage: '',
@@ -47,6 +47,29 @@ function defaultAppDownloadPayload() {
     tutorialTfUrl: '',
     tutorialUrl: ''
   };
+}
+
+/** 下载按钮只指向 wgame_web 配置里的安装包，不带官方站名和客服。 */
+function appDownloadPayload() {
+  const base = defaultAppDownloadPayload();
+  let apk = '';
+  let label = '';
+  try {
+    const { loadWgameWebConfig } = require('./wgame-web-config');
+    const { ownSiteLabel } = require('./public-brand');
+    const live = loadWgameWebConfig();
+    apk = String(live && live.appDownPath || '').trim();
+    label = ownSiteLabel();
+  } catch (_) { /* 没有实时配置就保持空下载 */ }
+  if (!/^https?:\/\//i.test(apk)) return base;
+  return Object.assign(base, {
+    appNameLanguage: label ? [{ key: 'pt', value: label }] : [],
+    androidList: [{ downloadPath: apk, size: 0, type: 1, version: '' }],
+    downloadList: [
+      { language: 'pt', name: '', signType: 1, type: 1, value: apk },
+      { language: 'pt', name: '', signType: 1, type: 2, value: apk }
+    ]
+  });
 }
 
 /**
@@ -157,5 +180,6 @@ module.exports = {
   snapshotCandidates,
   defaultRegisterPopupPayload,
   defaultAppDownloadPayload,
+  appDownloadPayload,
   defaultTaskPayload
 };

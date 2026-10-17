@@ -139,6 +139,19 @@ function shouldPassthroughAuth(cfg, matched) {
   }
 }
 
+/** 中奖轮播没有我们的玩家记录。清掉官方快照里的账号，保留门槛字段。 */
+function emptyWinnerCarousel(raw) {
+  try {
+    const json = JSON.parse(String(raw || ''));
+    if (json && json.data && typeof json.data === 'object' && !Array.isArray(json.data)) {
+      json.data.hallRecords = [];
+    }
+    return JSON.stringify(json);
+  } catch (_) {
+    return String(raw || '');
+  }
+}
+
 /**
  * @returns {Promise<boolean>} true if handled
  */
@@ -185,6 +198,15 @@ async function tryHandleAdapter(req, res, options = {}) {
       if (out.indexOf('{$WG_BUCKET_SITE$}') !== -1) {
         out = out.replace(/\{\$WG_BUCKET_SITE\$\}/g, `http://${host}`);
       }
+      if (/\/api\/game\/hall\/(?:hotListV2|listPlatformGameV2|listSpecialGameV2|listSearchGameV2|listTryGameV2)$/i.test(resolved.pathname)) {
+        const { filterLaunchableOssCatalog } = require('./providers/wgame/game-catalog');
+        out = filterLaunchableOssCatalog(out);
+      }
+      if (/\/api\/lobby\/winnerCarousel\/result$/i.test(resolved.pathname)) {
+        out = emptyWinnerCarousel(out);
+      }
+      const { rewritePublicPayload } = require('./providers/wgame/public-brand');
+      out = rewritePublicPayload(resolved.pathname, out);
       res.writeHead(200, {
         'Content-Type': contentType || 'application/json; charset=utf-8',
         'Cache-Control': 'no-store',
@@ -198,6 +220,18 @@ async function tryHandleAdapter(req, res, options = {}) {
     const snap = getOssSnapshotBody(siteDir, resolved.pathname, req.method);
     if (snap && snap.body) {
       return sendRawBody(snap.contentType, snap.body, 'oss-har');
+    }
+
+    const { findLocalPublicBody } = require('./providers/wgame/local-public-api');
+    const apiPath = resolved.pathname;
+    let posted = null;
+    if (/\/api\/active\/(?:get|cutADeal\/list|turntable\/luckyIntegralList)$/i.test(apiPath) && req.method === 'POST') {
+      posted = await readRawBody(req);
+      req.__sdBufferedBody = posted;
+    }
+    const localPublic = findLocalPublicBody(siteDir, apiPath, posted);
+    if (localPublic && localPublic.body) {
+      return sendRawBody(localPublic.contentType, localPublic.body, 'local-public-api');
     }
 
     if (matched.adapter === 'emptyList') {
@@ -261,6 +295,7 @@ async function tryHandleAdapter(req, res, options = {}) {
       siteDir: options.siteDir || '',
       providerOptions: cfg.providerOptions,
       routePath: matched.path,
+      requestPath: matched.requestPath || matched.path,
       adapter: matched.adapter
     });
 

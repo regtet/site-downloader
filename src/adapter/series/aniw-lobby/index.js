@@ -20,10 +20,23 @@ const CREDIT_AGENT_ALIAS = {
   '/api/agent/credit/agentCenter/agentPromotion': '/api/agent/promote/report/agentPromotion'
 };
 
+function stripOssSuffix(pathname) {
+  const cut = String(pathname || '').search(/\/(currency|language|osType|platformType|siteCode|agentId|page|type|xdevice|queryRateType)\//);
+  return cut > 0 ? pathname.slice(0, cut) : pathname;
+}
+
+const OSS_OWN_ROUTES = {
+  '/api/gohal/staffAllV3': true,
+  '/api/message/list/all': true,
+  '/api/lobby/config/getAppDownloadInfo': true,
+  '/api/agent/promote/config/share': true
+};
+
 function matchRoute(pathname) {
-  const p = normalizeApiPath(pathname);
+  const p = normalizeApiPath(pathname).replace(/\.json$/i, '');
   let row = MIGRATION_MAP[p];
   let path = p;
+  let requestPath = p;
   // 教程地址带 /agentId/数字，和列表地址共用同一条官方回源
   if (!row && /\/api\/agent\/promote\/config\/tutorial(\/|$)/.test(p)) {
     row = MIGRATION_MAP['/api/agent/promote/config/tutorial'];
@@ -33,8 +46,24 @@ function matchRoute(pathname) {
     path = CREDIT_AGENT_ALIAS[p];
     row = MIGRATION_MAP[path];
   }
+  if (!row) {
+    const base = stripOssSuffix(p);
+    if (base !== p && OSS_OWN_ROUTES[base]) {
+      row = MIGRATION_MAP[base];
+      path = base;
+      requestPath = p;
+    }
+  }
+  if (!row && /\/default$/i.test(p)) {
+    const base = p.replace(/\/default$/i, '');
+    if (MIGRATION_MAP[base]) {
+      row = MIGRATION_MAP[base];
+      path = base;
+      requestPath = p;
+    }
+  }
   if (!row) return null;
-  return { op: row.op, adapter: row.adapter, path, note: row.note || '' };
+  return { op: row.op, adapter: row.adapter, path, requestPath, note: row.note || '' };
 }
 
 function mapResponse(op, providerResult, meta) {
